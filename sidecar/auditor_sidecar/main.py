@@ -27,14 +27,54 @@ import uvicorn
 from . import __version__
 from .pala_seam import verifier_identity
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-#: Not 8765. A fixed, distinctive port avoids colliding with another local
+#: Not 8765. A fixed, distinctive default avoids colliding with another local
 #: service on a developer machine, which would otherwise present as the shell
-#: talking to something that is not this sidecar.
-PORT = 8771
+#: talking to something that is not this sidecar. The shell overrides it when
+#: the port is taken.
+DEFAULT_PORT = 8771
 
+PORT_ENV = "AUDITOR_SIDECAR_PORT"
 TOKEN_ENV = "AUDITOR_SIDECAR_TOKEN"
+
+#: Origins the webview can legitimately present.
+#:
+#: CORS is NOT the security boundary here and must never be mistaken for one:
+#: it is enforced by browsers, and any local process with curl ignores it
+#: entirely. The boundary is the bearer token. What this list does is narrower
+#: and still worth having — it stops an ordinary web page open in the user's
+#: browser from probing the unauthenticated /health endpoint and learning that
+#: this application is installed and which verifier it links against.
+#:
+#: Hence exact origins, no wildcard, and no credentials: the token travels in
+#: an Authorization header, never in a cookie, so allow_credentials stays off.
+#: See docs/adr/0002-the-bearer-token-is-the-boundary.md.
+ALLOWED_ORIGINS = (
+    "tauri://localhost",       # macOS and Linux webview
+    "http://tauri.localhost",  # Windows webview
+    "http://localhost:1420",   # vite dev server
+    "http://127.0.0.1:1420",
+)
+
+
+def resolve_port() -> int:
+    """The port to serve on, from the environment or the default."""
+    # Stripped before the emptiness check, so an env var set to whitespace
+    # behaves the same as one set to "" and the same as one never set. Three
+    # spellings of "unset" that behave differently is a bug waiting for a
+    # launcher script with a stray space in it.
+    raw = os.environ.get(PORT_ENV, "").strip()
+    if not raw:
+        return DEFAULT_PORT
+    try:
+        port = int(raw)
+    except ValueError:
+        raise SystemExit(f"{PORT_ENV} is not a number: {raw!r}") from None
+    if not 1 <= port <= 65535:
+        raise SystemExit(f"{PORT_ENV} out of range: {port}")
+    return port
 
 #: Routes reachable without a token. Keep this list at exactly one entry
 #: unless there is a reason of the same weight as the liveness argument above.
@@ -80,6 +120,20 @@ def build_app(token: str | None = None) -> FastAPI:
                 )
         return await call_next(request)
 
+    # Added AFTER the token middleware, and therefore running OUTSIDE it:
+    # Starlette builds the stack in reverse order of registration. A CORS
+    # preflight carries no Authorization header, so if the token check ran
+    # first every preflight would be refused and every real request would
+    # fail for a reason the browser reports as a CORS error rather than a
+    # 401 — an hour of debugging the wrong layer.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(ALLOWED_ORIGINS),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
     @app.get("/health")
     def health() -> dict[str, object]:
         """Liveness probe, and the identity triple the UI displays.
@@ -113,7 +167,7 @@ def run() -> None:
             "This is a development affordance, not a supported configuration: "
             "any local process can ask this service to read any file you can read."
         )
-    uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=resolve_port(), log_level="info")
 
 
 if __name__ == "__main__":
