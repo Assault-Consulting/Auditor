@@ -38,22 +38,39 @@ final decision.
 | [@andreysparish](https://github.com/andreysparish) | Lead maintainer | Repository admin; release authority |
 | [@olksandrvertel-arch](https://github.com/olksandrvertel-arch) | Co-maintainer | Repository admin; review |
 
-`main` is protected: direct pushes are blocked, and every change —
-**including documentation** — requires a pull request with at least one
-approval from someone other than the author, plus a passing status check,
-before merge.
+## Review and merge — current state
 
-The bootstrap commits that created this repository skeleton predate that
-protection and are the only changes in this history without non-author
-review. The date protection is enabled is the measurement anchor for any
-review-coverage figure this project reports; this section is updated with
-that date when it is set, and the figure is never stated ahead of it.
+This section describes what is **actually** in force today, not the target.
+A project whose deliverable is a verifiable record does not get to describe
+its own controls aspirationally.
 
-The canonical required status context is the single fan-in check
-**`ci-complete`**, which aggregates lint, the test matrix, the coverage
-gate, the no-parsing check, report determinism and the golden-vector
-agreement. Protection points at that one stable context rather than at
-individual job names, which can be renamed or — in a matrix — multiply.
+**In force now (bootstrap period):**
+
+- All changes land via a pull request from here on. The repository
+  skeleton was pushed directly to `main`; those commits are visible in the
+  history and are not being rewritten to hide that.
+- Pull requests are authored **and merged by the lead maintainer**, without a
+  second approver. There is no non-author review yet.
+- `main` is **not** protected. Nothing mechanically prevents a direct push.
+- CI runs on every push and pull request, and is currently red by design:
+  the workflow references scaffold that has not landed yet.
+
+**The standing requirement, not yet in force:**
+
+- One approval from someone other than the author on every change,
+  documentation included.
+- Branch protection on `main` blocking direct pushes and requiring the single
+  fan-in status context **`ci-complete`** — which aggregates lint, the test
+  matrix, the coverage gate, the no-parsing check, report determinism and the
+  golden-vector agreement. Protection will point at that one stable context
+  rather than at individual job names, which can be renamed or — in a matrix —
+  multiply.
+
+**The transition.** This section records the date protection is enabled and
+non-author review begins. Until that date is written here, **no
+review-coverage figure is reported for this repository**, and none should be
+inferred: the period before it is outside any measurable window, however
+carefully each change was made.
 
 ## Becoming a maintainer
 
@@ -71,10 +88,12 @@ maintainers are invited by existing maintainers.
   settled and are not re-litigated per PR: **the shell never parses wire
   bytes**; **the application is read-only with respect to every audited
   container**; **the product attests to a check and certifies nothing**.
-- **Code review.** All changes land via PR against protected `main`; see
-  [`docs/REVIEW.md`](docs/REVIEW.md) for what a reviewer checks. As a
-  small team, a change may be authored and reviewed within a narrow group
-  — a structural limit acknowledged openly, not misrepresented.
+- **Code review.** All changes land via PR; see
+  [`docs/REVIEW.md`](docs/REVIEW.md) for what a reviewer checks, and
+  *Review and merge — current state* above for what is enforced today. As a
+  small team, a change may be authored and reviewed within a narrow group —
+  or, during the bootstrap period, by one person — a structural limit
+  acknowledged openly, not misrepresented.
 
 ## Decisions that need special care
 

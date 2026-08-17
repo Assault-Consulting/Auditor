@@ -39,12 +39,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `REUSE.toml`, declaring the tree Apache-2.0 with a recorded CC0-1.0
   exception for the report and bundle schemas that land in D-01 and E-01.
 
+### Fixed
+
+- `GOVERNANCE.md`, `CONTRIBUTING.md` and `docs/REVIEW.md` each stated that
+  `main` is protected and that every change requires an approval from
+  someone other than the author. None of that was in force: protection is
+  off, there is no second reviewer, and the skeleton was pushed directly to
+  `main`. All three now describe the actual posture and mark the
+  requirement as standing-but-not-yet-enforced.
+
 ### Notes
 
 - Nothing is implemented yet. This entry covers the design contract and
   the project's controls, not behaviour.
 - CI is red until A-03 and A-04 land the scaffold its jobs reference. The
   workflow states the target and the scaffold grows into it.
-- The bootstrap commits that created this repository predate branch
-  protection and are the only changes in the history without non-author
-  review; see `GOVERNANCE.md`.
+- Branch protection is not yet enabled and there is no second reviewer;
+  pull requests are authored and merged by the lead maintainer alone. The
+  governance documents describe that state rather than the target, and
+  `GOVERNANCE.md` will record the date it changes. No review-coverage figure
+  is reported for this period.

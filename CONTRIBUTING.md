@@ -36,9 +36,14 @@ Early-stage, contributions welcome. Short on purpose.
 ## Workflow
 
 - **All changes land via a non-draft pull request — never a direct push to
-  `main`.** Branch protection enforces this: direct pushes are blocked,
-  and a PR needs at least one **non-author approval** plus a green
-  `ci-complete` check before merge. Documentation is no exception.
+  `main`.** Documentation is no exception.
+- **During the bootstrap period, pull requests are authored and merged by the
+  lead maintainer without a second approver, and `main` is not yet
+  protected.** Non-author review plus a green `ci-complete` is the standing
+  requirement and is what this repository will enforce; it is not enforced
+  today, and `GOVERNANCE.md` records the date that changes. Stating this
+  plainly costs a paragraph; claiming a control the repository does not have
+  costs the credibility of every other claim in it.
 - Branch from `main`, open a PR, link an issue where one exists.
 - CI must be green on all three platforms (macOS/Linux/Windows). Windows
   path separators and absolute-path behaviour differ from POSIX — do not
