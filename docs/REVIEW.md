@@ -5,11 +5,17 @@ SPDX-License-Identifier: Apache-2.0
 
 # Code review standards
 
-Every change — code **and** documentation — lands through a pull request
-that a **non-author** approves before merge. `main` is protected: a green
-`ci-complete` plus one non-author approval are enforced, not requested.
-This document states what "acceptable" means, so the bar is explicit
-rather than folkloric.
+Every change — code **and** documentation — lands through a pull request.
+This document states what "acceptable" means, so the bar is explicit rather
+than folkloric.
+
+> **Bootstrap period.** Non-author approval and a green `ci-complete` are the
+> standing requirement, and neither is enforced yet: `main` is unprotected and
+> the lead maintainer currently authors and merges pull requests alone. See
+> *Review and merge — current state* in [GOVERNANCE.md](../GOVERNANCE.md). The
+> checklist below is what the author applies to their own change in the
+> meantime — self-review catches less than review, and catches more than
+> nothing.
 
 See also [CONTRIBUTING.md](../CONTRIBUTING.md) and
 [GOVERNANCE.md](../GOVERNANCE.md).
