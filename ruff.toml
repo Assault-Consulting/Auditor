@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Assault Consulting
+# SPDX-License-Identifier: Apache-2.0
+#
+# One lint configuration for the whole repository — the sidecar package and
+# the scripts CI runs. Two configurations would mean a file's lint rules
+# depend on which directory it sits in, and the scripts are exactly the files
+# most likely to be edited in a hurry.
+#
+# The version is pinned exactly in sidecar/pyproject.toml [dev] and in CI.
+# A lower bound is not enough: lint behaviour changes between patch releases,
+# and a local/CI disagreement on lint is an afternoon.
+
+line-length = 100
+target-version = "py311"
+
+[lint]
+# E/F pycodestyle+pyflakes, I isort, B bugbear, UP pyupgrade.
+select = ["E", "F", "I", "B", "UP"]
+
+[lint.isort]
+# Merge third-party, first-party and relative imports into one
+# alphabetically-sorted block after __future__ and stdlib.
+#
+# This makes import order INDEPENDENT of whether ruff classifies
+# auditor_sidecar as first-party (plain checkout, src heuristic) or
+# third-party (editable install). That classification differs between a
+# developer machine and a CI runner, and upstream traced a CI-only I001
+# failure — green locally, red in CI, every test job passing — to exactly
+# this. With no-sections the grouping is deterministic in both.
+no-sections = true
+
+[lint.per-file-ignores]
+# Test modules assert on their own fixtures and import them by name; the
+# unused-import and shadowing complaints there are noise, not signal.
+"sidecar/tests/*" = ["B018"]
