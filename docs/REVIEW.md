@@ -5,20 +5,15 @@ SPDX-License-Identifier: Apache-2.0
 
 # Code review standards
 
-Every change — code **and** documentation — lands through a pull request.
+Every change — code **and** documentation — lands through a pull request that
+someone other than its author approves, against a protected `main`. One
+approval and a green `ci-complete` are enforced by a repository ruleset, not
+requested; see *Review and merge* in [GOVERNANCE.md](../GOVERNANCE.md).
+
 This document states what "acceptable" means, so the bar is explicit rather
 than folkloric.
 
-> **Bootstrap period.** Non-author approval and a green `ci-complete` are the
-> standing requirement, and neither is enforced yet: `main` is unprotected and
-> the lead maintainer currently authors and merges pull requests alone. See
-> *Review and merge — current state* in [GOVERNANCE.md](../GOVERNANCE.md). The
-> checklist below is what the author applies to their own change in the
-> meantime — self-review catches less than review, and catches more than
-> nothing.
-
-See also [CONTRIBUTING.md](../CONTRIBUTING.md) and
-[GOVERNANCE.md](../GOVERNANCE.md).
+See also [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## What a reviewer checks
 
@@ -63,9 +58,10 @@ why it does not apply.
   change a badge, a report pass/fail line, or an exit code.
 
 - **Security-sensitive paths get extra scrutiny.** Changes touching
-  `pala_seam.py`, the token gate, either air-gap layer, anchor sources,
-  or file handling are reviewed against [SECURITY.md](../SECURITY.md).
-  "Looks fine" is not a review of these paths.
+  `pala_seam.py`, the session token, the origin allowlist, either air-gap
+  layer, anchor sources, or file handling are reviewed against
+  [SECURITY.md](../SECURITY.md) and the relevant ADR. "Looks fine" is not a
+  review of these paths.
 
 - **Public surface is deliberate.** Sidecar API changes are intentional
   and regenerate the typed client; report and bundle schema changes are
