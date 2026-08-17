@@ -13,7 +13,7 @@ from __future__ import annotations
 import importlib.metadata as md
 import pytest
 from auditor_sidecar import __version__
-from auditor_sidecar.main import PUBLIC_PATHS, build_app, new_token
+from auditor_sidecar.main import DEFAULT_PORT, PUBLIC_PATHS, build_app, new_token
 from auditor_sidecar.pala_seam import package_version, verifier_identity, wire_format_version
 from fastapi.testclient import TestClient
 
@@ -163,7 +163,7 @@ def test_run_binds_loopback_only(monkeypatch, capsys) -> None:
     m.run()
 
     assert captured["host"] == "127.0.0.1"
-    assert captured["port"] == m.PORT
+    assert captured["port"] == DEFAULT_PORT
     # Ungated start must say so out loud: a disabled gate that starts quietly
     # is how a development affordance becomes the production posture.
     assert "gate is DISABLED" in capsys.readouterr().out
