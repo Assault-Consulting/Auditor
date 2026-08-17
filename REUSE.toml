@@ -1,0 +1,33 @@
+# REUSE configuration — https://reuse.software (REUSE.toml, spec 3.3)
+#
+# Declares copyright and licensing for every file in the repository in one
+# place, so `reuse lint` passes without a per-file SPDX header in each
+# source file. This is the machine-readable, tool-verifiable statement that
+# every file has an explicit, known license.
+#
+# The license text lives at LICENSES/Apache-2.0.txt (the location REUSE
+# expects). The root LICENSE file is the conventional, human-facing copy of
+# the same text.
+
+version = 1
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Assault Consulting"
+SPDX-License-Identifier = "Apache-2.0"
+
+# The report and evidence-bundle schemas are public-domain by deliberate
+# exception, for the same reason the PALA-1 specification is: a third party
+# must be able to write an independent verifier for a report or a bundle
+# without taking on this project's license terms. An artifact that can only
+# be re-checked under our license is not independently re-checkable.
+#
+# The globs below match nothing yet — the schemas land with D-01 (report)
+# and E-01 (bundle). The block is here first so the exception is a decision
+# on record rather than something remembered later.
+[[annotations]]
+path = ["schemas/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "Assault Consulting"
+SPDX-License-Identifier = "CC0-1.0"
