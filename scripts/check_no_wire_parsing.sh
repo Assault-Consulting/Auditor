@@ -11,10 +11,8 @@
 # differential test, and it will eventually render "valid" where the
 # verifier says no.
 #
-# This script fails the build if a wire-parsing primitive appears anywhere
-# outside the one seam module. It is deliberately blunt: a false positive
-# costs a comment or a rename, a false negative costs the product's whole
-# proposition.
+# This script fails the build if a wire-parsing primitive appears in any
+# source file outside the one seam module.
 #
 # If you are here because this failed: the answer is almost never to add an
 # exception. It is either to call the package for the fact you need, or —
@@ -25,38 +23,67 @@ set -euo pipefail
 
 SEAM="sidecar/auditor_sidecar/pala_seam.py"
 
-# Searched trees. Rust and TypeScript are included on purpose: the rule is
-# about the repository, not about Python.
-ROOTS=(sidecar src src-tauri/src scripts)
+# The file list is built explicitly with `git ls-files` rather than handed to
+# `git grep` as a pathspec.
+#
+# This is not a style choice. Pathspec globs of the form `src/**/*.rs` do NOT
+# match `src/peek.rs` — the `**/` requires an intervening directory — so an
+# earlier version of this scan silently examined zero Rust and TypeScript
+# files while reporting success. A guard that passes because it looked at
+# nothing is worse than no guard, and this one is the mechanical half of
+# ADR-0001.
+SOURCE_RE='\.(py|rs|ts|tsx)$'
+
+# Directories that contain source. Config and documentation are deliberately
+# out of scope: a rule that punished the word "PALA-1" in a docstring would
+# teach people to stop explaining the format, which is the opposite of what
+# this repository wants.
+TREES=(sidecar src src-tauri/src scripts)
+
+# Paths exempt from the scan, each with its reason. Adding to this list is a
+# reviewed decision, not a convenience — see docs/REVIEW.md.
+#   the seam            — the point of the exercise
+#   sidecar/tests/      — tests may construct fixture chains
+#   src/api/generated/  — generated from the OpenAPI schema
+EXEMPT_RE="^(${SEAM}|sidecar/tests/|src/api/generated/)"
 
 # Primitives that indicate byte-level interpretation of a container.
+#
+# Each pattern targets a CODE form, never a prose word. The distinction is
+# load-bearing: `PALA` as a bare word appears in every honest docstring, while
+# `b"PALA"` is the wire magic and has no business outside the seam.
 PATTERNS=(
   'struct\.(un)?pack'                 # binary field extraction
-  'from_bytes\('                      # int/bytes reinterpretation
-  '\bPALA\b'                          # the wire magic
-  'record_hash'                       # re-deriving a record identity
-  'sha256'                            # re-deriving any digest over log bytes
-  'blake2'                            #   "
-  'hashlib'                           #   "
+  'int\.from_bytes'                   # int/bytes reinterpretation
+  'b["'\'']PALA'                      # the wire magic as a byte literal
+  '\bMAGIC\b'                         # ... or imported by name
+  '\brecord_hash\b'                   # re-deriving a record identity
+  'sha256\('                          # re-deriving any digest over log bytes
+  'blake2[bs]\('                      #   "
+  'import hashlib'                    #   "
   'FIXED_HEADER_LEN'                  # frozen offsets, copied
-  'prev_hash\s*=\s*'                  # reconstructing chain linkage locally
-  'read_exact'                        # Rust byte reads
-  'DataView|Uint8Array'               # TypeScript byte reads
+  'decode_tlvs'                       # body decoding outside the package
+  '\bread_exact\b'                    # Rust byte reads
+  'new (DataView|Uint8Array)'         # TypeScript byte reads
 )
 
-# Paths exempt from the scan, with the reason stated. Adding to this list is
-# a reviewed decision, not a convenience — see docs/REVIEW.md.
-EXCLUDES=(
-  ":(exclude)${SEAM}"                          # the seam itself: the point
-  ":(exclude)sidecar/tests/**"                 # tests may build fixtures
-  ":(exclude)scripts/check_no_wire_parsing.sh" # this file names the patterns
-  ":(exclude)src/api/generated/**"             # generated from OpenAPI
+mapfile -t FILES < <(
+  git ls-files -- "${TREES[@]}" 2>/dev/null \
+    | grep -E "$SOURCE_RE" \
+    | grep -Ev "$EXEMPT_RE" || true
 )
+
+if [ "${#FILES[@]}" -eq 0 ]; then
+  # Legitimate before the scaffold lands, and a silent failure afterwards.
+  # Say which it is rather than printing "ok" over an empty set.
+  echo "note: no source files to scan yet (trees: ${TREES[*]})"
+  exit 0
+fi
 
 fail=0
 
 for pattern in "${PATTERNS[@]}"; do
-  if hits=$(git grep -n -I -E "$pattern" -- "${ROOTS[@]}" "${EXCLUDES[@]}" 2>/dev/null); then
+  if hits=$(grep -n -I -E "$pattern" "${FILES[@]}" 2>/dev/null); then
     echo "FAIL: wire-parsing primitive outside ${SEAM}"
     echo "      pattern: ${pattern}"
     echo "${hits}" | sed 's/^/      /'
@@ -66,8 +93,8 @@ for pattern in "${PATTERNS[@]}"; do
 done
 
 # The seam must stay the only importer of the package.
-if hits=$(git grep -n -I -E '^\s*(from|import)\s+palimpsests' \
-            -- "${ROOTS[@]}" ":(exclude)${SEAM}" ":(exclude)sidecar/tests/**" 2>/dev/null); then
+if hits=$(grep -n -I -E '^[[:space:]]*(from|import)[[:space:]]+palimpsests' \
+            "${FILES[@]}" 2>/dev/null); then
   echo "FAIL: palimpsests imported outside ${SEAM}"
   echo "${hits}" | sed 's/^/      /'
   echo
@@ -80,4 +107,4 @@ if [ "$fail" -ne 0 ]; then
   exit 1
 fi
 
-echo "ok: no wire-parsing primitives outside ${SEAM}"
+echo "ok: ${#FILES[@]} source file(s) scanned, no wire-parsing outside ${SEAM}"

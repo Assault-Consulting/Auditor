@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Assault Consulting
+# SPDX-License-Identifier: Apache-2.0
+
+"""Shared test fixtures.
+
+Every piece of process-global state gets a reset fixture, and the resets are
+autouse so a test that never asks for them still starts clean. The failure
+this prevents is the one that is hardest to diagnose: a test that passes alone
+and fails in a suite, or passes in the suite and fails alone.
+
+The environment variable holding the session token is cleared for every test.
+A developer running the suite with a real token exported would otherwise see
+different behaviour from CI, and the difference would be invisible.
+"""
+
+from __future__ import annotations
+
+import pytest
+from auditor_sidecar.main import TOKEN_ENV, build_app, new_token
+from fastapi.testclient import TestClient
+
+TEST_TOKEN = "test-token-not-a-secret"
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_token(monkeypatch):
+    """Keep every test off whatever token the developer's shell has exported."""
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+
+
+@pytest.fixture
+def open_client() -> TestClient:
+    """A sidecar with the token gate disabled — the development posture."""
+    return TestClient(build_app(token=None))
+
+
+@pytest.fixture
+def gated_client() -> TestClient:
+    """A sidecar with the token gate enforced — the production posture."""
+    return TestClient(build_app(token=TEST_TOKEN))
+
+
+@pytest.fixture
+def auth() -> dict[str, str]:
+    """The header a correctly-configured caller sends."""
+    return {"Authorization": f"Bearer {TEST_TOKEN}"}
+
+
+@pytest.fixture
+def fresh_token() -> str:
+    return new_token()
