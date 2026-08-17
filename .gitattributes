@@ -1,0 +1,30 @@
+# Normalise line endings in the repository to LF.
+#
+# This is not cosmetic. The Windows CI leg checks out the same tree, and
+# tests that compare bytes — report determinism, fixture regeneration —
+# must not see CRLF on one platform and LF on another. A byte comparison
+# that fails only on Windows costs an afternoon to diagnose.
+* text=auto eol=lf
+
+# Shell scripts must keep LF even on a Windows checkout, or they will not
+# execute on the runner.
+*.sh text eol=lf
+
+# Windows-only files that genuinely need CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary — never normalise, never diff as text.
+*.png binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.pala binary
+
+# Lockfiles are generated: keep them out of diffs and reviews by default.
+pnpm-lock.yaml linguist-generated=true -diff
+src-tauri/Cargo.lock linguist-generated=true -diff
+
+# The generated sidecar client is not hand-edited; mark it so reviews
+# focus on the schema change that produced it.
+src/api/generated/** linguist-generated=true -diff
