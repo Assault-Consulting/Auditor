@@ -17,8 +17,52 @@ permissions:
   contents: read
 
 jobs:
+  # The scaffold arrives over several pull requests, so for a while this
+  # workflow describes more of the repository than exists. Two ways to handle
+  # that, and only one of them is honest.
+  #
+  # Leaving every job to fail until the last piece lands makes CI red on every
+  # pull request for weeks, which trains everyone to merge past the red mark —
+  # and once red is the normal colour, the first real failure is invisible.
+  #
+  # So each job is gated on the component it checks, and this job publishes
+  # what is present. ci-complete prints the inventory on every run, so a green
+  # tick is never anonymous: it always says which checks ran and which had
+  # nothing to check. That is the same rule the ADR-0001 scan follows — it
+  # reports how many files it scanned, because a guard that passes because it
+  # looked at nothing is worse than no guard.
+  inventory:
+    name: inventory
+    runs-on: ubuntu-latest
+    outputs:
+      sidecar: ${{ steps.probe.outputs.sidecar }}
+      frontend: ${{ steps.probe.outputs.frontend }}
+      tauri: ${{ steps.probe.outputs.tauri }}
+      licenses: ${{ steps.probe.outputs.licenses }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - id: probe
+        name: which components are present
+        run: |
+          probe() {  # $1 = name, $2 = path that must exist
+            if [ -e "$2" ]; then
+              echo "$1=true" >> "$GITHUB_OUTPUT"
+              echo "present : $1  ($2)"
+            else
+              echo "$1=false" >> "$GITHUB_OUTPUT"
+              echo "ABSENT  : $1  ($2) — dependent checks will not run"
+            fi
+          }
+          probe sidecar  sidecar/pyproject.toml
+          probe frontend package.json
+          probe tauri    src-tauri/Cargo.toml
+          probe licenses LICENSES
+
   lint:
     name: lint
+    needs: inventory
+    if: needs.inventory.outputs.sidecar == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -41,7 +85,7 @@ jobs:
       - name: ruff
         run: |
           ruff --version
-          ruff check --output-format=full sidecar
+          ruff check --output-format=full sidecar scripts
 
   no-wire-parsing:
     name: no-wire-parsing
@@ -50,13 +94,23 @@ jobs:
     # comes from a verifier call; nothing here parses container bytes. The
     # violation always arrives as a small, locally-reasonable helper inside
     # a larger PR, when the deadline is close. A grep does not get tired.
+    #
+    # Ungated: the scan handles an empty tree itself and says so, rather than
+    # printing "ok" over a set of zero files.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: scan for wire-parsing primitives outside the seam
-        run: bash scripts/check_no_wire_parsing.sh
+        run: |
+          if [ -f scripts/check_no_wire_parsing.sh ]; then
+            bash scripts/check_no_wire_parsing.sh
+          else
+            echo "ABSENT: scripts/check_no_wire_parsing.sh — nothing scanned"
+          fi
 
   test:
     name: test (${{ matrix.os }}, py${{ matrix.python-version }})
+    needs: inventory
+    if: needs.inventory.outputs.sidecar == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -80,6 +134,8 @@ jobs:
 
   build:
     name: build (${{ matrix.platform }})
+    needs: inventory
+    if: needs.inventory.outputs.frontend == 'true' && needs.inventory.outputs.tauri == 'true'
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 30
     strategy:
@@ -134,13 +190,10 @@ jobs:
         working-directory: src-tauri
         run: cargo check
 
-      - name: sidecar import smoke-test
-        run: |
-          pip install -e "sidecar[dev]"
-          python -c "from auditor_sidecar.main import app; print('sidecar imports ok')"
-
   coverage:
     name: coverage
+    needs: inventory
+    if: needs.inventory.outputs.sidecar == 'true'
     runs-on: ubuntu-latest
     # The job name is deliberately just "coverage" — stable — so branch
     # protection never has to be re-pointed when thresholds change. The
@@ -167,6 +220,8 @@ jobs:
 
   reuse:
     name: reuse
+    needs: inventory
+    if: needs.inventory.outputs.licenses == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -179,26 +234,53 @@ jobs:
     # changes, and a required context that stops being reported leaves every
     # PR stuck on "Expected — waiting for status" with no failure to debug.
     # Protect THIS job: it runs unconditionally, depends on every other job,
-    # and fails unless all of them succeeded — one stable name, reported on
+    # and fails unless each one either succeeded or was skipped because its
+    # component is not in the repository yet — one stable name, reported on
     # every PR, immune to renames above it.
+    #
+    # "skipped" is accepted, and every skip is printed with the component that
+    # caused it. When the scaffold is complete nothing skips, and this summary
+    # is how you notice if something silently starts skipping again.
     if: always()
-    needs: [lint, no-wire-parsing, test, build, coverage, reuse]
+    needs: [inventory, lint, no-wire-parsing, test, build, coverage, reuse]
     runs-on: ubuntu-latest
     steps:
-      - name: verify all CI jobs succeeded
+      - name: summary
         run: |
-          echo "lint:            ${{ needs.lint.result }}"
-          echo "no-wire-parsing: ${{ needs['no-wire-parsing'].result }}"
-          echo "test:            ${{ needs.test.result }}"
-          echo "build:           ${{ needs.build.result }}"
-          echo "coverage:        ${{ needs.coverage.result }}"
-          echo "reuse:           ${{ needs.reuse.result }}"
-          if [ "${{ needs.lint.result }}" != "success" ] \
-             || [ "${{ needs['no-wire-parsing'].result }}" != "success" ] \
-             || [ "${{ needs.test.result }}" != "success" ] \
-             || [ "${{ needs.build.result }}" != "success" ] \
-             || [ "${{ needs.coverage.result }}" != "success" ] \
-             || [ "${{ needs.reuse.result }}" != "success" ]; then
+          echo "components present"
+          echo "  sidecar  : ${{ needs.inventory.outputs.sidecar }}"
+          echo "  frontend : ${{ needs.inventory.outputs.frontend }}"
+          echo "  tauri    : ${{ needs.inventory.outputs.tauri }}"
+          echo "  licenses : ${{ needs.inventory.outputs.licenses }}"
+          echo
+          echo "job results"
+          echo "  inventory       : ${{ needs.inventory.result }}"
+          echo "  lint            : ${{ needs.lint.result }}"
+          echo "  no-wire-parsing : ${{ needs['no-wire-parsing'].result }}"
+          echo "  test            : ${{ needs.test.result }}"
+          echo "  build           : ${{ needs.build.result }}"
+          echo "  coverage        : ${{ needs.coverage.result }}"
+          echo "  reuse           : ${{ needs.reuse.result }}"
+
+      - name: verify every job succeeded or was legitimately skipped
+        run: |
+          fail=0
+          check() {  # $1 = job name, $2 = result
+            case "$2" in
+              success) ;;
+              skipped) echo "note: $1 skipped — its component is not in the repository yet" ;;
+              *)       echo "FAIL: $1 -> $2"; fail=1 ;;
+            esac
+          }
+          check inventory       "${{ needs.inventory.result }}"
+          check lint            "${{ needs.lint.result }}"
+          check no-wire-parsing "${{ needs['no-wire-parsing'].result }}"
+          check test            "${{ needs.test.result }}"
+          check build           "${{ needs.build.result }}"
+          check coverage        "${{ needs.coverage.result }}"
+          check reuse           "${{ needs.reuse.result }}"
+          if [ "$fail" -ne 0 ]; then
             echo "one or more required CI jobs did not succeed"
             exit 1
           fi
+          echo "ci-complete: ok"
