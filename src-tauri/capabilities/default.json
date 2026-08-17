@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capabilities for normal operation. The webview reaches exactly one origin — the local sidecar — and that is enforced by the Content Security Policy in tauri.conf.json as well as here. The air-gap variant lands in air-gap.json and removes every non-localhost permission; two independent layers, because one switch is one misconfiguration away from being no switch.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
