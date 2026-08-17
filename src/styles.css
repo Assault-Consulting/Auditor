@@ -1,0 +1,227 @@
+/*
+ * SPDX-FileCopyrightText: Assault Consulting
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Design tokens for the whole application, defined here once because the
+ * central distinction they encode is semantic, not decorative.
+ *
+ * PROVED / RECORDED / NOT CHECKED are the three truth-values this product
+ * deals in (FUNCTIONALITY.md, invariants L3 and L7). Chain order is proved.
+ * Wall-clock time is a claim the writer recorded. A completeness check with
+ * no anchor supplied is not checked, and must never be rendered as passed.
+ * Giving each one a token here means no view can quietly invent a fourth
+ * state or reuse the wrong colour for the wrong kind of fact.
+ *
+ * No web fonts, and none will be added. This application is air-gapped by
+ * construction; a stylesheet that reaches out for a font is a stylesheet
+ * that makes an outbound request. The stacks below are system faces only.
+ */
+
+:root {
+  /* Surface: ink and vellum. A dark ground because this tool is read for
+     long stretches beside a terminal, and because a bright page makes the
+     three state colours shout. */
+  --ink: #0f1319;
+  --ink-raised: #161b23;
+  --rule: #232b36;
+  --vellum: #e7e2d6;
+  --vellum-dim: #9aa2ad;
+
+  /* The three truth-values. Verdigris for proved — the colour copper takes
+     when it has been sitting still long enough to be trusted. Ochre for
+     recorded, a claim rather than a proof. Slate for not checked, which is
+     deliberately inert: absence should read as absence, never as failure
+     and never as success. */
+  --proved: #4fa38b;
+  --recorded: #c8963e;
+  --unchecked: #6b7683;
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+    Georgia, serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono",
+    "DejaVu Sans Mono", monospace;
+
+  --step: 0.6rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--vellum);
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--step) * 4);
+}
+
+.plate {
+  width: min(62ch, 100%);
+}
+
+/* Eyebrow: mono, wide-tracked, quiet. It states what the tool reads, which
+   is the first thing an auditor needs to know and the last thing a logo
+   would tell them. */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+.wordmark {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(2rem, 6vw, 3.1rem);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+.wordmark em {
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.thesis {
+  margin: calc(var(--step) * 1.5) 0 calc(var(--step) * 4);
+  max-width: 52ch;
+  color: var(--vellum-dim);
+}
+
+/* The three questions. Numbered because they genuinely are a sequence: you
+   cannot ask whether you hold all of it until you know what you hold is
+   consistent, and existence evidence is meaningless without both. */
+.questions {
+  list-style: none;
+  margin: 0 0 calc(var(--step) * 4);
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.question {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  gap: calc(var(--step) * 1.5);
+  padding: calc(var(--step) * 1.75) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.question-index {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--unchecked);
+  padding-top: 0.35em;
+}
+
+.question-text {
+  margin: 0;
+}
+
+.question-basis {
+  margin: 0.35em 0 0;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.basis-proved {
+  color: var(--proved);
+}
+.basis-recorded {
+  color: var(--recorded);
+}
+.basis-unchecked {
+  color: var(--unchecked);
+}
+
+/* Build status. An empty screen is an invitation to act, so it names what
+   is wired and what is not, rather than showing a spinner over nothing. */
+.status {
+  background: var(--ink-raised);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.status-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+.status-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--step);
+  padding: 0.3rem 0;
+}
+
+.status-state {
+  color: var(--unchecked);
+}
+
+.status-state[data-live="true"] {
+  color: var(--proved);
+}
+
+.footnote {
+  margin: calc(var(--step) * 3) 0 0;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+  line-height: 1.6;
+}
+
+/* One reveal on load, and nothing else. A forensic tool that animates while
+   you read it is a tool arguing with its own content. */
+@media (prefers-reduced-motion: no-preference) {
+  .plate {
+    animation: settle 420ms ease-out both;
+  }
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--proved);
+  outline-offset: 3px;
+}
