@@ -1,0 +1,71 @@
+{
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "description": "Liveness, and the identity of the verifier behind this service.\n\nThe verifier identity is part of the liveness answer rather than a\nseparate endpoint because a verification result is only meaningful\nalongside the verifier that produced it. A shell that knows the service is\nup but not what it is linked against knows less than it needs.",
+        "properties": {
+          "authenticated": {
+            "description": "Whether the session token gate is enforced. False means the sidecar was started without a token and any local process can reach it \u2014 a development affordance, never a supported configuration.",
+            "title": "Authenticated",
+            "type": "boolean"
+          },
+          "package": {
+            "description": "The verifier package and version, e.g. 'palimpsests 0.8.0'.",
+            "title": "Package",
+            "type": "string"
+          },
+          "spec": {
+            "description": "The wire format the linked verifier implements, e.g. 'PALA-1 format_version 1'.",
+            "title": "Spec",
+            "type": "string"
+          },
+          "status": {
+            "description": "'ok' when the service is serving.",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version of this sidecar.",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "package",
+          "spec",
+          "authenticated"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "palimpsests-auditor-sidecar",
+    "version": "0.0.1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "description": "Liveness probe, and the identity triple the UI displays.\n\nThe verifier version is reported because a verification result is only\nmeaningful alongside the verifier that produced it.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    }
+  }
+}

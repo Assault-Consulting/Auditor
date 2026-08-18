@@ -11,6 +11,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import type { HealthResponse } from "./generated/types";
 
 export interface Session {
   port: number;
@@ -47,13 +48,14 @@ export async function getSession(): Promise<Session> {
   }
 }
 
-export interface Health {
-  status: string;
-  version: string;
-  package: string;
-  spec: string;
-  authenticated: boolean;
-}
+/**
+ * Re-exported under the name the UI uses.
+ *
+ * The shape itself is generated from the sidecar's OpenAPI schema, so a
+ * response model changing shape is a compile error here rather than a field
+ * that renders empty.
+ */
+export type Health = HealthResponse;
 
 /**
  * Read the sidecar's liveness and identity.
