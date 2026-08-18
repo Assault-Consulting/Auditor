@@ -25,6 +25,7 @@ import os
 import secrets
 import uvicorn
 from . import __version__
+from .models import HealthResponse
 from .pala_seam import verifier_identity
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -134,19 +135,21 @@ def build_app(token: str | None = None) -> FastAPI:
         allow_headers=["Authorization", "Content-Type"],
     )
 
-    @app.get("/health")
-    def health() -> dict[str, object]:
+    @app.get("/health", response_model=HealthResponse)
+    def health() -> HealthResponse:
         """Liveness probe, and the identity triple the UI displays.
 
         The verifier version is reported because a verification result is only
         meaningful alongside the verifier that produced it.
         """
-        return {
-            "status": "ok",
-            "version": __version__,
-            "authenticated": bool(request_token_required(app)),
-            **verifier_identity(),
-        }
+        identity = verifier_identity()
+        return HealthResponse(
+            status="ok",
+            version=__version__,
+            package=identity["package"],
+            spec=identity["spec"],
+            authenticated=request_token_required(app),
+        )
 
     return app
 
