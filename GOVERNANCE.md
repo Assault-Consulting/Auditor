@@ -38,39 +38,47 @@ final decision.
 | [@andreysparish](https://github.com/andreysparish) | Lead maintainer | Repository admin; release authority |
 | [@olksandrvertel-arch](https://github.com/olksandrvertel-arch) | Co-maintainer | Repository admin; review |
 
-## Review and merge — current state
+## Review and merge
 
-This section describes what is **actually** in force today, not the target.
-A project whose deliverable is a verifiable record does not get to describe
-its own controls aspirationally.
+`main` is protected by a repository ruleset. In force:
 
-**In force now (bootstrap period):**
-
-- All changes land via a pull request from here on. The repository
-  skeleton was pushed directly to `main`; those commits are visible in the
-  history and are not being rewritten to hide that.
-- Pull requests are authored **and merged by the lead maintainer**, without a
-  second approver. There is no non-author review yet.
-- `main` is **not** protected. Nothing mechanically prevents a direct push.
-- CI runs on every push and pull request, and is currently red by design:
-  the workflow references scaffold that has not landed yet.
-
-**The standing requirement, not yet in force:**
-
-- One approval from someone other than the author on every change,
+- **Direct pushes are blocked.** Every change arrives as a pull request,
   documentation included.
-- Branch protection on `main` blocking direct pushes and requiring the single
-  fan-in status context **`ci-complete`** — which aggregates lint, the test
-  matrix, the coverage gate, the no-parsing check, report determinism and the
-  golden-vector agreement. Protection will point at that one stable context
-  rather than at individual job names, which can be renamed or — in a matrix —
-  multiply.
+- **One approval from someone other than the author** is required before
+  merge. GitHub does not permit self-approval, so this is enforced
+  mechanically rather than requested.
+- **The `ci-complete` status check must pass**, and the branch must be up to
+  date with `main` before merging. `ci-complete` is a single fan-in job that
+  aggregates lint, the test matrix, the ADR-0001 scan, the coverage gate and
+  the REUSE check, and it is the only context branch protection points at —
+  matrix job names change when the matrix changes, and a required context
+  that stops being reported leaves every pull request stuck on
+  "Expected — waiting for status" with no failure to debug.
+- **Stale approvals are dismissed** when new commits are pushed, so an
+  approval always refers to the code that merges.
+- **Conversations must be resolved** before merge.
+- **Force pushes and branch deletion are blocked.**
+- **The bypass list is empty.** The rules apply to repository owners, which
+  is the difference between a protected branch and a claim about one.
 
-**The transition.** This section records the date protection is enabled and
-non-author review begins. Until that date is written here, **no
-review-coverage figure is reported for this repository**, and none should be
-inferred: the period before it is outside any measurable window, however
-carefully each change was made.
+### The measurement window
+
+The ruleset was enabled on **17 August 2026**. That date is the anchor for
+any review-coverage figure this project reports, and the boundary is stated
+precisely rather than rounded in our favour:
+
+- **Outside the window:** the fifteen commits that created the repository
+  skeleton, pushed directly to an unprotected `main`, and pull requests #1
+  through #5, which were opened and merged by the lead maintainer without a
+  second approver. That period is described in `CHANGELOG.md` and is not
+  being rewritten to hide it.
+- **Inside the window:** everything from pull request **#6** onward. #6 is
+  the first change in this repository to require, and receive, an approval
+  from someone other than its author.
+
+No review-coverage figure is reported for the period before the ruleset, and
+none should be inferred from the care taken in it. A control that was not
+enforced cannot be evidenced afterwards.
 
 ## Becoming a maintainer
 
@@ -88,12 +96,10 @@ maintainers are invited by existing maintainers.
   settled and are not re-litigated per PR: **the shell never parses wire
   bytes**; **the application is read-only with respect to every audited
   container**; **the product attests to a check and certifies nothing**.
-- **Code review.** All changes land via PR; see
-  [`docs/REVIEW.md`](docs/REVIEW.md) for what a reviewer checks, and
-  *Review and merge — current state* above for what is enforced today. As a
-  small team, a change may be authored and reviewed within a narrow group —
-  or, during the bootstrap period, by one person — a structural limit
-  acknowledged openly, not misrepresented.
+- **Code review.** All changes land via PR against protected `main`; see
+  [`docs/REVIEW.md`](docs/REVIEW.md) for what a reviewer checks. As a small
+  team, review depth is bounded by there being two of us — a structural
+  limit acknowledged openly, not misrepresented.
 
 ## Decisions that need special care
 
@@ -109,6 +115,9 @@ maintainers are invited by existing maintainers.
 - **Anything touching `pala_seam.py`.** That file is the entire reason
   invariant L1 is enforceable. Changes to it get the scrutiny a trust
   boundary gets.
+- **Anything touching the session token or the origin allowlist.** ADR-0002
+  puts the trust boundary on the token; widening the allowlist is a security
+  review, not a configuration tweak.
 - **Releases.** Cut by a maintainer per `RELEASING.md`. Installer signing
   requires certificates; until those exist, releases are source-only and
   say so.

@@ -36,14 +36,10 @@ Early-stage, contributions welcome. Short on purpose.
 ## Workflow
 
 - **All changes land via a non-draft pull request — never a direct push to
-  `main`.** Documentation is no exception.
-- **During the bootstrap period, pull requests are authored and merged by the
-  lead maintainer without a second approver, and `main` is not yet
-  protected.** Non-author review plus a green `ci-complete` is the standing
-  requirement and is what this repository will enforce; it is not enforced
-  today, and `GOVERNANCE.md` records the date that changes. Stating this
-  plainly costs a paragraph; claiming a control the repository does not have
-  costs the credibility of every other claim in it.
+  `main`.** Documentation is no exception. A repository ruleset enforces
+  this: direct pushes are blocked, and merging needs one approval from
+  someone other than the author plus a green `ci-complete`. The bypass list
+  is empty, so it applies to maintainers too.
 - Branch from `main`, open a PR, link an issue where one exists.
 - CI must be green on all three platforms (macOS/Linux/Windows). Windows
   path separators and absolute-path behaviour differ from POSIX — do not
@@ -61,7 +57,7 @@ pnpm install
 python -m venv .venv && . .venv/bin/activate
 pip install -e "sidecar[dev]"
 
-ruff check sidecar                    # E/F/I/B/UP, line length 100, py311
+ruff check sidecar scripts            # E/F/I/B/UP, line length 100, py311
 pytest sidecar -q                     # headless; FastAPI TestClient
 pnpm build                            # must precede cargo check
 cd src-tauri && cargo check
@@ -81,8 +77,9 @@ phase, not an ad-hoc check.
 
 - **Selection.** The base sidecar surface is deliberately small. Anything
   heavier or platform-specific lives behind an opt-in extra: PDF
-  rendering (`report`), and later the network anchor clients — which also
-  means a plain install cannot reach the network at all.
+  rendering (`report`), the OS keychain (`keyring`), and later the network
+  anchor clients — which also means a plain install cannot reach the
+  network at all.
 - **Justification.** A new runtime dependency is called out in the PR body:
   why it is needed, why this one, what licence. Build- and test-only
   additions are held to the same explanation at a lighter bar.
@@ -92,10 +89,12 @@ phase, not an ad-hoc check.
 ## Code style
 
 - **Python:** `ruff` with `["E", "F", "I", "B", "UP"]`, line length 100,
-  target py311, pinned to the exact version CI runs. Type hints on public
-  functions.
-- **TypeScript:** strict mode. The sidecar client in `src/api` is
-  **generated** from the OpenAPI schema and is not hand-edited.
+  target py311, pinned to the exact version CI runs. Configuration lives in
+  the repository-root `ruff.toml`, so a file's rules do not depend on which
+  directory it sits in. Type hints on public functions.
+- **TypeScript:** strict mode, plus `noUncheckedIndexedAccess`. The sidecar
+  client in `src/api` is **generated** from the OpenAPI schema and is not
+  hand-edited.
 - **Rust:** `cargo fmt`, `cargo clippy` clean.
 - Comments, docstrings, commit messages, PR text and all documentation in
   **English**. Working discussion may be in any language.

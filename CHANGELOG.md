@@ -14,48 +14,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Repository skeleton and the design contract the code will be written
-  against: `README.md`, `FUNCTIONALITY.md` (functional specification and
-  the seven invariants), `ARCHITECTURE.md` (three processes, the package
-  seam, the sidecar API, the two air-gap layers), `DEVELOPMENT-PLAN.md`
-  (phases, PR-level breakdown, risks) and `ENVIRONMENT.md` (toolchain,
-  scaffold, known CI traps).
-- Project governance: `CONTRIBUTING.md`, `GOVERNANCE.md`, `SECURITY.md`,
-  `docs/REVIEW.md` (what a reviewer checks) and `docs/PRACTICES.md` (the
-  engineering practices carried over from Palimpsests, with the reasoning
-  kept).
-- `docs/adr/0001-the-shell-renders-verifier-output.md` — the load-bearing
-  decision: every PALA-1 fact this application renders comes from a
-  verifier call in the `palimpsests` package; nothing here parses,
-  decodes, hashes or interprets container bytes.
+- Repository skeleton and the design contract the code is written against:
+  `README.md`, `ARCHITECTURE.md`, `DEVELOPMENT-PLAN.md` and the governance
+  set (`CONTRIBUTING.md`, `GOVERNANCE.md`, `SECURITY.md`,
+  `docs/REVIEW.md`).
+- `docs/adr/0001-the-shell-renders-verifier-output.md` — every PALA-1 fact
+  this application renders comes from a verifier call in the `palimpsests`
+  package; nothing here parses, decodes, hashes or interprets container
+  bytes.
+- `docs/adr/0002-the-bearer-token-is-the-boundary.md` — the per-launch
+  bearer token is the sidecar's trust boundary; the CORS allowlist narrows
+  browser access and is never relied on as protection.
 - `scripts/check_no_wire_parsing.sh` — ADR-0001 made mechanical. Scans
   Python, Rust and TypeScript for wire-parsing primitives outside the seam
-  module and fails the build on a hit. Also asserts that
-  `sidecar/auditor_sidecar/pala_seam.py` is the only importer of
-  `palimpsests`.
-- CI workflow with a single `ci-complete` fan-in check for branch
-  protection, least-privilege token permissions, and actions pinned by
-  commit SHA.
-- `REUSE.toml`, declaring the tree Apache-2.0 with a recorded CC0-1.0
-  exception for the report and bundle schemas that land in D-01 and E-01.
+  module, reports how many files it examined, and fails the build on a hit.
+- CI workflow: three-OS matrix, an `inventory` job that gates each check on
+  the component it examines, and a single `ci-complete` fan-in context for
+  branch protection.
+- `scripts/coverage_gate.py` — statement ≥ 90 and branch ≥ 80 enforced
+  together, which `--cov-fail-under` cannot do.
+- Sidecar (A-04): the `palimpsests` seam, a loopback-only FastAPI service,
+  a per-launch bearer token gate, and `/health`.
+- Frontend and desktop shell (A-02, A-03): Vite, React, strict TypeScript,
+  a Tauri 2 shell with a real Content Security Policy, and design tokens
+  that encode the Proved / Recorded / Not checked distinction.
+- `REUSE.toml` and `LICENSES/Apache-2.0.txt`; `reuse lint` runs in CI.
+
+### Changed
+
+- **Branch protection is enabled.** A repository ruleset on `main`, active
+  from 17 August 2026, blocks direct pushes and force pushes, requires one
+  approval from someone other than the author, requires `ci-complete` and an
+  up-to-date branch, dismisses stale approvals, and has an empty bypass list
+  so it applies to maintainers. `GOVERNANCE.md` records the measurement
+  window; `CONTRIBUTING.md` and `docs/REVIEW.md` no longer describe a
+  bootstrap exception.
 
 ### Fixed
 
-- `GOVERNANCE.md`, `CONTRIBUTING.md` and `docs/REVIEW.md` each stated that
-  `main` is protected and that every change requires an approval from
-  someone other than the author. None of that was in force: protection is
-  off, there is no second reviewer, and the skeleton was pushed directly to
-  `main`. All three now describe the actual posture and mark the
-  requirement as standing-but-not-yet-enforced.
+- `GOVERNANCE.md`, `CONTRIBUTING.md` and `docs/REVIEW.md` had each stated
+  that `main` was protected and that every change required a non-author
+  approval, while none of it was in force. They were corrected to describe
+  the actual posture, and are corrected again here now that it is.
+- The ADR-0001 scan was examining **zero** Rust and TypeScript files while
+  reporting success: `\|` is a literal pipe in ERE, and pathspecs of the
+  form `src/**/*.rs` do not match `src/peek.rs`. Rebuilt on `git ls-files`,
+  and it now reports the file count so an empty set is visible.
+- The sidecar's token refusal returned 500 rather than 401. An
+  `HTTPException` raised inside middleware does not reach the application's
+  exception handlers.
 
 ### Notes
 
-- Nothing is implemented yet. This entry covers the design contract and
-  the project's controls, not behaviour.
-- CI is red until A-03 and A-04 land the scaffold its jobs reference. The
-  workflow states the target and the scaffold grows into it.
-- Branch protection is not yet enabled and there is no second reviewer;
-  pull requests are authored and merged by the lead maintainer alone. The
-  governance documents describe that state rather than the target, and
-  `GOVERNANCE.md` will record the date it changes. No review-coverage figure
-  is reported for this period.
+- The verification features are not implemented. Phase 1 opens a chain and
+  answers the three questions; nothing before that produces a verification
+  result.
+- Pull requests #1 through #5 and the fifteen bootstrap commits predate the
+  ruleset and were merged without a second approver. Pull request #6 is the
+  first to require, and receive, a non-author approval. No review-coverage
+  figure is reported for the earlier period.
