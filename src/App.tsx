@@ -4,17 +4,19 @@
 /**
  * The boot screen.
  *
- * Deliberately static. It does NOT call the sidecar yet: the frontend has no
- * way to obtain the per-launch session token until the shell hands it over
- * (A-06), and the cross-origin question — a webview on `tauri://localhost`
- * calling `http://127.0.0.1:8771` — is a security decision that belongs in
- * that pull request rather than being settled here by adding a permissive
- * CORS policy to get a status dot to turn green.
+ * States the product's three questions, and reports what the sidecar says
+ * about itself — including which verifier it is linked against, because a
+ * verification result is only meaningful next to the verifier that produced
+ * it.
  *
- * So the screen states the product's three questions and reports honestly
- * which parts of the application are wired. An empty screen is an invitation
- * to act; a spinner over nothing is a lie with a loading indicator.
+ * Every reachable state says what it is. "Starting" is not shown as a spinner
+ * over nothing, a refused token is not shown as a network error, and running
+ * in a plain browser without the shell is not shown as a failure — it is a
+ * normal way to work on the frontend and says so.
  */
+
+import { useEffect, useState } from "react";
+import { type Health, NoShellError, getHealth, getSession } from "./api/session";
 
 type Basis = "proved" | "recorded" | "unchecked";
 
@@ -52,22 +54,110 @@ const QUESTIONS: Question[] = [
   },
 ];
 
-interface Component {
+interface Row {
   name: string;
   state: string;
   live: boolean;
 }
 
-const COMPONENTS: Component[] = [
-  { name: "verifier seam", state: "wired", live: true },
-  { name: "sidecar service", state: "wired", live: true },
-  { name: "desktop shell", state: "wired", live: true },
-  { name: "sidecar lifecycle", state: "A-06", live: false },
-  { name: "typed api client", state: "A-07", live: false },
-  { name: "open and verify", state: "phase 1", live: false },
-];
+/** What the shell reports, once it has answered — or why it has not. */
+type Probe =
+  | { kind: "starting" }
+  | { kind: "ready"; health: Health }
+  | { kind: "no-shell" }
+  | { kind: "failed"; detail: string };
+
+function useProbe(): Probe {
+  const [probe, setProbe] = useState<Probe>({ kind: "starting" });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // The shell spawns the sidecar before the window exists, but uvicorn takes
+    // a moment to bind. Poll rather than fail on the first refused connection:
+    // a boot screen that gives up after 40 ms would report a working install
+    // as broken.
+    const deadline = Date.now() + 15_000;
+
+    async function attempt(): Promise<void> {
+      try {
+        const health = await getHealth(await getSession());
+        if (!cancelled) setProbe({ kind: "ready", health });
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof NoShellError) {
+          setProbe({ kind: "no-shell" });
+          return;
+        }
+        if (Date.now() < deadline) {
+          window.setTimeout(() => void attempt(), 300);
+          return;
+        }
+        setProbe({
+          kind: "failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    void attempt();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return probe;
+}
+
+function rowsFor(probe: Probe): Row[] {
+  const pending: Row[] = [
+    { name: "typed api client", state: "A-07", live: false },
+    { name: "open and verify", state: "phase 1", live: false },
+  ];
+
+  switch (probe.kind) {
+    case "starting":
+      return [{ name: "sidecar", state: "starting", live: false }, ...pending];
+    case "no-shell":
+      return [
+        { name: "desktop shell", state: "not attached", live: false },
+        ...pending,
+      ];
+    case "failed":
+      return [
+        { name: "sidecar", state: "did not start", live: false },
+        ...pending,
+      ];
+    case "ready":
+      return [
+        { name: "sidecar", state: `v${probe.health.version}`, live: true },
+        { name: "verifier", state: probe.health.package, live: true },
+        { name: "format", state: probe.health.spec, live: true },
+        {
+          name: "session token",
+          state: probe.health.authenticated ? "enforced" : "DISABLED",
+          live: probe.health.authenticated,
+        },
+        ...pending,
+      ];
+  }
+}
+
+function footnoteFor(probe: Probe): string {
+  switch (probe.kind) {
+    case "no-shell":
+      return "Running in a browser without the desktop shell, so there is no session token and no sidecar. Use `pnpm tauri dev` to run the whole application.";
+    case "failed":
+      return `The sidecar did not answer: ${probe.detail}. Check that Python is on PATH and that the sidecar package is installed.`;
+    default:
+      return "No chain can be opened yet. Nothing on this screen is a verification result.";
+  }
+}
 
 export default function App() {
+  const probe = useProbe();
+  const rows = rowsFor(probe);
+
   return (
     <main className="shell">
       <div className="plate">
@@ -104,21 +194,18 @@ export default function App() {
             What is wired
           </h2>
           <ul className="status-list">
-            {COMPONENTS.map((c) => (
-              <li className="status-row" key={c.name}>
-                <span>{c.name}</span>
-                <span className="status-state" data-live={c.live}>
-                  {c.state}
+            {rows.map((r) => (
+              <li className="status-row" key={r.name}>
+                <span>{r.name}</span>
+                <span className="status-state" data-live={r.live}>
+                  {r.state}
                 </span>
               </li>
             ))}
           </ul>
         </section>
 
-        <p className="footnote">
-          No chain can be opened yet. Nothing on this screen is a verification
-          result.
-        </p>
+        <p className="footnote">{footnoteFor(probe)}</p>
       </div>
     </main>
   );
