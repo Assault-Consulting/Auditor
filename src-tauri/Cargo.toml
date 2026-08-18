@@ -20,3 +20,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# The per-launch session token must come from the OS CSPRNG (ADR-0002).
+# Pinned to the 0.8 line: 0.9 renamed thread_rng and moved the distributions
+# module, and a silent major bump here would be a compile error at best.
+rand = "0.8"
