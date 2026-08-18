@@ -154,6 +154,8 @@ jobs:
           version: 9
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
@@ -186,9 +188,26 @@ jobs:
       - name: build frontend
         run: pnpm build
 
+      - name: cargo fmt
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
       - name: cargo check
         working-directory: src-tauri
         run: cargo check
+
+      # cargo check does NOT compile or run #[cfg(test)] modules, so the unit
+      # tests in src-tauri/src were sitting in the repository unexecuted. The
+      # sidecar supervisor mints the session token, which ADR-0002 makes the
+      # trust boundary; a test of that which never runs is worse than none,
+      # because it reads like coverage.
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test
 
   coverage:
     name: coverage
