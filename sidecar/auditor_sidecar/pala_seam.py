@@ -102,6 +102,86 @@ class ChainHandle:
     def close(self) -> None:
         self._reader.close()
 
+    def verify(self) -> dict[str, object]:
+        """Ask the verifier the three questions, and pass the answer through.
+
+        Every value below is copied out of the package's result. Nothing is
+        computed, combined or interpreted here: a shell that decides what a
+        verdict means is a shell that can decide wrongly, and L1 exists so
+        that it cannot.
+
+        Two shapes deserve their names.
+
+        ``complete_to_anchor`` is a **tri-state**, and stays one. ``None``
+        means no anchor was supplied, so the question was never asked; the UI
+        renders that as "not checked", never as a pass (L7). Collapsing it to
+        a boolean here would destroy the distinction before anything could
+        render it.
+
+        ``advisory`` is carried in its own key, never merged into the chain
+        result. Advisory items describe things worth a human's attention and
+        change no verdict (L5); a caller that receives them in the same
+        structure as ``chain_ok`` will eventually treat them as one.
+
+        No anchor is supplied yet, so question two is always "not checked"
+        here. Note where the anchor goes when B-04 adds it: ``AuditReader``
+        takes it at **open** time, not at verify time, so a session opened
+        without one cannot later be asked about one. Anchor profiles will
+        therefore key the reader, not this call — which is worth knowing
+        before someone adds an argument here and finds it has nowhere to go.
+        """
+        result = self._reader.verify()
+        chain = result.chain
+        diagnosis = result.diagnosis
+
+        return {
+            "chain": {
+                "chain_ok": chain.chain_ok,
+                "count": chain.count,
+                # Hex because this crosses JSON and ends up in a report a
+                # human compares against an anchor they were given.
+                "head": chain.head.hex(),
+                "breaks": list(chain.breaks),
+                "gaps": list(chain.gaps),
+                # (seq, reason) pairs from the package, kept as pairs: the
+                # seq without its reason is a number nobody can act on.
+                "violations": [[seq, reason] for seq, reason in chain.violations],
+                # Unknown record types and format versions. Chain-checked,
+                # reported, never rejected — so they are surfaced rather than
+                # dropped, and the UI says the verifier could not interpret
+                # them rather than that they are wrong.
+                "uninterpretable": list(chain.uninterpretable),
+            },
+            "completeness": {
+                "complete_to_anchor": result.complete_to_anchor,
+                "anchor_lag": result.anchor_lag,
+                "anchor_reason": chain.anchor_reason,
+            },
+            "diagnosis": None
+            if diagnosis is None
+            else {
+                "pattern": diagnosis.pattern,
+                "at_seq": diagnosis.at_seq,
+                "expected": diagnosis.expected,
+                # The package's own sentence, verbatim. A shell may render a
+                # localised sentence beside it; it may never replace it, or
+                # the report stops saying what the verifier said.
+                "narrative": diagnosis.narrative,
+            },
+            "advisory": {
+                "count": len(result.advisory.items),
+                "items": [
+                    {
+                        "code": item.code,
+                        "at_seq": item.at_seq,
+                        "boot_id": None if item.boot_id is None else item.boot_id.hex(),
+                        "detail": item.detail,
+                    }
+                    for item in result.advisory.items
+                ],
+            },
+        }
+
     def subject(self) -> dict[str, object]:
         """What the container is, before any verdict about it.
 
