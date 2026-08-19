@@ -39,6 +39,12 @@ Position in the ecosystem:
 - **Read-only.** No writer functionality of any kind. The only bytes
   Auditor ever writes are its own artifacts: reports, bundles, and the
   local witness log (§16). It never writes into a `.pala` container.
+  **The one exception, and it is a command rather than a write:** recording
+  an oversight disposition (Phase 5) sends an instruction to a live engine's
+  sidecar, and the *runtime's* writer emits the `OVERSIGHT_ACK` record. The
+  shell still never produces wire bytes. That exception lands behind its own
+  ADR, and it is stated here so a second one is visibly a change to this
+  rule rather than a precedent under it.
 - **PALA-1 only.** Not a universal log viewer, not a syslog UI.
 - **Local-first.** In MVP nothing leaves the machine. No telemetry, no
   cloud, no auto-update fetch of chain data.
@@ -373,6 +379,10 @@ The r2 oversight loop gets its own view:
 The loop closes across a resume (references are seq-indexed over the
 whole chain), and the view must render that case without complaint.
 
+**Display only in the MVP.** Recording a disposition from this screen is
+the Phase-5 item in `DEVELOPMENT-PLAN.md`, behind its own ADR — see the
+stated exception in §1.1.
+
 ---
 
 ## 13. F9 — Origin inspection
@@ -490,7 +500,17 @@ would not build:
 
 ### F13 — Incident evidence bundle
 
-Select a span or a time range → a self-contained, re-verifiable package:
+Select a span or a time range → a self-contained, re-verifiable package.
+
+**Assembly lives upstream** (`pala bundle`, U8); Auditor invokes it through
+the seam and presents the result. The reasoning is the same criterion that
+puts anything in Track U: a bundle is useful to a CLI user and a third-party
+tool with no shell in sight, so building the assembler here would make it
+untestable against an independent implementation — and would, over time,
+walk this repository into deriving facts about records itself. What the
+shell contributes is the selection and the presentation.
+
+The bundle contains:
 
 - the selected records as raw PALA-1 bytes,
 - Merkle inclusion proofs binding them to the chain,
@@ -603,6 +623,7 @@ breaking L1. Each is a PR into `Assault-Consulting/Palimpsests`.
 | U5 | Merkle inclusion proof API for a `seq` range | F13 |
 | U6 | Verification-report model as a package dataclass, so the JSON schema has one owner | F11 |
 | U7 | `time_trust` and `assurance_tier` constant tables exported as names (the §10.5 pattern already used for kinds) | F2, F6 |
+| U8 | Evidence-bundle assembly as a library command (`pala bundle`). Independently useful without the shell, which is this project's own test for what belongs upstream. | F13 |
 
 Everything else in the MVP is buildable against the 0.8 surface as it
 stands today.
