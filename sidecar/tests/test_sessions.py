@@ -83,6 +83,19 @@ def test_a_missing_path_is_not_a_chain(store: SessionStore, tmp_path) -> None:
 
 
 # --- the file must not move under the session -------------------------------
+#
+# Each of these releases the container's memory map before touching the file,
+# via `store.detach(...)`.
+#
+# That is not test choreography, it is the platform boundary. `AuditReader`
+# memory-maps the container, and Windows refuses to write to or delete a file
+# that backs an active mapping — ERROR_USER_MAPPED_FILE. A session still
+# holding the map cannot observe the file change underneath it there, because
+# Windows will not let the change happen at all.
+#
+# The behaviour under test is `assert_unchanged`, which reads the path and
+# nothing else, and it must hold on every platform. See the note in
+# sessions.py about which operating systems this guard actually protects.
 
 
 def test_a_changed_file_invalidates_its_session(store: SessionStore, chain_path) -> None:
@@ -90,6 +103,8 @@ def test_a_changed_file_invalidates_its_session(store: SessionStore, chain_path)
     the screen showed another, with nothing anywhere saying so."""
     s = store.open(chain_path)
     s.assert_unchanged()
+    store.detach(s.session_id)
+
     chain_path.write_bytes(chain_path.read_bytes() + b"\x00")
     with pytest.raises(SubjectChanged):
         s.assert_unchanged()
@@ -97,6 +112,8 @@ def test_a_changed_file_invalidates_its_session(store: SessionStore, chain_path)
 
 def test_a_deleted_file_invalidates_its_session(store: SessionStore, chain_path) -> None:
     s = store.open(chain_path)
+    store.detach(s.session_id)
+
     chain_path.unlink()
     with pytest.raises(SubjectChanged):
         s.assert_unchanged()
@@ -110,6 +127,8 @@ def test_change_is_detected_by_digest_not_mtime(store: SessionStore, chain_path)
     import os
 
     s = store.open(chain_path)
+    store.detach(s.session_id)
+
     before = chain_path.stat().st_mtime_ns
     chain_path.write_bytes(chain_path.read_bytes() + b"\x00")
     os.utime(chain_path, ns=(before, before))
