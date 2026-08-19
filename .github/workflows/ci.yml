@@ -189,19 +189,16 @@ jobs:
           python-version: "3.11"
 
       # Refreshing the index and installing 55 MB of packages are different
-      # operations with different failure modes, so they get separate steps
-      # and separate budgets. Bounding them together was a mistake made here
-      # once already: a single six-minute limit, chosen from how long a
-      # *failed update* had hung, killed an install that was proceeding
-      # normally.
+      # operations with different failure modes, so they are separate steps.
+      # Only the refresh carries a bound; see the note on each.
       - name: apt index
         if: matrix.platform == 'ubuntu-22.04'
-        # A healthy refresh takes seconds. Five minutes is far beyond that,
-        # so hitting it means the mirror is not answering — which is the
-        # failure this bound exists to make legible, after a run was lost to
-        # apt retrying silently until the job timed out with no error and no
-        # hint where to look.
-        timeout-minutes: 5
+        # Ten minutes, not five. The refresh took 3 seconds on one run and
+        # 2 minutes 3 seconds on the next, on the same mirror — so a bound
+        # anywhere near the healthy figure is a bound that will fire on a
+        # slow day. This one only catches a mirror that has stopped
+        # answering entirely, which is the failure it was added for.
+        timeout-minutes: 10
         run: |
           sudo apt-get update \
             -o Acquire::Retries=3 \
@@ -210,12 +207,26 @@ jobs:
 
       - name: linux system deps
         if: matrix.platform == 'ubuntu-22.04'
-        # Deliberately generous. How long this takes on a healthy mirror has
-        # not been measured, and guessing a tight number is precisely the
-        # error being corrected — so the bound is set well above any
-        # plausible healthy duration and stays below the job's 30 minutes.
-        # It catches a stall; it does not attempt to catch slowness.
-        timeout-minutes: 15
+        # NO step timeout, deliberately, after two attempts to set one made
+        # things worse.
+        #
+        # The evidence, in order: six minutes killed an install that was
+        # downloading normally; fifteen minutes killed one that ran 15m04s.
+        # Before either bound existed, this step completed inside the job's
+        # 30-minute budget on every green run. Two guesses, two regressions —
+        # the honest conclusion is that the healthy duration of this step is
+        # highly variable and nobody here knows its distribution.
+        #
+        # A bound below the real duration is worse than no bound: it converts
+        # a slow success into a certain failure, every time, which is exactly
+        # the "red is the normal colour" state this workflow was designed to
+        # avoid. So the job's 30 minutes governs until there is a measured
+        # figure to set a bound from.
+        #
+        # The thing actually worth doing about a slow mirror is caching the
+        # archives between runs. That is a separate change with its own
+        # failure modes, and it should be made on evidence rather than
+        # stacked on top of two failed guesses.
         run: |
           # --no-install-recommends drops the runtime-only stack — gstreamer,
           # pipewire, the desktop portals — which a webkit application needs
@@ -226,8 +237,9 @@ jobs:
           # on a non-jammy box the same four packages resolve to 108 with
           # recommends and 103 without. Most of the runner's 130 are hard
           # dependencies and stay. So this is a small, principled reduction —
-          # do not install what you never execute — not the fix for the
-          # timeout. The step split above is that fix.
+          # do not install what you never execute — and it is not a fix for
+          # slowness: the run that removed the recommended set still spent
+          # over fifteen minutes here.
           #
           # If something here turns out to be genuinely required, the failure
           # is a compile error naming the missing header, not a mystery.
