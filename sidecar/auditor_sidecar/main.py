@@ -25,11 +25,13 @@ import os
 import secrets
 import uvicorn
 from . import __version__
-from .models import HealthResponse
-from .pala_seam import verifier_identity
-from fastapi import FastAPI, Request
+from .models import ChainSubject, HealthResponse, SessionRequest, SessionResponse
+from .pala_seam import NotAChain, verifier_identity
+from .sessions import SessionNotFound, SessionStore
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pathlib import Path
 
 #: Not 8765. A fixed, distinctive default avoids colliding with another local
 #: service on a developer machine, which would otherwise present as the shell
@@ -104,6 +106,10 @@ def build_app(token: str | None = None) -> FastAPI:
         docs_url="/docs",
     )
     app.state.token = token
+    # One store per application instance, not a module global: tests build
+    # several apps in one process, and a shared store would let one test's
+    # open container appear in another's session list.
+    app.state.sessions = SessionStore()
 
     @app.middleware("http")
     async def require_token(request: Request, call_next):
@@ -151,7 +157,55 @@ def build_app(token: str | None = None) -> FastAPI:
             authenticated=request_token_required(app),
         )
 
+    @app.post("/session", response_model=SessionResponse, status_code=201)
+    def open_session(req: SessionRequest) -> SessionResponse:
+        """Open a container and return what it is.
+
+        Deliberately says nothing about whether the chain verifies. Identity
+        and structure are established first, and separately: a reader of a
+        report must be able to confirm they hold the same artifact the check
+        ran against, whether or not that check passed.
+        """
+        try:
+            session = app.state.sessions.open(Path(req.path))
+        except NotAChain as exc:
+            # 422, not 404 or 500. The path resolved; the bytes are not a
+            # chain. A 404 would say the file is missing and a 500 would say
+            # this service is broken — both send the operator to the wrong
+            # place.
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+
+        return SessionResponse(
+            session_id=session.session_id,
+            subject=ChainSubject(**session.subject()),
+            verifier=verifier_identity(),
+        )
+
+    @app.get("/session/{session_id}", response_model=SessionResponse)
+    def get_session(session_id: str) -> SessionResponse:
+        session = _session_or_404(app, session_id)
+        session.assert_unchanged()
+        return SessionResponse(
+            session_id=session.session_id,
+            subject=ChainSubject(**session.subject()),
+            verifier=verifier_identity(),
+        )
+
+    @app.delete("/session/{session_id}", status_code=204)
+    def close_session(session_id: str) -> None:
+        try:
+            app.state.sessions.close(session_id)
+        except SessionNotFound:
+            raise HTTPException(status_code=404, detail="no such session") from None
+
     return app
+
+
+def _session_or_404(app: FastAPI, session_id: str):
+    try:
+        return app.state.sessions.get(session_id)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="no such session") from None
 
 
 def request_token_required(app: FastAPI) -> bool:

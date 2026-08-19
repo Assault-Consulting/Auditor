@@ -49,3 +49,41 @@ def auth() -> dict[str, str]:
 @pytest.fixture
 def fresh_token() -> str:
     return new_token()
+
+
+@pytest.fixture
+def store():
+    """A fresh session store, closed afterwards.
+
+    Containers are memory-mapped while open; leaving one mapped past the end
+    of a test keeps a file handle alive and, on Windows, makes tmp_path
+    cleanup fail in a way that reads as an unrelated flake.
+    """
+    from auditor_sidecar.sessions import SessionStore
+
+    s = SessionStore()
+    try:
+        yield s
+    finally:
+        s.close_all()
+
+
+@pytest.fixture
+def chain_path(tmp_path):
+    """A real PALA-1 container, written by the package's own writer.
+
+    Built rather than committed as a binary fixture: a hand-made container
+    would be this repository asserting what the format looks like, which is
+    the thing ADR-0001 exists to prevent. The writer is the authority.
+    """
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "chain.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
+    w.incident_candidate(category=1, severity=2, detail="guard escalation x3")
+    w.anchor()
+    w.close()
+    return path

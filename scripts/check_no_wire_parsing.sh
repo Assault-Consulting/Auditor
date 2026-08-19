@@ -42,10 +42,18 @@ TREES=(sidecar src src-tauri/src scripts)
 
 # Paths exempt from the scan, each with its reason. Adding to this list is a
 # reviewed decision, not a convenience — see docs/REVIEW.md.
+#
 #   the seam            — the point of the exercise
-#   sidecar/tests/      — tests may construct fixture chains
+#   sidecar/tests/      — tests build fixture chains with the package's writer
 #   src/api/generated/  — generated from the OpenAPI schema
-EXEMPT_RE="^(${SEAM}|sidecar/tests/|src/api/generated/)"
+#   digest.py           — hashes the FILE, which is not a PALA-1 fact. Record
+#                         hashes, chain heads and body digests all come from
+#                         the verifier and are never recomputed. The file
+#                         digest identifies the artifact a report is about,
+#                         and the format has no opinion about it. Isolated in
+#                         its own module precisely so this exemption is one
+#                         named file rather than a pattern loosened everywhere.
+EXEMPT_RE="^(${SEAM}|sidecar/tests/|src/api/generated/|sidecar/auditor_sidecar/digest\.py)"
 
 # Primitives that indicate byte-level interpretation of a container.
 #
@@ -58,9 +66,14 @@ PATTERNS=(
   'b["'\'']PALA'                      # the wire magic as a byte literal
   '\bMAGIC\b'                         # ... or imported by name
   '\brecord_hash\b'                   # re-deriving a record identity
-  'sha256\('                          # re-deriving any digest over log bytes
-  'blake2[bs]\('                      #   "
-  'import hashlib'                    #   "
+  # Target the hashing PRIMITIVE, not any identifier containing "sha256".
+  # `sha256\(` also matched call sites of a named helper — code that hashes
+  # nothing itself — and a guard that fires on the caller teaches people to
+  # rename functions rather than to stop hashing.
+  '\bhashlib\.sha256\('               # re-deriving any digest over log bytes
+  '\bhashlib\.blake2[bs]\('           #   "
+  '^[[:space:]]*import hashlib\b'     #   "
+  'from hashlib import'               #   " (the aliased spelling)
   'FIXED_HEADER_LEN'                  # frozen offsets, copied
   'decode_tlvs'                       # body decoding outside the package
   '\bread_exact\b'                    # Rust byte reads

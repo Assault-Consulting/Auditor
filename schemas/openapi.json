@@ -1,6 +1,96 @@
 {
   "components": {
     "schemas": {
+      "ChainSubject": {
+        "description": "What the container *is*, stated before any verdict about it.\n\nSeparate from the verification result on purpose: a reader of a report\nmust be able to confirm they are holding the same artifact the check ran\nagainst, independently of whether that check passed.",
+        "properties": {
+          "boots": {
+            "description": "Distinct boot identifiers present.",
+            "title": "Boots",
+            "type": "integer"
+          },
+          "bytes": {
+            "description": "File size on disk, in bytes.",
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "filename": {
+            "description": "The file's name, for display only.",
+            "title": "Filename",
+            "type": "string"
+          },
+          "first_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lowest sequence number present.",
+            "title": "First Seq"
+          },
+          "last_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Highest sequence number present.",
+            "title": "Last Seq"
+          },
+          "path": {
+            "description": "Absolute path as opened.",
+            "title": "Path",
+            "type": "string"
+          },
+          "records": {
+            "description": "Number of records the reader found.",
+            "title": "Records",
+            "type": "integer"
+          },
+          "sha256": {
+            "description": "SHA-256 of the file as opened. Identifies the artifact; a report naming only a filename identifies nothing.",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "spans": {
+            "description": "Distinct spans present.",
+            "title": "Spans",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filename",
+          "path",
+          "bytes",
+          "sha256",
+          "records",
+          "first_seq",
+          "last_seq",
+          "boots",
+          "spans"
+        ],
+        "title": "ChainSubject",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "HealthResponse": {
         "description": "Liveness, and the identity of the verifier behind this service.\n\nThe verifier identity is part of the liveness answer rather than a\nseparate endpoint because a verification result is only meaningful\nalongside the verifier that produced it. A shell that knows the service is\nup but not what it is linked against knows less than it needs.",
         "properties": {
@@ -39,6 +129,90 @@
         ],
         "title": "HealthResponse",
         "type": "object"
+      },
+      "SessionRequest": {
+        "description": "Open a container.",
+        "properties": {
+          "path": {
+            "description": "Absolute path to a .pala container.",
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "SessionRequest",
+        "type": "object"
+      },
+      "SessionResponse": {
+        "description": "A session over one open container.",
+        "properties": {
+          "session_id": {
+            "description": "Opaque handle for subsequent calls.",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/ChainSubject",
+            "description": "What this session is about."
+          },
+          "verifier": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The verifier package and wire format behind this session. Carried on the session rather than fetched separately, because a result is only meaningful alongside the verifier that produced it.",
+            "title": "Verifier",
+            "type": "object"
+          }
+        },
+        "required": [
+          "session_id",
+          "subject",
+          "verifier"
+        ],
+        "title": "SessionResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
       }
     }
   },
@@ -65,6 +239,114 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/session": {
+      "post": {
+        "description": "Open a container and return what it is.\n\nDeliberately says nothing about whether the chain verifies. Identity\nand structure are established first, and separately: a reader of a\nreport must be able to confirm they hold the same artifact the check\nran against, whether or not that check passed.",
+        "operationId": "open_session_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Open Session"
+      }
+    },
+    "/session/{session_id}": {
+      "delete": {
+        "operationId": "close_session_session__session_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Close Session"
+      },
+      "get": {
+        "operationId": "get_session_session__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Session"
       }
     }
   }
