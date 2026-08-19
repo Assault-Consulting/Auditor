@@ -39,8 +39,13 @@ jobs:
       frontend: ${{ steps.probe.outputs.frontend }}
       tauri: ${{ steps.probe.outputs.tauri }}
       licenses: ${{ steps.probe.outputs.licenses }}
+      desktop: ${{ steps.touched.outputs.desktop }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # Full history: the desktop probe below diffs against the base of
+          # the pull request, and a shallow clone has no base to diff against.
+          fetch-depth: 0
 
       - id: probe
         name: which components are present
@@ -58,6 +63,50 @@ jobs:
           probe frontend package.json
           probe tauri    src-tauri/Cargo.toml
           probe licenses LICENSES
+
+      # Does this change touch anything the desktop build actually covers?
+      #
+      # The Linux leg of `build` installs webkit, gtk and their development
+      # headers — 55 MB from an Ubuntu mirror that has taken down five runs
+      # in one day. Four attempts to tune timeouts around that failed,
+      # because the problem is not how long we wait: it is that a pull
+      # request touching only the Python sidecar has no reason to be
+      # downloading a GUI toolkit at all.
+      #
+      # So the desktop toolchain runs when the change could plausibly affect
+      # it, and not otherwise. The list is deliberately generous — building
+      # unnecessarily costs minutes, skipping wrongly costs a broken `main` —
+      # and it includes this workflow itself, so a change to the build steps
+      # always exercises them.
+      #
+      # Outside a pull request there is no base to diff against, so it always
+      # runs. That covers pushes to main and manual dispatches.
+      - id: touched
+        name: does this change touch the desktop stack?
+        run: |
+          desktop_paths='^(src/|src-tauri/|package\.json|pnpm-lock\.yaml|tsconfig.*\.json|index\.html|vite\.config\.ts|scripts/gen-placeholder-icons\.py|\.github/workflows/)'
+
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "desktop=true" >> "$GITHUB_OUTPUT"
+            echo "not a pull request — the desktop build runs unconditionally"
+            exit 0
+          fi
+
+          base='${{ github.event.pull_request.base.sha }}'
+          changed="$(git diff --name-only "$base" HEAD)"
+          echo "files changed against ${base:0:8}:"
+          echo "$changed" | sed 's/^/  /'
+
+          if echo "$changed" | grep -qE "$desktop_paths"; then
+            echo "desktop=true" >> "$GITHUB_OUTPUT"
+            echo
+            echo "touches the desktop stack — build will run:"
+            echo "$changed" | grep -E "$desktop_paths" | sed 's/^/  /'
+          else
+            echo "desktop=false" >> "$GITHUB_OUTPUT"
+            echo
+            echo "no desktop-stack paths touched — build will be skipped"
+          fi
 
   lint:
     name: lint
@@ -162,7 +211,10 @@ jobs:
   build:
     name: build (${{ matrix.platform }})
     needs: inventory
-    if: needs.inventory.outputs.frontend == 'true' && needs.inventory.outputs.tauri == 'true'
+    if: >-
+      needs.inventory.outputs.frontend == 'true'
+      && needs.inventory.outputs.tauri == 'true'
+      && needs.inventory.outputs.desktop == 'true'
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 30
     strategy:
@@ -332,13 +384,12 @@ jobs:
     # changes, and a required context that stops being reported leaves every
     # PR stuck on "Expected — waiting for status" with no failure to debug.
     # Protect THIS job: it runs unconditionally, depends on every other job,
-    # and fails unless each one either succeeded or was skipped because its
-    # component is not in the repository yet — one stable name, reported on
-    # every PR, immune to renames above it.
+    # and fails unless each one either succeeded or was skipped — one stable
+    # name, reported on every PR, immune to renames above it.
     #
-    # "skipped" is accepted, and every skip is printed with the component that
-    # caused it. When the scaffold is complete nothing skips, and this summary
-    # is how you notice if something silently starts skipping again.
+    # "skipped" is accepted, and the inventory printed below says why: either
+    # the component is not in the repository yet, or the change does not
+    # touch the desktop stack. A skip is never anonymous.
     if: always()
     needs: [inventory, lint, api-client, no-wire-parsing, test, build, coverage, reuse]
     runs-on: ubuntu-latest
@@ -350,6 +401,8 @@ jobs:
           echo "  frontend : ${{ needs.inventory.outputs.frontend }}"
           echo "  tauri    : ${{ needs.inventory.outputs.tauri }}"
           echo "  licenses : ${{ needs.inventory.outputs.licenses }}"
+          echo
+          echo "desktop stack touched by this change: ${{ needs.inventory.outputs.desktop }}"
           echo
           echo "job results"
           echo "  inventory       : ${{ needs.inventory.result }}"
@@ -367,7 +420,7 @@ jobs:
           check() {  # $1 = job name, $2 = result
             case "$2" in
               success) ;;
-              skipped) echo "note: $1 skipped — its component is not in the repository yet" ;;
+              skipped) echo "note: $1 skipped — see the inventory above for why" ;;
               *)       echo "FAIL: $1 -> $2"; fail=1 ;;
             esac
           }
