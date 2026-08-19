@@ -44,3 +44,47 @@ class HealthResponse(BaseModel):
             "configuration."
         )
     )
+
+
+class ChainSubject(BaseModel):
+    """What the container *is*, stated before any verdict about it.
+
+    Separate from the verification result on purpose: a reader of a report
+    must be able to confirm they are holding the same artifact the check ran
+    against, independently of whether that check passed.
+    """
+
+    filename: str = Field(description="The file's name, for display only.")
+    path: str = Field(description="Absolute path as opened.")
+    bytes: int = Field(description="File size on disk, in bytes.")
+    sha256: str = Field(
+        description=(
+            "SHA-256 of the file as opened. Identifies the artifact; a report "
+            "naming only a filename identifies nothing."
+        )
+    )
+    records: int = Field(description="Number of records the reader found.")
+    first_seq: int | None = Field(description="Lowest sequence number present.")
+    last_seq: int | None = Field(description="Highest sequence number present.")
+    boots: int = Field(description="Distinct boot identifiers present.")
+    spans: int = Field(description="Distinct spans present.")
+
+
+class SessionResponse(BaseModel):
+    """A session over one open container."""
+
+    session_id: str = Field(description="Opaque handle for subsequent calls.")
+    subject: ChainSubject = Field(description="What this session is about.")
+    verifier: dict[str, str] = Field(
+        description=(
+            "The verifier package and wire format behind this session. Carried "
+            "on the session rather than fetched separately, because a result is "
+            "only meaningful alongside the verifier that produced it."
+        )
+    )
+
+
+class SessionRequest(BaseModel):
+    """Open a container."""
+
+    path: str = Field(description="Absolute path to a .pala container.")
