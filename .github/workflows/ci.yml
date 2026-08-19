@@ -188,27 +188,51 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: linux system deps
+      # Refreshing the index and installing 55 MB of packages are different
+      # operations with different failure modes, so they get separate steps
+      # and separate budgets. Bounding them together was a mistake made here
+      # once already: a single six-minute limit, chosen from how long a
+      # *failed update* had hung, killed an install that was proceeding
+      # normally.
+      - name: apt index
         if: matrix.platform == 'ubuntu-22.04'
-        # Bounded at the STEP, not left to the job's 30-minute budget.
-        #
-        # A run was lost to this: the Azure Ubuntu mirror stopped answering,
-        # apt retried silently for half an hour, and the job was cancelled on
-        # timeout. No error, no hint where to look — just thirty minutes of
-        # nothing and a red mark. That is the worst shape a failure can take,
-        # because the only available response is "re-run it", and a re-run
-        # reflex is how a team stops reading CI at all.
-        #
-        # Six minutes plus short acquire timeouts turn an unreachable mirror
-        # into a clear failure in about a minute, so re-running becomes a
-        # decision rather than a habit.
-        timeout-minutes: 6
+        # A healthy refresh takes seconds. Five minutes is far beyond that,
+        # so hitting it means the mirror is not answering — which is the
+        # failure this bound exists to make legible, after a run was lost to
+        # apt retrying silently until the job timed out with no error and no
+        # hint where to look.
+        timeout-minutes: 5
         run: |
           sudo apt-get update \
             -o Acquire::Retries=3 \
             -o Acquire::http::Timeout=20 \
             -o Acquire::https::Timeout=20
-          sudo apt-get install -y \
+
+      - name: linux system deps
+        if: matrix.platform == 'ubuntu-22.04'
+        # Deliberately generous. How long this takes on a healthy mirror has
+        # not been measured, and guessing a tight number is precisely the
+        # error being corrected — so the bound is set well above any
+        # plausible healthy duration and stays below the job's 30 minutes.
+        # It catches a stall; it does not attempt to catch slowness.
+        timeout-minutes: 15
+        run: |
+          # --no-install-recommends drops the runtime-only stack — gstreamer,
+          # pipewire, the desktop portals — which a webkit application needs
+          # to RUN a window. This job only compiles against the development
+          # headers and never starts one.
+          #
+          # Measured rather than assumed, and the measurement is unflattering:
+          # on a non-jammy box the same four packages resolve to 108 with
+          # recommends and 103 without. Most of the runner's 130 are hard
+          # dependencies and stay. So this is a small, principled reduction —
+          # do not install what you never execute — not the fix for the
+          # timeout. The step split above is that fix.
+          #
+          # If something here turns out to be genuinely required, the failure
+          # is a compile error naming the missing header, not a mystery.
+          sudo apt-get install -y --no-install-recommends \
+            -o Acquire::Retries=3 \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
