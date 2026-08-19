@@ -24,7 +24,7 @@ from __future__ import annotations
 import secrets
 from .digest import file_sha256
 from .pala_seam import ChainHandle, NotAChain, open_chain
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -43,6 +43,23 @@ class Session:
     sha256: str
     size: int
     chain: ChainHandle
+    #: Verification results, keyed by anchor profile.
+    #:
+    #: Verification is deterministic over the same bytes and the same anchor,
+    #: so a second call must return the first answer rather than recompute
+    #: one. That is not only a performance point: two runs that disagreed
+    #: would mean the shell had shown a verdict it could no longer reproduce,
+    #: and this application's entire claim is that its answers are
+    #: reproducible.
+    #:
+    #: The key is the anchor profile name. Only "none" exists until B-04.
+    verifications: dict[str, dict] = field(default_factory=dict)
+
+    def verify(self, profile: str = "none") -> dict:
+        """The verifier's answer for this session, computed at most once."""
+        if profile not in self.verifications:
+            self.verifications[profile] = self.chain.verify()
+        return self.verifications[profile]
 
     def subject(self) -> dict[str, object]:
         """Identity plus structure, as one payload."""

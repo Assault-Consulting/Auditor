@@ -25,9 +25,15 @@ import os
 import secrets
 import uvicorn
 from . import __version__
-from .models import ChainSubject, HealthResponse, SessionRequest, SessionResponse
+from .models import (
+    ChainSubject,
+    HealthResponse,
+    SessionRequest,
+    SessionResponse,
+    VerificationResponse,
+)
 from .pala_seam import NotAChain, verifier_identity
-from .sessions import SessionNotFound, SessionStore
+from .sessions import SessionNotFound, SessionStore, SubjectChanged
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -189,6 +195,35 @@ def build_app(token: str | None = None) -> FastAPI:
             session_id=session.session_id,
             subject=ChainSubject(**session.subject()),
             verifier=verifier_identity(),
+        )
+
+    @app.get("/session/{session_id}/verify", response_model=VerificationResponse)
+    def verify_session(session_id: str) -> VerificationResponse:
+        """The verifier's answer about this session's container.
+
+        Re-checks the file digest first. A verdict about bytes that have since
+        changed is worse than no verdict, because it looks like one.
+
+        Note what this endpoint does NOT return: a single "valid" field. The
+        three questions have three separate answers, one of which can be "not
+        asked", and collapsing them here would be the shell deciding what a
+        verdict means — which is the one thing ADR-0001 exists to prevent.
+        """
+        session = _session_or_404(app, session_id)
+        try:
+            session.assert_unchanged()
+        except SubjectChanged as exc:
+            # 409, not 200-with-a-warning. The session's subject and the file
+            # on disk are no longer the same artifact, so there is no honest
+            # answer to give — only a refusal that names the reason.
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+
+        result = session.verify()
+        return VerificationResponse(
+            session_id=session.session_id,
+            subject_sha256=session.sha256,
+            verifier=verifier_identity(),
+            **result,
         )
 
     @app.delete("/session/{session_id}", status_code=204)
