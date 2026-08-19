@@ -56,8 +56,10 @@ get them too).
 | U5 | Merkle inclusion proofs for a `seq` range, over the existing RFC 6962 aggregation. | 3 | F13 |
 | U6 | Verification-report model as a package dataclass — one owner for the `pala-verification-report/1` schema. | 2 | F11 |
 | U7 | `time_trust` / `assurance_tier` constant→name tables exported, following the §10.5 pattern already used for kinds. | 0.5 | F2, F6 |
+| U8 | Evidence-bundle assembly as a library command (`pala bundle`): records + inclusion proofs + verification + manifest + the explicit time-claims section. By this plan's own Track-U criterion — independently useful without the shell (any CLI user or third-party tool gets it) — assembly belongs upstream; the shell invokes and presents (E-01). | 4 | E-01 |
 
-**Track U total: ~12.5 days.** U7, U4 and U1 are the cheap ones and should
+**Track U total: ~16.5 days** (~12.5 without U8, which blocks only
+Phase 4). U7, U4 and U1 are the cheap ones and should
 land first — U7 in particular is half a day and removes a whole class of
 "the shell re-typed a constant" defects.
 
@@ -126,7 +128,7 @@ correct anchor provenance — verified against the CLI, not by eye.
 | C-04 | UI: accordion compression for empty stretches, with explicit marks | 2 | C-03 |
 | C-05 | UI: boot and span lists; unclosed span as first-class evidence | 2 | C-01 |
 | C-06 | UI: record inspector, envelope, TLVs, opaque bodies, clickable `prev_hash`, hex view with field highlighting | 3 | C-01, U4 |
-| C-07 | UI: SAFETY list and the r2 oversight loop — unacknowledged candidates as the loudest element | 3 | C-01 |
+| C-07 | UI: SAFETY list and the r2 oversight loop — unacknowledged candidates as the loudest element. **Display only** in the MVP: recording a disposition is the Phase-5 item below, behind its own ADR | 3 | C-01 |
 | C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01 |
 | C-09 | Search bar: free text over `detail`, filter chips, time jump, seq jump, three quick buttons | 3 | C-01 |
 | C-10 | Performance pass: virtualised record table, off-thread verify, 100 MB / ~1M-record target | 3 | C-03 |
@@ -161,19 +163,20 @@ party can re-check without it.
 
 | PR | Content | Days | Needs |
 |---|---|---|---|
-| E-01 | Evidence bundle: records + inclusion proofs + verification + manifest + the explicit time-claims section | 5 | U5 |
-| E-02 | Independent re-verification harness for bundles: a from-the-spec script with no Auditor code reproduces every claim | 3 | E-01 |
+| E-01 | Evidence bundle UI: invoke the upstream `pala bundle` (U8) through the seam; present the manifest and the time-claims section. Assembly itself lives upstream — building it here would violate the Track-U criterion and, over time, invariant L1. | 1.5 | U5, U8 |
+| E-02 | Independent re-verification harness for bundles: a from-the-spec script with no Auditor code reproduces every claim. (Cleaner still now that assembly is upstream: the harness checks an artifact no line of this repo produced.) | 3 | E-01 |
 | E-03 | Record health: aggregation and trends over U1–U3 output; the three disciplines enforced in the UI copy | 5 | U1–U3 |
 | E-04 | Health summary into the JSON report, labelled advisory, carrying its caveats | 1 | E-03, D-01 |
 | E-05 | Local witness log: hash-chained record of checks performed, with the honest statement of what it does and does not prove | 3 | B-03 |
 
-**Phase 4: ~17 days.**
+**Phase 4: ~13.5 days** (plus U8's 4 days upstream — net neutral, honestly placed).
 
 ## 8. Phase 5 — beyond MVP
 
 | Item | Notes |
 |---|---|
 | Watch mode over `TailingReader` | Read-only tail; live verdict, live SAFETY feed, unacknowledged-candidate alert |
+| Oversight disposition (the one write) | A human records a disposition for a candidate **from the screen** — the operational form of Art. 14 human oversight. This is the single place the reader shell touches writing, and it must never do so by producing wire bytes: the shell sends a disposition command to a live engine's sidecar API, and the *runtime's* writer emits the `OVERSIGHT_ACK` record with an operator id from the local profile. Gated on Watch mode and on a dedicated ADR (ADR-0003 candidate): the read/write boundary is crossed by a documented decision, never by drift |
 | Rekor anchor source | Network. Opens the air-gap layers for the first time — both must be demonstrably enforced before this merges |
 | TSA anchor source (RFC 3161) | Same gate |
 | Segment sequences | Several files as one logical chain; behaviour when a segment is missing |
@@ -212,11 +215,21 @@ analytics PR merges before verify and report are impeccable.
 Mitigation is §4 of the architecture: one seam file. The extraction is a
 one-file diff plus a dependency change.
 
+**R7 — The disposition write path erodes the read-only boundary.** Once
+one write exists, the next one looks cheap. Mitigation: the write is a
+*command to the engine*, never bytes from the shell (the runtime's writer
+emits the record); it lands behind a dedicated ADR; and the boundary
+statement in `FUNCTIONALITY.md` gains an explicit "the one exception"
+clause so any second exception is visibly a rule change, not a precedent.
+
 ## 10. Definition of done, per phase
 
 A phase closes when all of the following hold:
 
-1. Every PR in the phase is merged with non-author approval.
+1. Every PR in the phase is merged with non-author approval — enforced by
+   the ruleset on `main` since 17 August 2026, so this is a fact about the
+   history rather than an aspiration. The bootstrap period, when it was
+   neither, is bounded in *Review and merge* in `GOVERNANCE.md`.
 2. CI green on macOS, Linux and Windows; coverage gate met.
 3. `reuse lint` clean.
 4. The phase's exit criterion is demonstrated on real fixture data, with
