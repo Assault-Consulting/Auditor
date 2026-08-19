@@ -1,6 +1,154 @@
 {
   "components": {
     "schemas": {
+      "AdvisoryItemModel": {
+        "description": "One thing worth a human's attention that changes no verdict.",
+        "properties": {
+          "at_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where, when the item has a location.",
+            "title": "At Seq"
+          },
+          "boot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hex boot identifier, when scoped to one.",
+            "title": "Boot Id"
+          },
+          "code": {
+            "description": "Stable key, e.g. mono_regression_in_boot.",
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's description of this item.",
+            "title": "Detail"
+          }
+        },
+        "required": [
+          "code",
+          "at_seq",
+          "boot_id",
+          "detail"
+        ],
+        "title": "AdvisoryItemModel",
+        "type": "object"
+      },
+      "AdvisoryModel": {
+        "description": "The advisory channel, carried apart from the verdict on purpose.",
+        "properties": {
+          "count": {
+            "description": "How many items.",
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "description": "The items themselves.",
+            "items": {
+              "$ref": "#/components/schemas/AdvisoryItemModel"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "note": {
+            "default": "advisory items do not affect the verdict",
+            "description": "Carried in the payload rather than left to the UI. A consumer that receives advisory items beside chain_ok will eventually treat them as part of it.",
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "items"
+        ],
+        "title": "AdvisoryModel",
+        "type": "object"
+      },
+      "ChainResult": {
+        "description": "Question one: is what I hold internally consistent?\n\nAlways answerable. It needs no key and no anchor \u2014 only the bytes in\nfront of it \u2014 which is why it is the one question a chain can never\ndecline to answer.",
+        "properties": {
+          "breaks": {
+            "description": "Sequence numbers where prev_hash does not name the predecessor.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Breaks",
+            "type": "array"
+          },
+          "chain_ok": {
+            "description": "Whether every record links to its predecessor.",
+            "title": "Chain Ok",
+            "type": "boolean"
+          },
+          "count": {
+            "description": "Records the verifier walked.",
+            "title": "Count",
+            "type": "integer"
+          },
+          "gaps": {
+            "description": "Skipped sequence numbers. A gap is a break whether or not the hashes on either side happen to link.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "head": {
+            "description": "Hex digest of the last record in the chain.",
+            "title": "Head",
+            "type": "string"
+          },
+          "uninterpretable": {
+            "description": "Records with an unknown format version or record type. Chain-checked and reported, never rejected \u2014 the verifier not understanding a record is not the same as the record being wrong.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Uninterpretable",
+            "type": "array"
+          },
+          "violations": {
+            "description": "(seq, reason) pairs for normative MUSTs the record broke. Kept as pairs: a seq without its reason is a number nobody can act on.",
+            "items": {
+              "items": {},
+              "type": "array"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chain_ok",
+          "count",
+          "head",
+          "breaks",
+          "gaps",
+          "violations",
+          "uninterpretable"
+        ],
+        "title": "ChainResult",
+        "type": "object"
+      },
       "ChainSubject": {
         "description": "What the container *is*, stated before any verdict about it.\n\nSeparate from the verification result on purpose: a reader of a report\nmust be able to confirm they are holding the same artifact the check ran\nagainst, independently of whether that check passed.",
         "properties": {
@@ -76,6 +224,101 @@
           "spans"
         ],
         "title": "ChainSubject",
+        "type": "object"
+      },
+      "Completeness": {
+        "description": "Question two: is what I hold all of it?\n\nThe only question that can go unasked, and the answer must say so.",
+        "properties": {
+          "anchor_lag": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Records present beyond the anchored head, when there are any.",
+            "title": "Anchor Lag"
+          },
+          "anchor_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The verifier's sentence explaining an incomplete answer.",
+            "title": "Anchor Reason"
+          },
+          "complete_to_anchor": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "True, False, or null. Null means NO ANCHOR WAS SUPPLIED and the question was never asked \u2014 it is not a pass and must never be rendered as one.",
+            "title": "Complete To Anchor"
+          }
+        },
+        "required": [
+          "complete_to_anchor",
+          "anchor_lag",
+          "anchor_reason"
+        ],
+        "title": "Completeness",
+        "type": "object"
+      },
+      "DiagnosisModel": {
+        "description": "What the failure looks like, rather than that there was one.\n\nThe pattern is the machine-readable part and a consumer may key visuals\noff it. The narrative is the package's own sentence, carried verbatim:\na shell may show a localised sentence beside it, never instead of it, or\nthe report stops saying what the verifier said.",
+        "properties": {
+          "at_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where, when the pattern has a location.",
+            "title": "At Seq"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the verifier expected to find.",
+            "title": "Expected"
+          },
+          "narrative": {
+            "description": "The verifier's own description, verbatim.",
+            "title": "Narrative",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "One of: truncated_tail, prefix_absent, seq_gap, chain_break, record_violation, unanchored_tail, replaced_or_rolled_back.",
+            "title": "Pattern",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern",
+          "at_seq",
+          "expected",
+          "narrative"
+        ],
+        "title": "DiagnosisModel",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -213,6 +456,60 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "VerificationResponse": {
+        "description": "The verifier's answer, passed through rather than summarised.\n\nThere is deliberately no single \"valid\" field. The three questions have\nthree separate answers, one of which can be \"not asked\", and any field\nthat collapsed them would be the shell deciding what a verdict means.",
+        "properties": {
+          "advisory": {
+            "$ref": "#/components/schemas/AdvisoryModel"
+          },
+          "chain": {
+            "$ref": "#/components/schemas/ChainResult"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/Completeness"
+          },
+          "diagnosis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiagnosisModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present only when something failed."
+          },
+          "session_id": {
+            "description": "The session this answer is about.",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "subject_sha256": {
+            "description": "Digest of the file this answer describes. Repeated here so a verification result cannot be separated from its subject.",
+            "title": "Subject Sha256",
+            "type": "string"
+          },
+          "verifier": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Package and wire format behind it.",
+            "title": "Verifier",
+            "type": "object"
+          }
+        },
+        "required": [
+          "session_id",
+          "subject_sha256",
+          "verifier",
+          "chain",
+          "completeness",
+          "diagnosis",
+          "advisory"
+        ],
+        "title": "VerificationResponse",
+        "type": "object"
       }
     }
   },
@@ -347,6 +644,46 @@
           }
         },
         "summary": "Get Session"
+      }
+    },
+    "/session/{session_id}/verify": {
+      "get": {
+        "description": "The verifier's answer about this session's container.\n\nRe-checks the file digest first. A verdict about bytes that have since\nchanged is worse than no verdict, because it looks like one.\n\nNote what this endpoint does NOT return: a single \"valid\" field. The\nthree questions have three separate answers, one of which can be \"not\nasked\", and collapsing them here would be the shell deciding what a\nverdict means \u2014 which is the one thing ADR-0001 exists to prevent.",
+        "operationId": "verify_session_session__session_id__verify_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Session"
       }
     }
   }
