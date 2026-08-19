@@ -22,11 +22,10 @@ than housekeeping:
 from __future__ import annotations
 
 import secrets
-from dataclasses import dataclass
-from pathlib import Path
-
 from .digest import file_sha256
 from .pala_seam import ChainHandle, NotAChain, open_chain
+from dataclasses import dataclass
+from pathlib import Path
 
 
 class SessionNotFound(Exception):
@@ -61,6 +60,14 @@ class Session:
         Checked by digest rather than by mtime: mtime is a claim the
         filesystem makes and a copy can preserve it, and this application
         does not accept claims where it can check.
+
+        Which platforms this actually protects is worth knowing. The reader
+        memory-maps the container, and Windows refuses to write to or delete
+        a file backing an active mapping, so there the operating system
+        prevents the change rather than this method detecting it. On Linux
+        and macOS the change is permitted, and this is the only thing
+        standing between it and a report describing bytes that are no longer
+        there.
         """
         if not self.path.exists() or file_sha256(self.path) != self.sha256:
             raise SubjectChanged(
@@ -110,6 +117,16 @@ class SessionStore:
         if session is None:
             raise SessionNotFound(session_id)
         session.chain.close()
+
+    def detach(self, session_id: str) -> None:
+        """Release the container's memory map, keeping the session record.
+
+        Used where the file must be manipulated while the session's identity
+        claim is still under test. Kept off the HTTP surface deliberately: a
+        session that has let go of its container can still say what it was
+        opened on, which is useful in a test and misleading in an API.
+        """
+        self.get(session_id).chain.close()
 
     def close_all(self) -> None:
         """Release every open container. Used on shutdown and by tests."""
