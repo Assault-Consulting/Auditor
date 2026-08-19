@@ -71,6 +71,22 @@ done < <(cd "$WORK" && find . -type f \
 # --- the checks, in CI's order ----------------------------------------------
 cd "$WORK"
 
+# Point Python at the EXTRACTED tree, ahead of anything already installed.
+#
+# Without this the script has the very defect it was written to prevent. An
+# editable install (`pip install -e sidecar`) registers the working copy on
+# sys.path, so `pytest` run from this temporary tree imports auditor_sidecar
+# from wherever that install points — and happily reports a pass for code
+# that is not on the branch. CI does not have the problem because it installs
+# from its own checkout; a script that clones and then imports someone else's
+# tree is worse than no script, because it produces a confident wrong answer.
+export PYTHONPATH="$WORK/sidecar${PYTHONPATH:+:$PYTHONPATH}"
+IMPORTED="$(python -c 'import auditor_sidecar; print(auditor_sidecar.__file__)')"
+case "$IMPORTED" in
+  "$WORK"/*) printf 'importing    : %s\n' "$IMPORTED" ;;
+  *) fail "auditor_sidecar resolves to $IMPORTED, not the extracted tree" ;;
+esac
+
 step "lint"
 ruff check --output-format=full sidecar scripts
 
