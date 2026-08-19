@@ -88,3 +88,127 @@ class SessionRequest(BaseModel):
     """Open a container."""
 
     path: str = Field(description="Absolute path to a .pala container.")
+
+
+class ChainResult(BaseModel):
+    """Question one: is what I hold internally consistent?
+
+    Always answerable. It needs no key and no anchor — only the bytes in
+    front of it — which is why it is the one question a chain can never
+    decline to answer.
+    """
+
+    chain_ok: bool = Field(description="Whether every record links to its predecessor.")
+    count: int = Field(description="Records the verifier walked.")
+    head: str = Field(description="Hex digest of the last record in the chain.")
+    breaks: list[int] = Field(
+        description="Sequence numbers where prev_hash does not name the predecessor."
+    )
+    gaps: list[int] = Field(
+        description=(
+            "Skipped sequence numbers. A gap is a break whether or not the "
+            "hashes on either side happen to link."
+        )
+    )
+    violations: list[list] = Field(
+        description=(
+            "(seq, reason) pairs for normative MUSTs the record broke. Kept "
+            "as pairs: a seq without its reason is a number nobody can act on."
+        )
+    )
+    uninterpretable: list[int] = Field(
+        description=(
+            "Records with an unknown format version or record type. "
+            "Chain-checked and reported, never rejected — the verifier not "
+            "understanding a record is not the same as the record being wrong."
+        )
+    )
+
+
+class Completeness(BaseModel):
+    """Question two: is what I hold all of it?
+
+    The only question that can go unasked, and the answer must say so.
+    """
+
+    complete_to_anchor: bool | None = Field(
+        description=(
+            "True, False, or null. Null means NO ANCHOR WAS SUPPLIED and the "
+            "question was never asked — it is not a pass and must never be "
+            "rendered as one."
+        )
+    )
+    anchor_lag: int | None = Field(
+        description="Records present beyond the anchored head, when there are any."
+    )
+    anchor_reason: str | None = Field(
+        description="The verifier's sentence explaining an incomplete answer."
+    )
+
+
+class DiagnosisModel(BaseModel):
+    """What the failure looks like, rather than that there was one.
+
+    The pattern is the machine-readable part and a consumer may key visuals
+    off it. The narrative is the package's own sentence, carried verbatim:
+    a shell may show a localised sentence beside it, never instead of it, or
+    the report stops saying what the verifier said.
+    """
+
+    pattern: str = Field(
+        description=(
+            "One of: truncated_tail, prefix_absent, seq_gap, chain_break, "
+            "record_violation, unanchored_tail, replaced_or_rolled_back."
+        )
+    )
+    at_seq: int | None = Field(description="Where, when the pattern has a location.")
+    expected: str | None = Field(description="What the verifier expected to find.")
+    narrative: str = Field(description="The verifier's own description, verbatim.")
+
+
+class AdvisoryItemModel(BaseModel):
+    """One thing worth a human's attention that changes no verdict."""
+
+    code: str = Field(description="Stable key, e.g. mono_regression_in_boot.")
+    at_seq: int | None = Field(description="Where, when the item has a location.")
+    boot_id: str | None = Field(description="Hex boot identifier, when scoped to one.")
+    detail: str | None = Field(description="The package's description of this item.")
+
+
+class AdvisoryModel(BaseModel):
+    """The advisory channel, carried apart from the verdict on purpose."""
+
+    count: int = Field(description="How many items.")
+    items: list[AdvisoryItemModel] = Field(description="The items themselves.")
+    note: str = Field(
+        default="advisory items do not affect the verdict",
+        description=(
+            "Carried in the payload rather than left to the UI. A consumer "
+            "that receives advisory items beside chain_ok will eventually "
+            "treat them as part of it."
+        ),
+    )
+
+
+class VerificationResponse(BaseModel):
+    """The verifier's answer, passed through rather than summarised.
+
+    There is deliberately no single "valid" field. The three questions have
+    three separate answers, one of which can be "not asked", and any field
+    that collapsed them would be the shell deciding what a verdict means.
+    """
+
+    session_id: str = Field(description="The session this answer is about.")
+    subject_sha256: str = Field(
+        description=(
+            "Digest of the file this answer describes. Repeated here so a "
+            "verification result cannot be separated from its subject."
+        )
+    )
+    verifier: dict[str, str] = Field(description="Package and wire format behind it.")
+    chain: ChainResult
+    completeness: Completeness
+    diagnosis: DiagnosisModel | None = Field(
+        description="Present only when something failed."
+    )
+    advisory: AdvisoryModel
