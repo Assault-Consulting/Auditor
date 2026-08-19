@@ -13,6 +13,38 @@
 //     python scripts/generate_api_client.py
 
 /**
+ * What the container *is*, stated before any verdict about it.
+ *
+ * Separate from the verification result on purpose: a reader of a report
+ * must be able to confirm they are holding the same artifact the check ran
+ * against, independently of whether that check passed.
+ */
+export interface ChainSubject {
+  /** The file's name, for display only. */
+  filename: string;
+  /** Absolute path as opened. */
+  path: string;
+  /** File size on disk, in bytes. */
+  bytes: number;
+  /** SHA-256 of the file as opened. Identifies the artifact; a report naming only a filename identifies nothing. */
+  sha256: string;
+  /** Number of records the reader found. */
+  records: number;
+  /** Lowest sequence number present. */
+  first_seq: number | null;
+  /** Highest sequence number present. */
+  last_seq: number | null;
+  /** Distinct boot identifiers present. */
+  boots: number;
+  /** Distinct spans present. */
+  spans: number;
+}
+
+export interface HTTPValidationError {
+  detail?: Array<ValidationError>;
+}
+
+/**
  * Liveness, and the identity of the verifier behind this service.
  *
  * The verifier identity is part of the liveness answer rather than a
@@ -31,4 +63,32 @@ export interface HealthResponse {
   spec: string;
   /** Whether the session token gate is enforced. False means the sidecar was started without a token and any local process can reach it — a development affordance, never a supported configuration. */
   authenticated: boolean;
+}
+
+/**
+ * Open a container.
+ */
+export interface SessionRequest {
+  /** Absolute path to a .pala container. */
+  path: string;
+}
+
+/**
+ * A session over one open container.
+ */
+export interface SessionResponse {
+  /** Opaque handle for subsequent calls. */
+  session_id: string;
+  /** What this session is about. */
+  subject: ChainSubject;
+  /** The verifier package and wire format behind this session. Carried on the session rather than fetched separately, because a result is only meaningful alongside the verifier that produced it. */
+  verifier: Record<string, string>;
+}
+
+export interface ValidationError {
+  loc: Array<string | number>;
+  msg: string;
+  type: string;
+  input?: unknown;
+  ctx?: Record<string, unknown>;
 }
