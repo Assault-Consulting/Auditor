@@ -43,9 +43,20 @@ Early-stage, contributions welcome. Short on purpose.
 - Branch from `main`, open a PR, link an issue where one exists.
 - CI must be green on all three platforms (macOS/Linux/Windows). Windows
   path separators and absolute-path behaviour differ from POSIX — do not
-  assume a POSIX-only fix is complete.
-- Verify on a fresh clone with the exact CI steps before pushing, and
-  commit exactly what passed.
+  assume a POSIX-only fix is complete. Two concrete cases already met:
+  a file backing an active memory map cannot be written or deleted on
+  Windows, and `ruff` grouping depends on the pinned version.
+- **Before pushing, run `./scripts/verify_branch.sh`.** It checks the
+  toolchain pin, extracts the branch *as pushed*, and runs lint, the
+  generated-client check, the ADR-0001 scan, the tests, the coverage gate
+  and `reuse` against those bytes — then reports any file where your
+  working tree differs from what you pushed.
+
+  That last part is the point. "It passed locally" and "it passes on the
+  branch" are different statements, and the gap between them has cost this
+  repository two red pull requests: once when a linter fix existed only in
+  the working copy, once when the installed linter was a patch version
+  ahead of the pin.
 
 ## Building and running the tests
 
@@ -56,6 +67,8 @@ corepack enable && corepack prepare pnpm@9 --activate
 pnpm install
 python -m venv .venv && . .venv/bin/activate
 pip install -e "sidecar[dev]"
+
+./scripts/verify_branch.sh            # everything below, against the branch
 
 ruff check sidecar scripts            # E/F/I/B/UP, line length 100, py311
 pytest sidecar -q                     # headless; FastAPI TestClient
