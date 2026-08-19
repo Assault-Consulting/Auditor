@@ -243,6 +243,35 @@ jobs:
       # Refreshing the index and installing 55 MB of packages are different
       # operations with different failure modes, so they are separate steps.
       # Only the refresh carries a bound; see the note on each.
+
+      # Which host, not how long.
+      #
+      # Every failing log has the same shape: four rounds of `Ign:` against
+      # azure.archive.ubuntu.com across all four suites, then a fallback to
+      # archive.ubuntu.com, which answers — in one run it delivered 27.4 MB
+      # in 3 seconds. The acquire timeouts never fire because the mirror is
+      # not stalling a connection; it is declining the request, and apt
+      # dutifully retries a host that has already said no.
+      #
+      # Four bounds were tried before anyone asked which mirror was being
+      # waited on. This drops the one that has never answered on a bad day
+      # and keeps the one that has, which is a change to the question rather
+      # than another answer to the wrong one.
+      #
+      # The list is printed because it is the evidence for whoever looks next:
+      # if this stops helping, the log says what apt was actually pointed at
+      # rather than leaving it to be inferred.
+      - name: prefer a mirror that answers
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+              /etc/apt/apt-mirrors.txt
+            echo "mirrorlist now:"; cat /etc/apt/apt-mirrors.txt
+          else
+            echo "no /etc/apt/apt-mirrors.txt on this image — leaving sources alone"
+          fi
+
       - name: apt index
         if: matrix.platform == 'ubuntu-22.04'
         # Ten minutes, not five. The refresh took 3 seconds on one run and
