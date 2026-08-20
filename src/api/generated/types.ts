@@ -39,6 +39,68 @@ export interface AdvisoryModel {
 }
 
 /**
+ * One source that was consulted, and what came back.
+ */
+export interface AnchorAttemptModel {
+  /** 'manual', 'file', ... */
+  source_kind: string;
+  /** Which one — a path, or free text. */
+  source_detail: string;
+  /** 'answered', 'absent' or 'error'. Three states, never two: absent is normal, error is a source that exists and could not be read, and merging them would hide a corrupt anchor file behind 'no anchor configured'. */
+  outcome: string;
+  /** Why, when the outcome is 'error'. */
+  error: string | null;
+}
+
+/**
+ * An ordered list of places to look for a trusted head.
+ *
+ * Order is meaningful and is the user's: the first source that answers wins,
+ * and the ones before it are reported as tried. That is why resolution is
+ * availability-first — a source that errors does not stop the walk — and why
+ * the provenance view has to show what was skipped rather than only what
+ * answered.
+ */
+export interface AnchorProfile {
+  /** Profile name, used as the verify parameter. */
+  name: string;
+  /** Tried in order; the first that answers is used. */
+  sources: Array<AnchorSourceSpec>;
+}
+
+/**
+ * The head that answered, and where it came from.
+ */
+export interface AnchorReadingModel {
+  /** Which kind of source answered. */
+  source_kind: string;
+  /** Which particular one. */
+  source_detail: string;
+  /** When the source was read. */
+  observed_at_ns: number | null;
+  /** The hex head this check was made against. */
+  head: string;
+}
+
+/**
+ * One place a trusted head might live.
+ *
+ * The shell owns the concrete sources; the package owns what a head means
+ * (L2). A spec is therefore plain data — no package type appears in a
+ * request model.
+ */
+export interface AnchorSourceSpec {
+  /** 'manual' or 'file'. */
+  kind: string;
+  /** For kind='manual': the 64-character hex head, as handed over. */
+  head?: string | null;
+  /** For kind='file': path to a FileAnchor head file. */
+  path?: string | null;
+  /** Free text shown beside this source in the provenance view. */
+  detail?: string;
+}
+
+/**
  * Question one: is what I hold internally consistent?
  *
  * Always answerable. It needs no key and no anchor — only the bytes in
@@ -96,7 +158,7 @@ export interface ChainSubject {
  * The only question that can go unasked, and the answer must say so.
  */
 export interface Completeness {
-  /** True, False, or null. Null means NO ANCHOR WAS SUPPLIED and the question was never asked — it is not a pass and must never be rendered as one. */
+  /** True, False, or null. Null means NO ANCHOR ANSWERED — either none was configured, or every source in the profile was absent — so the question was never asked. It is not a pass and must never be rendered as one. */
   complete_to_anchor: boolean | null;
   /** Records present beyond the anchored head, when there are any. */
   anchor_lag: number | null;
@@ -192,6 +254,10 @@ export interface VerificationResponse {
   verifier: Record<string, string>;
   chain: ChainResult;
   completeness: Completeness;
+  /** The source that answered, or null when none did. A completeness answer is worth exactly as much as the anchor behind it, so the two are never separated. */
+  anchor: AnchorReadingModel | null;
+  /** Every source consulted, in order, including those that were absent or failed. The answering source alone would let a UI present it as 'the' anchor while silently skipping a source the operator believed was authoritative. */
+  anchor_attempts: Array<AnchorAttemptModel>;
   /** Present only when something failed. */
   diagnosis: DiagnosisModel | null;
   advisory: AdvisoryModel;
