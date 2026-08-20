@@ -15,7 +15,7 @@ generated client carries.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class HealthResponse(BaseModel):
@@ -133,8 +133,9 @@ class Completeness(BaseModel):
 
     complete_to_anchor: bool | None = Field(
         description=(
-            "True, False, or null. Null means NO ANCHOR WAS SUPPLIED and the "
-            "question was never asked — it is not a pass and must never be "
+            "True, False, or null. Null means NO ANCHOR ANSWERED — either none "
+            "was configured, or every source in the profile was absent — so "
+            "the question was never asked. It is not a pass and must never be "
             "rendered as one."
         )
     )
@@ -190,6 +191,89 @@ class AdvisoryModel(BaseModel):
     )
 
 
+class AnchorSourceSpec(BaseModel):
+    """One place a trusted head might live.
+
+    The shell owns the concrete sources; the package owns what a head means
+    (L2). A spec is therefore plain data — no package type appears in a
+    request model.
+    """
+
+    kind: str = Field(description="'manual' or 'file'.")
+    head: str | None = Field(
+        default=None,
+        description="For kind='manual': the 64-character hex head, as handed over.",
+    )
+    path: str | None = Field(
+        default=None,
+        description="For kind='file': path to a FileAnchor head file.",
+    )
+    detail: str = Field(
+        default="",
+        description="Free text shown beside this source in the provenance view.",
+    )
+
+    @field_validator("head")
+    @classmethod
+    def _head_is_a_head(cls, v: str | None) -> str | None:
+        """Validated at entry, not at use.
+
+        A head pasted with a typo must be refused where it is pasted. Carried
+        further, it becomes an anchor that names no record in the chain — which
+        the verifier reports as `replaced_or_rolled_back`, the single most
+        alarming diagnosis this tool can produce. Sending someone to
+        investigate a replaced log because they mistyped a character is a
+        failure of this application, not of theirs.
+        """
+        if v is None:
+            return v
+        cleaned = v.strip().lower()
+        if len(cleaned) != 64 or any(c not in "0123456789abcdef" for c in cleaned):
+            raise ValueError("a head is 64 hexadecimal characters")
+        return cleaned
+
+
+class AnchorProfile(BaseModel):
+    """An ordered list of places to look for a trusted head.
+
+    Order is meaningful and is the user's: the first source that answers wins,
+    and the ones before it are reported as tried. That is why resolution is
+    availability-first — a source that errors does not stop the walk — and why
+    the provenance view has to show what was skipped rather than only what
+    answered.
+    """
+
+    name: str = Field(description="Profile name, used as the verify parameter.")
+    sources: list[AnchorSourceSpec] = Field(
+        description="Tried in order; the first that answers is used."
+    )
+
+
+class AnchorAttemptModel(BaseModel):
+    """One source that was consulted, and what came back."""
+
+    source_kind: str = Field(description="'manual', 'file', ...")
+    source_detail: str = Field(description="Which one — a path, or free text.")
+    outcome: str = Field(
+        description=(
+            "'answered', 'absent' or 'error'. Three states, never two: absent "
+            "is normal, error is a source that exists and could not be read, "
+            "and merging them would hide a corrupt anchor file behind 'no "
+            "anchor configured'."
+        )
+    )
+    error: str | None = Field(description="Why, when the outcome is 'error'.")
+
+
+class AnchorReadingModel(BaseModel):
+    """The head that answered, and where it came from."""
+
+    source_kind: str = Field(description="Which kind of source answered.")
+    source_detail: str = Field(description="Which particular one.")
+    observed_at_ns: int | None = Field(description="When the source was read.")
+    head: str = Field(description="The hex head this check was made against.")
+
+
 class VerificationResponse(BaseModel):
     """The verifier's answer, passed through rather than summarised.
 
@@ -208,6 +292,21 @@ class VerificationResponse(BaseModel):
     verifier: dict[str, str] = Field(description="Package and wire format behind it.")
     chain: ChainResult
     completeness: Completeness
+    anchor: AnchorReadingModel | None = Field(
+        description=(
+            "The source that answered, or null when none did. A completeness "
+            "answer is worth exactly as much as the anchor behind it, so the "
+            "two are never separated."
+        )
+    )
+    anchor_attempts: list[AnchorAttemptModel] = Field(
+        description=(
+            "Every source consulted, in order, including those that were "
+            "absent or failed. The answering source alone would let a UI "
+            "present it as 'the' anchor while silently skipping a source the "
+            "operator believed was authoritative."
+        )
+    )
     diagnosis: DiagnosisModel | None = Field(
         description="Present only when something failed."
     )

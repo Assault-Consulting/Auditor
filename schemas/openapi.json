@@ -85,6 +85,155 @@
         "title": "AdvisoryModel",
         "type": "object"
       },
+      "AnchorAttemptModel": {
+        "description": "One source that was consulted, and what came back.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why, when the outcome is 'error'.",
+            "title": "Error"
+          },
+          "outcome": {
+            "description": "'answered', 'absent' or 'error'. Three states, never two: absent is normal, error is a source that exists and could not be read, and merging them would hide a corrupt anchor file behind 'no anchor configured'.",
+            "title": "Outcome",
+            "type": "string"
+          },
+          "source_detail": {
+            "description": "Which one \u2014 a path, or free text.",
+            "title": "Source Detail",
+            "type": "string"
+          },
+          "source_kind": {
+            "description": "'manual', 'file', ...",
+            "title": "Source Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_kind",
+          "source_detail",
+          "outcome",
+          "error"
+        ],
+        "title": "AnchorAttemptModel",
+        "type": "object"
+      },
+      "AnchorProfile": {
+        "description": "An ordered list of places to look for a trusted head.\n\nOrder is meaningful and is the user's: the first source that answers wins,\nand the ones before it are reported as tried. That is why resolution is\navailability-first \u2014 a source that errors does not stop the walk \u2014 and why\nthe provenance view has to show what was skipped rather than only what\nanswered.",
+        "properties": {
+          "name": {
+            "description": "Profile name, used as the verify parameter.",
+            "title": "Name",
+            "type": "string"
+          },
+          "sources": {
+            "description": "Tried in order; the first that answers is used.",
+            "items": {
+              "$ref": "#/components/schemas/AnchorSourceSpec"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "sources"
+        ],
+        "title": "AnchorProfile",
+        "type": "object"
+      },
+      "AnchorReadingModel": {
+        "description": "The head that answered, and where it came from.",
+        "properties": {
+          "head": {
+            "description": "The hex head this check was made against.",
+            "title": "Head",
+            "type": "string"
+          },
+          "observed_at_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the source was read.",
+            "title": "Observed At Ns"
+          },
+          "source_detail": {
+            "description": "Which particular one.",
+            "title": "Source Detail",
+            "type": "string"
+          },
+          "source_kind": {
+            "description": "Which kind of source answered.",
+            "title": "Source Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_kind",
+          "source_detail",
+          "observed_at_ns",
+          "head"
+        ],
+        "title": "AnchorReadingModel",
+        "type": "object"
+      },
+      "AnchorSourceSpec": {
+        "description": "One place a trusted head might live.\n\nThe shell owns the concrete sources; the package owns what a head means\n(L2). A spec is therefore plain data \u2014 no package type appears in a\nrequest model.",
+        "properties": {
+          "detail": {
+            "default": "",
+            "description": "Free text shown beside this source in the provenance view.",
+            "title": "Detail",
+            "type": "string"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For kind='manual': the 64-character hex head, as handed over.",
+            "title": "Head"
+          },
+          "kind": {
+            "description": "'manual' or 'file'.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For kind='file': path to a FileAnchor head file.",
+            "title": "Path"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "AnchorSourceSpec",
+        "type": "object"
+      },
       "ChainResult": {
         "description": "Question one: is what I hold internally consistent?\n\nAlways answerable. It needs no key and no anchor \u2014 only the bytes in\nfront of it \u2014 which is why it is the one question a chain can never\ndecline to answer.",
         "properties": {
@@ -262,7 +411,7 @@
                 "type": "null"
               }
             ],
-            "description": "True, False, or null. Null means NO ANCHOR WAS SUPPLIED and the question was never asked \u2014 it is not a pass and must never be rendered as one.",
+            "description": "True, False, or null. Null means NO ANCHOR ANSWERED \u2014 either none was configured, or every source in the profile was absent \u2014 so the question was never asked. It is not a pass and must never be rendered as one.",
             "title": "Complete To Anchor"
           }
         },
@@ -463,6 +612,25 @@
           "advisory": {
             "$ref": "#/components/schemas/AdvisoryModel"
           },
+          "anchor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnchorReadingModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The source that answered, or null when none did. A completeness answer is worth exactly as much as the anchor behind it, so the two are never separated."
+          },
+          "anchor_attempts": {
+            "description": "Every source consulted, in order, including those that were absent or failed. The answering source alone would let a UI present it as 'the' anchor while silently skipping a source the operator believed was authoritative.",
+            "items": {
+              "$ref": "#/components/schemas/AnchorAttemptModel"
+            },
+            "title": "Anchor Attempts",
+            "type": "array"
+          },
           "chain": {
             "$ref": "#/components/schemas/ChainResult"
           },
@@ -505,6 +673,8 @@
           "verifier",
           "chain",
           "completeness",
+          "anchor",
+          "anchor_attempts",
           "diagnosis",
           "advisory"
         ],
@@ -519,6 +689,109 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/anchors/profiles": {
+      "get": {
+        "description": "Every profile this sidecar knows, including the empty one.",
+        "operationId": "list_profiles_anchors_profiles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AnchorProfile"
+                  },
+                  "title": "Response List Profiles Anchors Profiles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Profiles"
+      }
+    },
+    "/anchors/profiles/{name}": {
+      "delete": {
+        "operationId": "delete_profile_anchors_profiles__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Profile"
+      },
+      "put": {
+        "description": "Define or replace a profile.\n\nThe body's `name` is ignored in favour of the path, so a profile\ncannot be defined under one name and answer to another.",
+        "operationId": "put_profile_anchors_profiles__name__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnchorProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnchorProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Profile"
+      }
+    },
     "/health": {
       "get": {
         "description": "Liveness probe, and the identity triple the UI displays.\n\nThe verifier version is reported because a verification result is only\nmeaningful alongside the verifier that produced it.",
@@ -657,6 +930,18 @@
             "required": true,
             "schema": {
               "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Anchor profile to check completeness against. The default asks question one only and leaves question two not checked.",
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "description": "Anchor profile to check completeness against. The default asks question one only and leaves question two not checked.",
+              "title": "Profile",
               "type": "string"
             }
           }
