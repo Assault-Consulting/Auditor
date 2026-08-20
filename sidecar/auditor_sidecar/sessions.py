@@ -51,14 +51,20 @@ class Session:
     #: would mean the shell had shown a verdict it could no longer reproduce,
     #: and this application's entire claim is that its answers are
     #: reproducible.
-    #:
-    #: The key is the anchor profile name. Only "none" exists until B-04.
     verifications: dict[str, dict] = field(default_factory=dict)
 
-    def verify(self, profile: str = "none") -> dict:
-        """The verifier's answer for this session, computed at most once."""
+    def verify(
+        self, profile: str = "none", sources: list[dict[str, str]] | None = None
+    ) -> dict:
+        """The verifier's answer for this session, computed at most once.
+
+        Cached per profile rather than per session, because the same container
+        checked against two different anchors is two different answers — and
+        both are legitimate. A user who tries the keychain, finds nothing, and
+        then pastes a head by hand has asked two questions, not corrected one.
+        """
         if profile not in self.verifications:
-            self.verifications[profile] = self.chain.verify()
+            self.verifications[profile] = self.chain.verify(sources)
         return self.verifications[profile]
 
     def subject(self) -> dict[str, object]:
