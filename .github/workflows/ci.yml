@@ -39,8 +39,13 @@ jobs:
       frontend: ${{ steps.probe.outputs.frontend }}
       tauri: ${{ steps.probe.outputs.tauri }}
       licenses: ${{ steps.probe.outputs.licenses }}
+      desktop: ${{ steps.touched.outputs.desktop }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # Full history: the desktop probe below diffs against the base of
+          # the pull request, and a shallow clone has no base to diff against.
+          fetch-depth: 0
 
       - id: probe
         name: which components are present
@@ -58,6 +63,50 @@ jobs:
           probe frontend package.json
           probe tauri    src-tauri/Cargo.toml
           probe licenses LICENSES
+
+      # Does this change touch anything the desktop build actually covers?
+      #
+      # The Linux leg of `build` installs webkit, gtk and their development
+      # headers — 55 MB from an Ubuntu mirror that has taken down five runs
+      # in one day. Four attempts to tune timeouts around that failed,
+      # because the problem is not how long we wait: it is that a pull
+      # request touching only the Python sidecar has no reason to be
+      # downloading a GUI toolkit at all.
+      #
+      # So the desktop toolchain runs when the change could plausibly affect
+      # it, and not otherwise. The list is deliberately generous — building
+      # unnecessarily costs minutes, skipping wrongly costs a broken `main` —
+      # and it includes this workflow itself, so a change to the build steps
+      # always exercises them.
+      #
+      # Outside a pull request there is no base to diff against, so it always
+      # runs. That covers pushes to main and manual dispatches.
+      - id: touched
+        name: does this change touch the desktop stack?
+        run: |
+          desktop_paths='^(src/|src-tauri/|package\.json|pnpm-lock\.yaml|tsconfig.*\.json|index\.html|vite\.config\.ts|scripts/gen-placeholder-icons\.py|\.github/workflows/)'
+
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "desktop=true" >> "$GITHUB_OUTPUT"
+            echo "not a pull request — the desktop build runs unconditionally"
+            exit 0
+          fi
+
+          base='${{ github.event.pull_request.base.sha }}'
+          changed="$(git diff --name-only "$base" HEAD)"
+          echo "files changed against ${base:0:8}:"
+          echo "$changed" | sed 's/^/  /'
+
+          if echo "$changed" | grep -qE "$desktop_paths"; then
+            echo "desktop=true" >> "$GITHUB_OUTPUT"
+            echo
+            echo "touches the desktop stack — build will run:"
+            echo "$changed" | grep -E "$desktop_paths" | sed 's/^/  /'
+          else
+            echo "desktop=false" >> "$GITHUB_OUTPUT"
+            echo
+            echo "no desktop-stack paths touched — build will be skipped"
+          fi
 
   lint:
     name: lint
@@ -162,7 +211,10 @@ jobs:
   build:
     name: build (${{ matrix.platform }})
     needs: inventory
-    if: needs.inventory.outputs.frontend == 'true' && needs.inventory.outputs.tauri == 'true'
+    if: >-
+      needs.inventory.outputs.frontend == 'true'
+      && needs.inventory.outputs.tauri == 'true'
+      && needs.inventory.outputs.desktop == 'true'
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 30
     strategy:
@@ -188,11 +240,92 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: linux system deps
+      # Refreshing the index and installing 55 MB of packages are different
+      # operations with different failure modes, so they are separate steps.
+      # Only the refresh carries a bound; see the note on each.
+
+      # Which host, not how long.
+      #
+      # Every failing log has the same shape: four rounds of `Ign:` against
+      # azure.archive.ubuntu.com across all four suites, then a fallback to
+      # archive.ubuntu.com, which answers — in one run it delivered 27.4 MB
+      # in 3 seconds. The acquire timeouts never fire because the mirror is
+      # not stalling a connection; it is declining the request, and apt
+      # dutifully retries a host that has already said no.
+      #
+      # Four bounds were tried before anyone asked which mirror was being
+      # waited on. This drops the one that has never answered on a bad day
+      # and keeps the one that has, which is a change to the question rather
+      # than another answer to the wrong one.
+      #
+      # The list is printed because it is the evidence for whoever looks next:
+      # if this stops helping, the log says what apt was actually pointed at
+      # rather than leaving it to be inferred.
+      - name: prefer a mirror that answers
         if: matrix.platform == 'ubuntu-22.04'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+              /etc/apt/apt-mirrors.txt
+            echo "mirrorlist now:"; cat /etc/apt/apt-mirrors.txt
+          else
+            echo "no /etc/apt/apt-mirrors.txt on this image — leaving sources alone"
+          fi
+
+      - name: apt index
+        if: matrix.platform == 'ubuntu-22.04'
+        # Ten minutes, not five. The refresh took 3 seconds on one run and
+        # 2 minutes 3 seconds on the next, on the same mirror — so a bound
+        # anywhere near the healthy figure is a bound that will fire on a
+        # slow day. This one only catches a mirror that has stopped
+        # answering entirely, which is the failure it was added for.
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=20 \
+            -o Acquire::https::Timeout=20
+
+      - name: linux system deps
+        if: matrix.platform == 'ubuntu-22.04'
+        # NO step timeout, deliberately, after two attempts to set one made
+        # things worse.
+        #
+        # The evidence, in order: six minutes killed an install that was
+        # downloading normally; fifteen minutes killed one that ran 15m04s.
+        # Before either bound existed, this step completed inside the job's
+        # 30-minute budget on every green run. Two guesses, two regressions —
+        # the honest conclusion is that the healthy duration of this step is
+        # highly variable and nobody here knows its distribution.
+        #
+        # A bound below the real duration is worse than no bound: it converts
+        # a slow success into a certain failure, every time, which is exactly
+        # the "red is the normal colour" state this workflow was designed to
+        # avoid. So the job's 30 minutes governs until there is a measured
+        # figure to set a bound from.
+        #
+        # The thing actually worth doing about a slow mirror is caching the
+        # archives between runs. That is a separate change with its own
+        # failure modes, and it should be made on evidence rather than
+        # stacked on top of two failed guesses.
+        run: |
+          # --no-install-recommends drops the runtime-only stack — gstreamer,
+          # pipewire, the desktop portals — which a webkit application needs
+          # to RUN a window. This job only compiles against the development
+          # headers and never starts one.
+          #
+          # Measured rather than assumed, and the measurement is unflattering:
+          # on a non-jammy box the same four packages resolve to 108 with
+          # recommends and 103 without. Most of the runner's 130 are hard
+          # dependencies and stay. So this is a small, principled reduction —
+          # do not install what you never execute — and it is not a fix for
+          # slowness: the run that removed the recommended set still spent
+          # over fifteen minutes here.
+          #
+          # If something here turns out to be genuinely required, the failure
+          # is a compile error naming the missing header, not a mystery.
+          sudo apt-get install -y --no-install-recommends \
+            -o Acquire::Retries=3 \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
@@ -280,13 +413,12 @@ jobs:
     # changes, and a required context that stops being reported leaves every
     # PR stuck on "Expected — waiting for status" with no failure to debug.
     # Protect THIS job: it runs unconditionally, depends on every other job,
-    # and fails unless each one either succeeded or was skipped because its
-    # component is not in the repository yet — one stable name, reported on
-    # every PR, immune to renames above it.
+    # and fails unless each one either succeeded or was skipped — one stable
+    # name, reported on every PR, immune to renames above it.
     #
-    # "skipped" is accepted, and every skip is printed with the component that
-    # caused it. When the scaffold is complete nothing skips, and this summary
-    # is how you notice if something silently starts skipping again.
+    # "skipped" is accepted, and the inventory printed below says why: either
+    # the component is not in the repository yet, or the change does not
+    # touch the desktop stack. A skip is never anonymous.
     if: always()
     needs: [inventory, lint, api-client, no-wire-parsing, test, build, coverage, reuse]
     runs-on: ubuntu-latest
@@ -298,6 +430,8 @@ jobs:
           echo "  frontend : ${{ needs.inventory.outputs.frontend }}"
           echo "  tauri    : ${{ needs.inventory.outputs.tauri }}"
           echo "  licenses : ${{ needs.inventory.outputs.licenses }}"
+          echo
+          echo "desktop stack touched by this change: ${{ needs.inventory.outputs.desktop }}"
           echo
           echo "job results"
           echo "  inventory       : ${{ needs.inventory.result }}"
@@ -315,7 +449,7 @@ jobs:
           check() {  # $1 = job name, $2 = result
             case "$2" in
               success) ;;
-              skipped) echo "note: $1 skipped — its component is not in the repository yet" ;;
+              skipped) echo "note: $1 skipped — see the inventory above for why" ;;
               *)       echo "FAIL: $1 -> $2"; fail=1 ;;
             esac
           }
