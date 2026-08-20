@@ -25,16 +25,18 @@ import os
 import secrets
 import uvicorn
 from . import __version__
+from .anchors import NO_ANCHOR, AnchorProfiles, ProfileNotFound
 from .models import (
+    AnchorProfile,
     ChainSubject,
     HealthResponse,
     SessionRequest,
     SessionResponse,
     VerificationResponse,
 )
-from .pala_seam import NotAChain, verifier_identity
+from .pala_seam import NotAChain, UnknownAnchorKind, verifier_identity
 from .sessions import SessionNotFound, SessionStore, SubjectChanged
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pathlib import Path
@@ -116,6 +118,7 @@ def build_app(token: str | None = None) -> FastAPI:
     # several apps in one process, and a shared store would let one test's
     # open container appear in another's session list.
     app.state.sessions = SessionStore()
+    app.state.anchors = AnchorProfiles()
 
     @app.middleware("http")
     async def require_token(request: Request, call_next):
@@ -197,8 +200,48 @@ def build_app(token: str | None = None) -> FastAPI:
             verifier=verifier_identity(),
         )
 
+    @app.get("/anchors/profiles", response_model=list[AnchorProfile])
+    def list_profiles() -> list[AnchorProfile]:
+        """Every profile this sidecar knows, including the empty one."""
+        return [
+            AnchorProfile(name=name, sources=sources)
+            for name, sources in sorted(app.state.anchors.all().items())
+        ]
+
+    @app.put("/anchors/profiles/{name}", response_model=AnchorProfile)
+    def put_profile(name: str, profile: AnchorProfile) -> AnchorProfile:
+        """Define or replace a profile.
+
+        The body's `name` is ignored in favour of the path, so a profile
+        cannot be defined under one name and answer to another.
+        """
+        specs = [s.model_dump(exclude_none=True) for s in profile.sources]
+        try:
+            app.state.anchors.put(name, specs)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        return AnchorProfile(name=name, sources=profile.sources)
+
+    @app.delete("/anchors/profiles/{name}", status_code=204)
+    def delete_profile(name: str) -> None:
+        try:
+            app.state.anchors.delete(name)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        except ProfileNotFound:
+            raise HTTPException(status_code=404, detail="no such profile") from None
+
     @app.get("/session/{session_id}/verify", response_model=VerificationResponse)
-    def verify_session(session_id: str) -> VerificationResponse:
+    def verify_session(
+        session_id: str,
+        profile: str = Query(
+            default=NO_ANCHOR,
+            description=(
+                "Anchor profile to check completeness against. The default "
+                "asks question one only and leaves question two not checked."
+            ),
+        ),
+    ) -> VerificationResponse:
         """The verifier's answer about this session's container.
 
         Re-checks the file digest first. A verdict about bytes that have since
@@ -218,7 +261,24 @@ def build_app(token: str | None = None) -> FastAPI:
             # answer to give — only a refusal that names the reason.
             raise HTTPException(status_code=409, detail=str(exc)) from None
 
-        result = session.verify()
+        try:
+            sources = app.state.anchors.get(profile)
+        except ProfileNotFound:
+            # 404 on the profile, not a fallback to no anchor. Falling back
+            # would answer a question the caller did not ask and label it as
+            # theirs — and "not checked" looks identical whether it was
+            # requested or substituted.
+            raise HTTPException(
+                status_code=404, detail=f"no anchor profile named {profile!r}"
+            ) from None
+
+        try:
+            result = session.verify(profile, sources)
+        except UnknownAnchorKind as exc:
+            raise HTTPException(
+                status_code=422, detail=f"unknown anchor source kind: {exc}"
+            ) from None
+
         return VerificationResponse(
             session_id=session.session_id,
             subject_sha256=session.sha256,
