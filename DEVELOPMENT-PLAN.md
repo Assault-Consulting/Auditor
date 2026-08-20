@@ -22,6 +22,20 @@ dependency wins.
 Every phase ends with an exit criterion that can fail. A phase without a
 falsifiable exit criterion is a wish, and none are written that way here.
 
+**What this plan does not model.** Of the fifteen branches merged through
+Phase 0 and the first half of Phase 1, **six were not in it** — governance
+corrections, the plan-versus-specification sync, the branch verification
+script, a fix to that script, and two rounds of CI robustness after an Ubuntu
+mirror took down five runs in a day. Forty per cent.
+
+Almost none of that was scope creep. Most of it was either correcting a claim
+this plan or its sibling documents made about themselves, or repairing
+something that was blocking every other item. But the estimates below cover
+only the numbered work, so a phase costed at 22.5 days has historically taken
+closer to 30. That figure is stated here rather than folded into the
+estimates, because inflating each item would hide which ones are actually
+expensive.
+
 ## 1. Governance — inherited, not re-decided
 
 Same discipline as Palimpsests, because a compliance tool with sloppy
@@ -47,6 +61,10 @@ violates invariant L1. Each is an ordinary PR into the upstream repo, and
 each is independently useful there (the CLI and any third-party verifier
 get them too).
 
+An item becomes usable here at its **release**, not at its merge: Auditor
+installs `palimpsests` from PyPI, and Palimpsests cuts releases on its own
+schedule rather than this project's.
+
 | PR | Content | Days | Blocks |
 |---|---|---|---|
 | U1 | Drift series per boot as structured advisory output: `d_i = (wall_i − wall_0) − (mono_i − mono_0)`, slope in ppm. Pure arithmetic on existing header fields, O(n), no wire change. | 2 | F6, F12 |
@@ -56,9 +74,10 @@ get them too).
 | U5 | Merkle inclusion proofs for a `seq` range, over the existing RFC 6962 aggregation. | 3 | F13 |
 | U6 | Verification-report model as a package dataclass — one owner for the `pala-verification-report/1` schema. | 2 | F11 |
 | U7 | `time_trust` / `assurance_tier` constant→name tables exported, following the §10.5 pattern already used for kinds. | 0.5 | F2, F6 |
+| U9 | Ship the published vectors — core and inference-profile — in the distribution, behind one accessor. A vector set reachable only by cloning the repository is checkable only by those who least need to check it, which is the opposite of what publishing one is for. Cheap, and it unblocks the conformance half of B-10. | 1 | B-10(b) |
 | U8 | Evidence-bundle assembly as a library command (`pala bundle`): records + inclusion proofs + verification + manifest + the explicit time-claims section. By this plan's own Track-U criterion — independently useful without the shell (any CLI user or third-party tool gets it) — assembly belongs upstream; the shell invokes and presents (E-01). | 4 | E-01 |
 
-**Track U total: ~16.5 days** (~12.5 without U8, which blocks only
+**Track U total: ~17.5 days** (~13.5 without U8, which blocks only
 Phase 4). U7, U4 and U1 are the cheap ones and should
 land first — U7 in particular is half a day and removes a whole class of
 "the shell re-typed a constant" defects.
@@ -104,19 +123,51 @@ The product's minimum viable claim: open a file, get an honest verdict.
 | B-02 | The no-parsing CI test (§20.2) | 0.5 | B-01 |
 | B-03 | `GET /verify` returning `Verification` verbatim; per-(session, profile) cache | 2 | B-01 |
 | B-04 | Anchor profiles: manual, file; `ChainedAnchorSource` composition; `/anchors/*` endpoints | 2 | B-03 |
-| B-05 | Keychain anchor source (`keyring`), three OSes | 2 | B-04, U7 |
-| B-06 | UI: verdict triptych, tier-aware wording, not-checked state | 3 | B-03 |
-| B-07 | UI: anchor provenance flow — answering link highlighted, absent dimmed, error named | 2 | B-04 |
-| B-08 | UI: diagnosis card, seven patterns, each with its visual | 3 | B-03 |
-| B-09 | UI: advisory lane, grouped by code, jump targets | 2 | B-03 |
-| B-10 | Golden-vector suite: agreement with `palimpsests audit verify` exit codes on every published vector | 2 | B-03 |
+| B-10 | Agreement suite against `palimpsests pala verify` (§20.1a), plus the conformance half skipped pending U9 (§20.1b) | 2 | B-03 |
+| B-05 | Keychain anchor source (`keyring`), three OSes | 2 | B-04 |
+| B-06a | Frontend can open a file: Tauri dialog permission, drag-drop, the capability argued on its own PR | 1 | A-06 |
+| B-06b | Typed client for `/session` and `/verify`; session state in the frontend | 1.5 | B-06a, A-07 |
+| B-06c | UI: verdict triptych, tier-aware wording, not-checked state | 2.5 | B-06b, U7 *released* |
+| B-07 | UI: anchor provenance flow — answering link highlighted, absent dimmed, error named | 2 | B-04, B-06b |
+| B-08 | UI: diagnosis card, seven patterns, each with its visual | 3 | B-06b |
+| B-09 | UI: advisory lane, grouped by code, jump targets | 2 | B-06b |
 | B-11 | Mutation-demo fixture suite: each mutation → its expected pattern and copy | 2 | B-08 |
 
-**Phase 1: ~22.5 days.**
+**Phase 1: ~22.5 days**, thirteen items rather than eleven. Three changes to
+the order and the granularity, each with a reason:
 
-**Exit criterion:** every published test vector and every mutation
-fixture produces the correct verdict, the correct diagnosis pattern, and
-correct anchor provenance — verified against the CLI, not by eye.
+- **B-10 moved to the front.** It depends only on B-03, and it *is* the
+  phase's exit criterion. Running it first makes that criterion continuously
+  true instead of a final gate, and it means four UI blocks are built on a
+  base that has been compared with an independent runner rather than assumed.
+- **B-05 no longer waits on U7.** A keychain anchor source has nothing to do
+  with tier and time-trust name tables; the dependency was wrong.
+- **B-06 split into three.** As one item it silently contained a security
+  change — the desktop shell has `core:default` and nothing else, so a file
+  dialog means a new Tauri permission, and `CONTRIBUTING.md` requires each
+  permission to be argued on the pull request that introduces it. Bundling
+  that with typography would give a reviewer no way to tell them apart. The
+  middle piece is the frontend actually *using* the generated client, which
+  the plan had no item for at all: today the frontend can render a boot
+  screen and nothing else.
+
+Note the dependency wording on B-06c: **U7 released**, not merged. Auditor
+installs `palimpsests` from PyPI, so an upstream item becomes usable here at
+its release rather than at its merge. Palimpsests cuts releases on its own
+schedule, and this plan should not pretend otherwise.
+
+**Exit criterion:** every mutation fixture produces the correct verdict, the
+correct diagnosis pattern and correct anchor provenance, agreeing with
+`palimpsests pala verify` — checked by a runner, not by eye.
+
+The published vectors are **not** part of this criterion, and saying so is
+the point. They are the independent authority (§20.1b) and they are not
+shipped in the distribution, so conformance cannot be established from an
+installed package until U9 is released. Folding them in would make the
+criterion unmeetable through no fault of the phase; leaving them out
+silently would let "verified against the CLI" pass for conformance, which it
+is not — the CLI shares the library. The skipped test names the gap on every
+run.
 
 ## 5. Phase 2 — Browse
 
@@ -202,10 +253,15 @@ tests run against recorded sidecar responses so logic is testable
 headlessly; a live desktop session is a scheduled manual gate at the
 close of each UI phase, not an ad-hoc check.
 
-**R4 — Track U slips and Phase 1 stalls.** Mitigation: B-01…B-04 and
-B-06…B-11 depend only on U7 (half a day). U1, U4, U5, U6 block Phase 2
-and 3 items, which are later. The plan is already ordered so that a Track
-U slip costs Phase 2 time, not Phase 1 time.
+**R4 — Track U slips and Phase 1 stalls.** Mitigation: exactly one Phase 1
+item depends on Track U at all — B-06c, on U7 being *released*. Everything
+else in the phase is buildable against the shipped 0.8 surface. U1, U4, U5,
+U6 and U9 block Phase 2, 3 and 4 items, which are later.
+
+This is stronger than it was: the plan previously listed B-05 as needing U7,
+which was simply wrong — a keychain anchor source has nothing to do with
+name tables — and the error would have idled two days of unblocked work
+behind an upstream release.
 
 **R5 — Scope creep into analytics.** The boundary is written into the
 non-goals and repeated in F12's three disciplines. The operative rule: no

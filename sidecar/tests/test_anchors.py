@@ -290,13 +290,3 @@ def _open(client: TestClient, path) -> str:
 @pytest.fixture
 def anchor_profiles() -> AnchorProfiles:
     return AnchorProfiles()
-
-
-@pytest.fixture
-def head_hex(chain_path) -> str:
-    """The chain's real head, read through the seam rather than recomputed."""
-    handle = open_chain(chain_path)
-    try:
-        return handle.verify()["chain"]["head"]
-    finally:
-        handle.close()

@@ -87,3 +87,20 @@ def chain_path(tmp_path):
     w.anchor()
     w.close()
     return path
+
+
+@pytest.fixture
+def head_hex(chain_path) -> str:
+    """The chain's head, through the seam.
+
+    Shared by the anchor and agreement tests so neither computes it itself —
+    a test that derives the head independently would be re-implementing the
+    format to check the thing that forbids re-implementing the format.
+    """
+    from auditor_sidecar.pala_seam import open_chain
+
+    handle = open_chain(chain_path)
+    try:
+        return handle.verify()["chain"]["head"]
+    finally:
+        handle.close()
