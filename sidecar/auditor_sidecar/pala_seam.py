@@ -25,6 +25,11 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _dist_version
+from palimpsests.audit.anchors import (
+    ChainedAnchorSource,
+    FileAnchor,
+    ManualAnchor,
+)
 from palimpsests.audit.pala.codec import FORMAT_VERSION
 from palimpsests.audit.reader import AuditReader
 from pathlib import Path
@@ -32,6 +37,7 @@ from pathlib import Path
 __all__ = [
     "ChainHandle",
     "NotAChain",
+    "UnknownAnchorKind",
     "open_chain",
     "package_version",
     "verifier_identity",
@@ -42,6 +48,36 @@ __all__ = [
 #: the family name plus the wire version the *linked* verifier implements,
 #: so a report always says which format was actually checked.
 _SPEC_FAMILY = "PALA-1"
+
+
+class UnknownAnchorKind(Exception):
+    """An anchor source kind this build does not implement."""
+
+
+def _anchor_source(specs: list[dict[str, str]]):
+    """Build a chained anchor source from plain specifications.
+
+    The shell describes *where* heads live; the package decides what a head
+    means. Specs cross this boundary as dicts so no package type appears in a
+    request model — the same rule that keeps ``ChainHandle`` wrapping the
+    reader rather than exposing it.
+
+    Chaining is the package's own ``ChainedAnchorSource`` rather than a loop
+    written here. It is availability-first by design — a source that raises is
+    recorded and the walk continues — and ``last_attempts`` is what the
+    provenance display is built from. A second implementation would drift from
+    the thing the UI actually renders.
+    """
+    sources = []
+    for spec in specs:
+        kind = spec["kind"]
+        if kind == "manual":
+            sources.append(ManualAnchor(spec["head"], detail=spec.get("detail", "")))
+        elif kind == "file":
+            sources.append(FileAnchor(spec["path"]))
+        else:
+            raise UnknownAnchorKind(kind)
+    return ChainedAnchorSource(sources)
 
 
 class NotAChain(Exception):
@@ -96,13 +132,14 @@ class ChainHandle:
     this module's boundary.
     """
 
-    def __init__(self, reader: AuditReader) -> None:
+    def __init__(self, reader: AuditReader, path: Path) -> None:
         self._reader = reader
+        self._path = path
 
     def close(self) -> None:
         self._reader.close()
 
-    def verify(self) -> dict[str, object]:
+    def verify(self, anchor_specs: list[dict[str, str]] | None = None) -> dict[str, object]:
         """Ask the verifier the three questions, and pass the answer through.
 
         Every value below is copied out of the package's result. Nothing is
@@ -123,14 +160,23 @@ class ChainHandle:
         change no verdict (L5); a caller that receives them in the same
         structure as ``chain_ok`` will eventually treat them as one.
 
-        No anchor is supplied yet, so question two is always "not checked"
-        here. Note where the anchor goes when B-04 adds it: ``AuditReader``
-        takes it at **open** time, not at verify time, so a session opened
-        without one cannot later be asked about one. Anchor profiles will
-        therefore key the reader, not this call — which is worth knowing
-        before someone adds an argument here and finds it has nowhere to go.
+        The anchor is applied by **re-opening** the container with it.
+        ``AuditReader`` takes the anchor at open time, not at verify time, so
+        the session's own reader — opened without one, for browsing — cannot
+        be asked about it. Re-opening costs a second scan and is paid once per
+        profile because the answer is cached; the alternative, keeping a
+        reader per profile alive, would hold a memory map open for every
+        anchor a user ever tried.
         """
-        result = self._reader.verify()
+        if anchor_specs:
+            reader = AuditReader.open(self._path, anchor=_anchor_source(anchor_specs))
+            try:
+                return self._render(reader.verify())
+            finally:
+                reader.close()
+        return self._render(self._reader.verify())
+
+    def _render(self, result) -> dict[str, object]:
         chain = result.chain
         diagnosis = result.diagnosis
 
@@ -157,6 +203,32 @@ class ChainHandle:
                 "anchor_lag": result.anchor_lag,
                 "anchor_reason": chain.anchor_reason,
             },
+            # Provenance travels with the completeness answer, always. L2: a
+            # claim about whether a chain is complete is worth exactly as much
+            # as the anchor it was checked against, so the source that
+            # answered — and every source that was tried and did not — are
+            # part of the answer rather than a detail available elsewhere.
+            "anchor": None
+            if result.anchor is None
+            else {
+                "source_kind": result.anchor.source_kind,
+                "source_detail": result.anchor.source_detail,
+                "observed_at_ns": result.anchor.observed_at_ns,
+                "head": result.anchor.head.hex(),
+            },
+            "anchor_attempts": [
+                {
+                    "source_kind": attempt.source_kind,
+                    "source_detail": attempt.source_detail,
+                    # answered / absent / error — three states, never two.
+                    # Absent is normal, error is a source that exists and
+                    # could not be read, and collapsing them would hide a
+                    # corrupt anchor file behind "no anchor configured".
+                    "outcome": attempt.outcome,
+                    "error": attempt.error,
+                }
+                for attempt in result.anchor_attempts
+            ],
             "diagnosis": None
             if diagnosis is None
             else {
@@ -218,4 +290,4 @@ def open_chain(path: Path) -> ChainHandle:
         reader.close()
         raise NotAChain("the file holds no PALA-1 records")
 
-    return ChainHandle(reader)
+    return ChainHandle(reader, path)
