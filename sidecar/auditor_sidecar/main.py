@@ -26,10 +26,15 @@ import secrets
 import uvicorn
 from . import __version__
 from .anchors import NO_ANCHOR, AnchorProfiles, ProfileNotFound
+from .keychain import KeychainUnavailable
+from .keychain import available as keychain_available
+from .keychain import write as keychain_write
 from .models import (
     AnchorProfile,
     ChainSubject,
     HealthResponse,
+    KeychainSeedRequest,
+    KeychainStatus,
     SessionRequest,
     SessionResponse,
     VerificationResponse,
@@ -230,6 +235,47 @@ def build_app(token: str | None = None) -> FastAPI:
             raise HTTPException(status_code=409, detail=str(exc)) from None
         except ProfileNotFound:
             raise HTTPException(status_code=404, detail="no such profile") from None
+
+    @app.get("/anchors/keychain", response_model=KeychainStatus)
+    def keychain_status() -> KeychainStatus:
+        """Whether this machine can keep an anchor at all.
+
+        Asked before the operator configures a keychain profile, so the UI
+        can say "this machine has nowhere to keep one" rather than letting
+        them configure a source that will report absent forever.
+        """
+        if keychain_available():
+            return KeychainStatus(
+                available=True, detail="a secret store is available on this machine"
+            )
+        return KeychainStatus(
+            available=False,
+            detail=(
+                "no usable secret store: install the keyring extra, or use a "
+                "file or manual anchor on this machine"
+            ),
+        )
+
+    @app.put("/anchors/keychain", status_code=204)
+    def seed_keychain(req: KeychainSeedRequest) -> None:
+        """Store a head in the secret store.
+
+        This writes, and the read-only rule still holds: the target is
+        Auditor's own anchor store, never an audited container. The rule is
+        about not touching evidence, not about never writing a byte.
+
+        It exists so an operator can seed an anchor from the application
+        rather than from a shell one-liner they have to get exactly right —
+        and a head seeded with a typo persists, so getting it right matters
+        more here than anywhere else.
+        """
+        try:
+            keychain_write(req.account, req.head)
+        except KeychainUnavailable as exc:
+            # 503, not 500: the service is fine, the machine has nowhere to
+            # put this. The operator can act on that; a 500 would send them
+            # to our logs.
+            raise HTTPException(status_code=503, detail=str(exc)) from None
 
     @app.get("/session/{session_id}/verify", response_model=VerificationResponse)
     def verify_session(
