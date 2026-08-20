@@ -188,9 +188,17 @@ input.
 
 | # | Question | Source field | "Not checked" possible? |
 |---|---|---|---|
-| 1 | Is what I hold internally consistent? | `chain.chain_ok` | No — always answerable |
+| 1 | Is what I hold internally consistent? | `chain.chain_ok` **and** `diagnosis` | No — always answerable |
 | 2 | Is what I hold all of it? | `complete_to_anchor` | **Yes** — `None` without an anchor |
 | 3 | Did this history exist at time T? | witness receipt | Yes — absent at tier A |
+
+**`chain_ok` alone is not the answer to question one**, and rendering it
+as one would be a real defect rather than a shortcut. A container cut
+mid-record reports `chain_ok = true` — every record the reader could read
+does link to its predecessor — with the truncation carried in
+`diagnosis.pattern = truncated_tail`. A green tick there would be truthful
+about the field and misleading about the file. The panel is green only when
+`chain_ok` is true **and** no diagnosis is present.
 
 Question 1 expands into the diagnostics the verifier returns:
 `breaks` (seqs where `prev_hash` does not name the predecessor),
@@ -587,15 +595,59 @@ isolated `checked_at` field.
 
 ## 20. Verification of the verifier-shell
 
-**20.1 Golden vectors.** The published `test-vectors.json` and companion
-chains are fixtures. Auditor's rendered verdict must agree with
-`palimpsests audit verify` exit codes (0 / 2 / 3, including PARTIAL
-semantics when no anchor is supplied) on every one.
+**20.1 Agreement, in two separate parts.** These check different things and
+must not be conflated.
 
-**20.2 The no-parsing test.** A CI test greps this repo's source for
-`struct.`, `MAGIC`, `unpack`, `record_hash`, `sha256(` and literal byte
-offsets outside `pala_seam.py`, and fails the build on a hit. L1 is
-enforced mechanically.
+*(a) Against the package's CLI.* Auditor's answer must agree with
+`palimpsests pala verify <file>` — the command that takes a path; `audit
+verify` operates on the engine's own configured log and cannot be pointed at
+an arbitrary file. Its exit codes are **0 verified, 1 TAMPERED, 2 PARTIAL,
+3 UNREADABLE**.
+
+This proves the shell does not distort the answer in transit — L1 made
+testable, and worth having because every field is copied by hand at the seam.
+It proves nothing about correctness: the CLI calls the same library, so both
+sides would be wrong together.
+
+Two divergences are known and deliberate, and are pinned by tests rather
+than left to be discovered. The CLI folds "container malformed" into
+`consistency.ok`, while the reader keeps `chain_ok` about the chain and
+reports truncation as a diagnosis. And for a file that was never a chain the
+CLI answers TAMPERED, where Auditor refuses to open it — L6 and L4 both
+require the refusal, since calling an ordinary text file "tampered" attributes
+intent to a file with no history at all.
+
+*(b) Against the published vectors.* `test-vectors.json` (envelope
+conformance, one record of each type) and `profiles/inference-vectors.json`
+(profile conformance, whose `semantics` block is the decoded r2/r3
+expectation this shell actually renders). This is the independent authority
+— what a third-party verifier written from the prose alone is measured
+against.
+
+Blocked: the vectors are not shipped in the distribution, so they are
+reachable only by someone who cloned the upstream repository. Tracked as U9.
+The test exists and skips with that reason, so the gap is visible on every
+run rather than filed in a TODO.
+
+**20.2 The no-parsing test.** `scripts/check_no_wire_parsing.sh` scans every
+Python, Rust and TypeScript source for wire-parsing primitives outside
+`pala_seam.py`, and fails the build on a hit. L1 is enforced mechanically.
+
+The patterns target code forms, never prose: `struct.(un)?pack`,
+`int.from_bytes`, the magic as a byte literal, `MAGIC`, `record_hash`,
+`hashlib.sha256(` and both `hashlib` import spellings, `FIXED_HEADER_LEN`,
+`decode_tlvs`, Rust `read_exact`, and `new DataView` / `new Uint8Array`.
+
+`hashlib.sha256(` rather than `sha256(` because the looser pattern fired on
+*call sites* of a named helper — code that hashes nothing itself. A guard
+that fires on the caller teaches people to rename functions rather than to
+stop hashing.
+
+Four paths are exempt, each for a stated reason: the seam itself, the tests
+(which build fixture chains with the package's writer), the generated API
+client, and `digest.py` — which hashes the *file*, not a PALA-1 fact, and
+lives in its own module precisely so that this exemption is one named file
+rather than a pattern relaxed across the tree.
 
 **20.3 Mutation demo.** The mutation set (flip a byte, drop a record,
 truncate the tail, replace the log, back-date a wall stamp) is a fixture
@@ -613,6 +665,10 @@ and compares.
 These are Auditor features that **cannot** be built in the shell without
 breaking L1. Each is a PR into `Assault-Consulting/Palimpsests`.
 
+An item becomes usable here at its **release**, not at its merge: Auditor
+installs `palimpsests` from PyPI, and Palimpsests cuts releases on its own
+schedule.
+
 | Id | Need | Consumer |
 |---|---|---|
 | U0 | Correct `palimpsests.__version__`, which reads `0.7.0` in the 0.8.0 release while the distribution metadata reads `0.8.0`. `audit/export.py` stamps every JSONL export with the module constant, so every export from that release names the wrong verifier. Add a test asserting the two agree, and add `src/palimpsests/__init__.py` to the `RELEASING.md` checklist. | F1, F11, F16 |
@@ -624,6 +680,7 @@ breaking L1. Each is a PR into `Assault-Consulting/Palimpsests`.
 | U6 | Verification-report model as a package dataclass, so the JSON schema has one owner | F11 |
 | U7 | `time_trust` and `assurance_tier` constant tables exported as names (the §10.5 pattern already used for kinds) | F2, F6 |
 | U8 | Evidence-bundle assembly as a library command (`pala bundle`). Independently useful without the shell, which is this project's own test for what belongs upstream. | F13 |
+| U9 | Ship the published vectors in the distribution — core and inference-profile alike — behind one accessor. A vector set reachable only by cloning the repository is checkable only by people who least need to check, which is the opposite of what publishing one is for. | §20.1(b) |
 
 Everything else in the MVP is buildable against the 0.8 surface as it
 stands today.
