@@ -19,7 +19,7 @@ dependencies = [
     # here, through auditor_sidecar.pala_seam and nowhere else (ADR-0001).
     # [pala] adds cryptography for encrypted record bodies; header-only
     # verification is stdlib and needs nothing.
-    "palimpsests[pala]>=0.8",
+    "palimpsests[pala]>=0.9,<0.10",
 ]
 
 [project.optional-dependencies]
