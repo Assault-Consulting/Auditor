@@ -90,12 +90,14 @@ export interface AnchorReadingModel {
  * request model.
  */
 export interface AnchorSourceSpec {
-  /** 'manual' or 'file'. */
+  /** 'manual', 'file' or 'keychain'. */
   kind: string;
   /** For kind='manual': the 64-character hex head, as handed over. */
   head?: string | null;
   /** For kind='file': path to a FileAnchor head file. */
   path?: string | null;
+  /** For kind='keychain': the account name the head is stored under. The service name is fixed by the application, so this is the only part an operator chooses. */
+  account?: string | null;
   /** Free text shown beside this source in the provenance view. */
   detail?: string;
 }
@@ -208,6 +210,26 @@ export interface HealthResponse {
   spec: string;
   /** Whether the session token gate is enforced. False means the sidecar was started without a token and any local process can reach it — a development affordance, never a supported configuration. */
   authenticated: boolean;
+}
+
+/**
+ * Store a head in the secret store under an account name.
+ */
+export interface KeychainSeedRequest {
+  /** Account name to store it under. */
+  account: string;
+  /** The 64-character hex head. */
+  head: string;
+}
+
+/**
+ * Whether this machine has a usable secret store at all.
+ */
+export interface KeychainStatus {
+  /** False means there is nowhere on this machine to keep an anchor — a headless box with no Secret Service, a session without credentials, or the keyring extra not installed. Distinct from 'your anchor was not found', and a UI that conflates the two sends the operator to look for a value that could never have been read. */
+  available: boolean;
+  /** What to do about it, when there is something to do. */
+  detail: string;
 }
 
 /**

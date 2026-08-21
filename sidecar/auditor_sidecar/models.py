@@ -199,7 +199,7 @@ class AnchorSourceSpec(BaseModel):
     request model.
     """
 
-    kind: str = Field(description="'manual' or 'file'.")
+    kind: str = Field(description="'manual', 'file' or 'keychain'.")
     head: str | None = Field(
         default=None,
         description="For kind='manual': the 64-character hex head, as handed over.",
@@ -207,6 +207,14 @@ class AnchorSourceSpec(BaseModel):
     path: str | None = Field(
         default=None,
         description="For kind='file': path to a FileAnchor head file.",
+    )
+    account: str | None = Field(
+        default=None,
+        description=(
+            "For kind='keychain': the account name the head is stored under. "
+            "The service name is fixed by the application, so this is the "
+            "only part an operator chooses."
+        ),
     )
     detail: str = Field(
         default="",
@@ -311,3 +319,43 @@ class VerificationResponse(BaseModel):
         description="Present only when something failed."
     )
     advisory: AdvisoryModel
+
+
+class KeychainStatus(BaseModel):
+    """Whether this machine has a usable secret store at all."""
+
+    available: bool = Field(
+        description=(
+            "False means there is nowhere on this machine to keep an anchor — "
+            "a headless box with no Secret Service, a session without "
+            "credentials, or the keyring extra not installed. Distinct from "
+            "'your anchor was not found', and a UI that conflates the two "
+            "sends the operator to look for a value that could never have "
+            "been read."
+        )
+    )
+    detail: str = Field(
+        description="What to do about it, when there is something to do."
+    )
+
+
+class KeychainSeedRequest(BaseModel):
+    """Store a head in the secret store under an account name."""
+
+    account: str = Field(description="Account name to store it under.")
+    head: str = Field(description="The 64-character hex head.")
+
+    @field_validator("head")
+    @classmethod
+    def _head_is_a_head(cls, v: str) -> str:
+        """Same validation as an anchor spec, for the same reason.
+
+        A head seeded with a typo is worse than one pasted with a typo: it
+        persists, and every later check reads it back and reports a chain
+        that names no record — the most alarming diagnosis this tool
+        produces, caused by us.
+        """
+        cleaned = v.strip().lower()
+        if len(cleaned) != 64 or any(c not in "0123456789abcdef" for c in cleaned):
+            raise ValueError("a head is 64 hexadecimal characters")
+        return cleaned

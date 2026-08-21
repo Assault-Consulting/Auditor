@@ -23,9 +23,13 @@ the imports move, the rest of the codebase does not notice.
 
 from __future__ import annotations
 
+from .keychain import KeychainUnavailable
+from .keychain import read as keychain_read
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _dist_version
 from palimpsests.audit.anchors import (
+    AnchorReading,
+    AnchorSourceError,
     ChainedAnchorSource,
     FileAnchor,
     ManualAnchor,
@@ -36,6 +40,7 @@ from pathlib import Path
 
 __all__ = [
     "ChainHandle",
+    "KeychainAnchor",
     "NotAChain",
     "UnknownAnchorKind",
     "open_chain",
@@ -52,6 +57,75 @@ _SPEC_FAMILY = "PALA-1"
 
 class UnknownAnchorKind(Exception):
     """An anchor source kind this build does not implement."""
+
+
+class KeychainAnchor:
+    """A head kept in the operating system's secret store.
+
+    Implements the package's ``AnchorSource`` protocol, and lives in this
+    module for the reason ADR-0001 gives: constructing ``AnchorReading`` and
+    ``AnchorSourceError`` means touching ``palimpsests``, and this is the
+    only file allowed to. The keychain access itself knows nothing about
+    PALA-1 and sits in ``keychain.py``.
+
+    The three outcomes map exactly as ``FileAnchor`` maps them, and the
+    mapping is the whole design:
+
+    * **absent** — no entry under that account. Normal. Returns ``None``.
+    * **error** — the store cannot be reached at all: no Secret Service on a
+      headless Linux box, a locked macOS keychain, the extra not installed.
+      The operator may well have an anchor; this process cannot see it, and
+      calling that "absent" would let a broken store read as a deliberate
+      choice.
+    * **error** — an entry exists and is not a head. A present-but-corrupt
+      anchor is never silently downgraded to "no anchor", for the same
+      reason a corrupt anchor *file* is not.
+    """
+
+    source_kind = "keychain"
+
+    def __init__(self, account: str) -> None:
+        self._account = account
+        self.source_detail = f"keychain account {account!r}"
+
+    def current_head(self) -> AnchorReading | None:
+        try:
+            stored = keychain_read(self._account)
+        except KeychainUnavailable as exc:
+            raise AnchorSourceError(
+                f"the secret store could not be read: {exc}",
+                source_kind=self.source_kind,
+                source_detail=self.source_detail,
+            ) from exc
+
+        if stored is None:
+            return None
+
+        cleaned = stored.strip().lower()
+        try:
+            head = bytes.fromhex(cleaned)
+        except ValueError as exc:
+            raise AnchorSourceError(
+                "the stored value is not a hex head",
+                source_kind=self.source_kind,
+                source_detail=self.source_detail,
+            ) from exc
+        if len(head) != 32:
+            raise AnchorSourceError(
+                f"the stored head is {len(head)} bytes, expected 32",
+                source_kind=self.source_kind,
+                source_detail=self.source_detail,
+            )
+
+        # observed_at_ns is left unset: the store records no timestamp, and
+        # inventing "now" would present the moment we happened to look as
+        # the moment the head was observed.
+        return AnchorReading(
+            head=head,
+            source_kind=self.source_kind,
+            source_detail=self.source_detail,
+            observed_at_ns=None,
+        )
 
 
 def _anchor_source(specs: list[dict[str, str]]):
@@ -75,6 +149,8 @@ def _anchor_source(specs: list[dict[str, str]]):
             sources.append(ManualAnchor(spec["head"], detail=spec.get("detail", "")))
         elif kind == "file":
             sources.append(FileAnchor(spec["path"]))
+        elif kind == "keychain":
+            sources.append(KeychainAnchor(spec["account"]))
         else:
             raise UnknownAnchorKind(kind)
     return ChainedAnchorSource(sources)
@@ -94,17 +170,13 @@ def package_version() -> str:
 
     Read from the **distribution metadata**, not from ``palimpsests.__version__``.
 
-    The two can disagree: as of the 0.8.0 release the distribution reports
-    ``0.8.0`` while the module attribute still reads ``0.7.0`` (the module
-    constant was not bumped with the release). Distribution metadata is what
-    ``pip`` resolved and therefore what actually determines the code on disk,
-    so it is the honest answer to "which verifier produced this?" — and a
-    verification report that names the wrong verifier version is a provenance
-    defect in a tool that exists to establish provenance.
-
-    Tracked upstream as Track U0 (``DEVELOPMENT-PLAN.md``); when the upstream
-    constant is corrected and guarded by a test, the two agree and this
-    docstring becomes a historical note rather than a workaround.
+    The two disagreed in the 0.8.0 release: the distribution reported
+    ``0.8.0`` while the module attribute still read ``0.7.0``. Upstream fixed
+    it in 0.9.0 and now guards it with a test, so the two agree today — but
+    metadata remains the honest source, because it is what ``pip`` resolved
+    and therefore what determines the code actually on disk. A verification
+    report that names the wrong verifier version is a provenance defect in a
+    tool that exists to establish provenance.
     """
     try:
         return _dist_version("palimpsests")
@@ -150,10 +222,10 @@ class ChainHandle:
         Two shapes deserve their names.
 
         ``complete_to_anchor`` is a **tri-state**, and stays one. ``None``
-        means no anchor was supplied, so the question was never asked; the UI
-        renders that as "not checked", never as a pass (L7). Collapsing it to
-        a boolean here would destroy the distinction before anything could
-        render it.
+        means no anchor answered — none was configured, or every source was
+        absent — so the question was never asked; the UI renders that as "not
+        checked", never as a pass (L7). Collapsing it to a boolean here would
+        destroy the distinction before anything could render it.
 
         ``advisory`` is carried in its own key, never merged into the chain
         result. Advisory items describe things worth a human's attention and

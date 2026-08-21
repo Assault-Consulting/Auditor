@@ -28,6 +28,90 @@ def _no_ambient_token(monkeypatch):
     monkeypatch.delenv(TOKEN_ENV, raising=False)
 
 
+class _InMemoryKeyring:
+    """A secret store that lives and dies with one test.
+
+    Deliberately not a mock. The keychain anchor source has to be exercised
+    against something that really stores and returns values, or the tests
+    would only prove that a mock was called — and the interesting cases here
+    are *absent* and *unreadable*, which a mock makes up rather than
+    produces.
+    """
+
+    priority = 1
+
+    def __init__(self) -> None:
+        self.entries: dict[tuple[str, str], str] = {}
+
+    def set_password(self, service: str, username: str, password: str) -> None:
+        self.entries[(service, username)] = password
+
+    def get_password(self, service: str, username: str) -> str | None:
+        return self.entries.get((service, username))
+
+    def delete_password(self, service: str, username: str) -> None:
+        self.entries.pop((service, username), None)
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "real_keyring: run against the genuinely installed keyring module. "
+        "Only for tests that import it and never touch a stored secret.",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _no_real_keychain(request, monkeypatch):
+    """Point every test at an in-memory store, always.
+
+    Autouse and unconditional, because the failure this prevents is silent:
+    a test that reaches the developer's real keychain passes locally, may
+    prompt for a password, and can write an entry that outlives the run.
+    CONTRIBUTING.md has said "a test that touches the developer's real OS
+    keychain is a bug even when it passes" since before there was a keychain
+    source to touch one — this is that sentence made true.
+
+    Installed by patching the module's importer rather than calling
+    `keyring.set_keyring`, which mutates process-global state that would
+    leak between tests and outlive the session.
+
+    A test may opt out with `@pytest.mark.real_keyring`, and exactly one
+    does: the one that checks the real importer works at all. Opting out is
+    a marker rather than a conftest edit so that every such test is greppable
+    — the isolation is only worth something if departures from it are
+    visible.
+    """
+    from auditor_sidecar import keychain as kc
+
+    if request.node.get_closest_marker("real_keyring"):
+        return None
+
+    store = _InMemoryKeyring()
+
+    class _Errors:
+        KeyringError = RuntimeError
+
+    monkeypatch.setattr(kc, "_import_keyring", lambda: (_FakeKeyringModule(store), _Errors))
+    return store
+
+
+class _FakeKeyringModule:
+    """Just enough of the keyring module surface for the code under test."""
+
+    def __init__(self, store: _InMemoryKeyring) -> None:
+        self._store = store
+
+    def get_password(self, service: str, account: str) -> str | None:
+        return self._store.get_password(service, account)
+
+    def set_password(self, service: str, account: str, secret: str) -> None:
+        self._store.set_password(service, account, secret)
+
+    def get_keyring(self):
+        return self._store
+
+
 @pytest.fixture
 def open_client() -> TestClient:
     """A sidecar with the token gate disabled — the development posture."""

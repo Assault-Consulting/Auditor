@@ -192,6 +192,18 @@
       "AnchorSourceSpec": {
         "description": "One place a trusted head might live.\n\nThe shell owns the concrete sources; the package owns what a head means\n(L2). A spec is therefore plain data \u2014 no package type appears in a\nrequest model.",
         "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For kind='keychain': the account name the head is stored under. The service name is fixed by the application, so this is the only part an operator chooses.",
+            "title": "Account"
+          },
           "detail": {
             "default": "",
             "description": "Free text shown beside this source in the provenance view.",
@@ -211,7 +223,7 @@
             "title": "Head"
           },
           "kind": {
-            "description": "'manual' or 'file'.",
+            "description": "'manual', 'file' or 'keychain'.",
             "title": "Kind",
             "type": "string"
           },
@@ -522,6 +534,48 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "KeychainSeedRequest": {
+        "description": "Store a head in the secret store under an account name.",
+        "properties": {
+          "account": {
+            "description": "Account name to store it under.",
+            "title": "Account",
+            "type": "string"
+          },
+          "head": {
+            "description": "The 64-character hex head.",
+            "title": "Head",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "head"
+        ],
+        "title": "KeychainSeedRequest",
+        "type": "object"
+      },
+      "KeychainStatus": {
+        "description": "Whether this machine has a usable secret store at all.",
+        "properties": {
+          "available": {
+            "description": "False means there is nowhere on this machine to keep an anchor \u2014 a headless box with no Secret Service, a session without credentials, or the keyring extra not installed. Distinct from 'your anchor was not found', and a UI that conflates the two sends the operator to look for a value that could never have been read.",
+            "title": "Available",
+            "type": "boolean"
+          },
+          "detail": {
+            "description": "What to do about it, when there is something to do.",
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "detail"
+        ],
+        "title": "KeychainStatus",
+        "type": "object"
+      },
       "SessionRequest": {
         "description": "Open a container.",
         "properties": {
@@ -689,6 +743,55 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/anchors/keychain": {
+      "get": {
+        "description": "Whether this machine can keep an anchor at all.\n\nAsked before the operator configures a keychain profile, so the UI\ncan say \"this machine has nowhere to keep one\" rather than letting\nthem configure a source that will report absent forever.",
+        "operationId": "keychain_status_anchors_keychain_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeychainStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Keychain Status"
+      },
+      "put": {
+        "description": "Store a head in the secret store.\n\nThis writes, and the read-only rule still holds: the target is\nAuditor's own anchor store, never an audited container. The rule is\nabout not touching evidence, not about never writing a byte.\n\nIt exists so an operator can seed an anchor from the application\nrather than from a shell one-liner they have to get exactly right \u2014\nand a head seeded with a typo persists, so getting it right matters\nmore here than anywhere else.",
+        "operationId": "seed_keychain_anchors_keychain_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeychainSeedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Seed Keychain"
+      }
+    },
     "/anchors/profiles": {
       "get": {
         "description": "Every profile this sidecar knows, including the empty one.",
