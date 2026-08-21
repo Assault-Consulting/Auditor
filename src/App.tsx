@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { onChainFilesDropped, pickChainFile } from "./api/openFile";
 import { type Health, NoShellError, getHealth, getSession } from "./api/session";
 
 type Basis = "proved" | "recorded" | "unchecked";
@@ -109,10 +110,32 @@ function useProbe(): Probe {
   return probe;
 }
 
-function rowsFor(probe: Probe): Row[] {
+/**
+ * The chain the user has chosen, if any.
+ *
+ * Only the path, deliberately. Opening it is B-06b; this block exists to
+ * prove the two routes in — dialog and drop — reach the application at all,
+ * and to make the shape of what crosses the boundary visible: a string.
+ */
+type Chosen =
+  | { kind: "none" }
+  | { kind: "picked"; paths: string[] }
+  | { kind: "cancelled" }
+  | { kind: "no-shell" };
+
+function rowsFor(probe: Probe, chosen: Chosen): Row[] {
+  // This panel exists to be honest about what is wired, so it has to be
+  // corrected when something becomes wired. It still claimed the typed API
+  // client was pending under A-07, which shipped several changes ago — a
+  // status display that goes stale is worse than none, because it is read as
+  // current.
   const pending: Row[] = [
-    { name: "typed api client", state: "A-07", live: false },
-    { name: "open and verify", state: "phase 1", live: false },
+    {
+      name: "choose a chain",
+      state: chosen.kind === "no-shell" ? "needs the shell" : "wired",
+      live: chosen.kind !== "no-shell",
+    },
+    { name: "open and verify", state: "B-06b", live: false },
   ];
 
   switch (probe.kind) {
@@ -154,9 +177,70 @@ function footnoteFor(probe: Probe): string {
   }
 }
 
+function useChosenFile(): [Chosen, () => void] {
+  const [chosen, setChosen] = useState<Chosen>({ kind: "none" });
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+
+    void onChainFilesDropped((paths) => setChosen({ kind: "picked", paths }))
+      .then((off) => {
+        // The component may have unmounted while the listener was being
+        // registered. Without this the unlisten function is lost and the
+        // handler keeps firing into state that no longer exists.
+        if (cancelled) off();
+        else unlisten = off;
+      })
+      .catch(() => {
+        /* no shell: drag and drop is simply unavailable, not broken */
+      });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
+
+  const pick = () => {
+    void pickChainFile()
+      .then((path) =>
+        // null is a cancelled dialog. An ordinary outcome, and a separate
+        // state from "nothing chosen yet" so the screen can acknowledge the
+        // action without claiming something went wrong.
+        setChosen(
+          path === null ? { kind: "cancelled" } : { kind: "picked", paths: [path] },
+        ),
+      )
+      .catch((err) =>
+        setChosen(
+          err instanceof NoShellError ? { kind: "no-shell" } : { kind: "cancelled" },
+        ),
+      );
+  };
+
+  return [chosen, pick];
+}
+
+function chosenLine(chosen: Chosen): string {
+  switch (chosen.kind) {
+    case "none":
+      return "No chain chosen yet. Nothing on this screen is a verification result.";
+    case "cancelled":
+      return "Dialog cancelled — nothing was opened.";
+    case "no-shell":
+      return "Choosing a file needs the desktop shell. Run `pnpm tauri dev`.";
+    case "picked":
+      return chosen.paths.length === 1
+        ? `Chosen: ${chosen.paths[0]}`
+        : `Chosen ${chosen.paths.length} files: ${chosen.paths.join(", ")}`;
+  }
+}
+
 export default function App() {
   const probe = useProbe();
-  const rows = rowsFor(probe);
+  const [chosen, pick] = useChosenFile();
+  const rows = rowsFor(probe, chosen);
 
   return (
     <main className="shell">
@@ -205,6 +289,14 @@ export default function App() {
           </ul>
         </section>
 
+        <div className="choose">
+          <button className="choose-button" onClick={pick} type="button">
+            Open a chain…
+          </button>
+          <span className="choose-hint">or drop a file on this window</span>
+        </div>
+
+        <p className="footnote">{chosenLine(chosen)}</p>
         <p className="footnote">{footnoteFor(probe)}</p>
       </div>
     </main>
