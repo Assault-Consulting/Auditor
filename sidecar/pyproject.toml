@@ -31,6 +31,11 @@ dev = [
     # Pinned exactly, not lower-bounded: lint behaviour changes between patch
     # releases, and a local/CI disagreement on lint is a whole afternoon.
     "ruff==0.16.2",
+    # The keychain anchor source is exercised against an in-memory store, but
+    # the module still imports `keyring.errors`, so the dev environment needs
+    # the extra's dependency. Tests never touch a real backend: an autouse
+    # fixture in conftest replaces the importer for every test in the suite.
+    "keyring>=25.0",
 ]
 # PDF report rendering (D-02). Isolated behind an extra so the report path
 # stays fully testable as JSON without a renderer installed, and so the base
