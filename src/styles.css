@@ -194,12 +194,49 @@ body {
   color: var(--proved);
 }
 
+/* The one action on this screen, and it is deliberately plain. Nothing here
+   is a verdict, so nothing here should look like one. */
+.choose {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+  margin-top: calc(var(--step) * 3);
+}
+
+.choose-button {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  color: var(--vellum);
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.9) calc(var(--step) * 2);
+  cursor: pointer;
+}
+
+.choose-button:hover {
+  border-color: var(--unchecked);
+}
+
+.choose-hint {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
 .footnote {
   margin: calc(var(--step) * 3) 0 0;
   font-family: var(--mono);
   font-size: 0.74rem;
   color: var(--unchecked);
   line-height: 1.6;
+}
+
+/* Two footnotes now stand together — what was chosen, and what the sidecar
+   is doing. The second inherits a top margin sized for a line standing
+   alone, which reads as two unrelated remarks rather than one pair. */
+.footnote + .footnote {
+  margin-top: var(--step);
 }
 
 /* One reveal on load, and nothing else. A forensic tool that animates while

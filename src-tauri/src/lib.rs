@@ -12,6 +12,7 @@
 mod sidecar;
 
 use tauri::{Manager, RunEvent, State};
+use tauri_plugin_dialog::DialogExt;
 
 use sidecar::{Session, Supervisor};
 
@@ -24,6 +25,41 @@ fn sidecar_session(supervisor: State<'_, Supervisor>) -> Session {
     supervisor.session()
 }
 
+/// Ask the user for a container, and return **only its path**.
+///
+/// This exists instead of calling the dialog plugin from the frontend, and
+/// the difference is a security boundary rather than a style preference.
+///
+/// The plugin's JavaScript `open()` states plainly that "the selected paths
+/// are added to the filesystem and asset protocol scopes" — that is, calling
+/// it would grant the webview the ability to read the chosen file's bytes.
+/// For this application that is not a small extra: reading container bytes
+/// in the shell is precisely what ADR-0001 forbids, and it would arrive as a
+/// *capability* rather than as code, so `check_no_wire_parsing.sh` would
+/// never see it. The plugin's own documentation recommends the alternative
+/// we take here: "prefer writing a dedicated command instead".
+///
+/// So the dialog runs in this process, and a `String` crosses to the
+/// webview. The frontend hands that path to the sidecar, which opens it
+/// through the seam. No new entry appears in `capabilities/default.json`.
+///
+/// `None` means the user cancelled, which is not an error and must not be
+/// rendered as one.
+#[tauri::command]
+fn pick_chain_file(app: tauri::AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        // Both filters, in this order. A `.pala` filter is the useful
+        // default, but evidence does not always arrive with the extension it
+        // ought to have — a container copied out of an incident bundle may
+        // be named anything at all, and a picker that hides it would send
+        // the operator to the shell to work around us.
+        .add_filter("PALA-1 audit chain", &["pala"])
+        .add_filter("All files", &["*"])
+        .blocking_pick_file()
+        .map(|chosen| chosen.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Spawned before the window exists, so the frontend never renders against
@@ -33,8 +69,9 @@ pub fn run() {
     let supervisor = Supervisor::spawn().expect("failed to start the sidecar");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(supervisor)
-        .invoke_handler(tauri::generate_handler![sidecar_session])
+        .invoke_handler(tauri::generate_handler![sidecar_session, pick_chain_file])
         .build(tauri::generate_context!())
         .expect("error while building Palimpsests Auditor")
         .run(|app, event| {

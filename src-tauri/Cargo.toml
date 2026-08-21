@@ -24,3 +24,10 @@ serde_json = "1"
 # Pinned to the 0.8 line: 0.9 renamed thread_rng and moved the distributions
 # module, and a silent major bump here would be a compile error at best.
 rand = "0.8"
+# The native file dialog, added on the RUST side only and never exposed to
+# the webview. See the comment on pick_chain_file in lib.rs: the plugin's own
+# JavaScript API adds every chosen path to the filesystem and asset protocol
+# scopes, which would hand the frontend the ability to read container bytes
+# directly — the one thing ADR-0001 forbids. Its documentation recommends
+# exactly what we do instead: "prefer writing a dedicated command".
+tauri-plugin-dialog = "2"
