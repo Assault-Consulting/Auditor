@@ -208,6 +208,35 @@ jobs:
       - name: pytest
         run: pytest sidecar -q
 
+  # Frontend checks need node and nothing else — no webkit, no Rust, no apt.
+  # Kept out of `build` for that reason: they run in under a minute on a
+  # plain runner, and burying them behind a 55 MB system-dependency install
+  # would make the fastest feedback in the repository the slowest to arrive.
+  frontend:
+    name: frontend
+    needs: inventory
+    if: needs.inventory.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: 20
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda  # v4.1.0
+        with:
+          version: 9
+
+      - name: install
+        run: pnpm install --no-frozen-lockfile
+
+      - name: types
+        run: pnpm exec tsc --noEmit
+
+      - name: tests
+        run: pnpm test
+
   build:
     name: build (${{ matrix.platform }})
     needs: inventory
@@ -420,7 +449,7 @@ jobs:
     # the component is not in the repository yet, or the change does not
     # touch the desktop stack. A skip is never anonymous.
     if: always()
-    needs: [inventory, lint, api-client, no-wire-parsing, test, build, coverage, reuse]
+    needs: [inventory, lint, api-client, no-wire-parsing, test, frontend, build, coverage, reuse]
     runs-on: ubuntu-latest
     steps:
       - name: summary
@@ -439,6 +468,7 @@ jobs:
           echo "  api-client      : ${{ needs['api-client'].result }}"
           echo "  no-wire-parsing : ${{ needs['no-wire-parsing'].result }}"
           echo "  test            : ${{ needs.test.result }}"
+          echo "  frontend        : ${{ needs.frontend.result }}"
           echo "  build           : ${{ needs.build.result }}"
           echo "  coverage        : ${{ needs.coverage.result }}"
           echo "  reuse           : ${{ needs.reuse.result }}"
@@ -458,6 +488,7 @@ jobs:
           check api-client      "${{ needs['api-client'].result }}"
           check no-wire-parsing "${{ needs['no-wire-parsing'].result }}"
           check test            "${{ needs.test.result }}"
+          check frontend        "${{ needs.frontend.result }}"
           check build           "${{ needs.build.result }}"
           check coverage        "${{ needs.coverage.result }}"
           check reuse           "${{ needs.reuse.result }}"
