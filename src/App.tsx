@@ -15,7 +15,8 @@
  * normal way to work on the frontend and says so.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { type ChainState, chainLine, openPath } from "./api/chainState";
 import { onChainFilesDropped, pickChainFile } from "./api/openFile";
 import { type Health, NoShellError, getHealth, getSession } from "./api/session";
 
@@ -64,7 +65,11 @@ interface Row {
 /** What the shell reports, once it has answered — or why it has not. */
 type Probe =
   | { kind: "starting" }
-  | { kind: "ready"; health: Health }
+  // The session travels with the probe rather than being fetched again when
+  // a chain is opened. Asking the shell twice would be two chances to get a
+  // different answer, and the token is per launch — there is only one right
+  // one.
+  | { kind: "ready"; health: Health; session: Awaited<ReturnType<typeof getSession>> }
   | { kind: "no-shell" }
   | { kind: "failed"; detail: string };
 
@@ -82,8 +87,9 @@ function useProbe(): Probe {
 
     async function attempt(): Promise<void> {
       try {
-        const health = await getHealth(await getSession());
-        if (!cancelled) setProbe({ kind: "ready", health });
+        const session = await getSession();
+        const health = await getHealth(session);
+        if (!cancelled) setProbe({ kind: "ready", health, session });
       } catch (err) {
         if (cancelled) return;
         if (err instanceof NoShellError) {
@@ -111,19 +117,21 @@ function useProbe(): Probe {
 }
 
 /**
- * The chain the user has chosen, if any.
+ * What happened when the user last reached for a file.
  *
- * Only the path, deliberately. Opening it is B-06b; this block exists to
- * prove the two routes in — dialog and drop — reach the application at all,
- * and to make the shape of what crosses the boundary visible: a string.
+ * Separate from {@link ChainState}, which is about the chain itself. A
+ * cancelled dialog is an event in the choosing, not a state of any chain,
+ * and folding the two together would make "cancelled" compete with "open"
+ * for the same slot.
  */
-type Chosen =
-  | { kind: "none" }
-  | { kind: "picked"; paths: string[] }
+type Choice =
+  | { kind: "idle" }
   | { kind: "cancelled" }
-  | { kind: "no-shell" };
+  | { kind: "no-shell" }
+  /** More than one file was dropped, and only the first was opened. */
+  | { kind: "extra-dropped"; total: number };
 
-function rowsFor(probe: Probe, chosen: Chosen): Row[] {
+function rowsFor(probe: Probe, chain: ChainState): Row[] {
   // This panel exists to be honest about what is wired, so it has to be
   // corrected when something becomes wired. It still claimed the typed API
   // client was pending under A-07, which shipped several changes ago — a
@@ -131,11 +139,11 @@ function rowsFor(probe: Probe, chosen: Chosen): Row[] {
   // current.
   const pending: Row[] = [
     {
-      name: "choose a chain",
-      state: chosen.kind === "no-shell" ? "needs the shell" : "wired",
-      live: chosen.kind !== "no-shell",
+      name: "open a chain",
+      state: chain.kind === "open" ? "open" : "wired",
+      live: chain.kind === "open",
     },
-    { name: "open and verify", state: "B-06b", live: false },
+    { name: "verdict triptych", state: "B-06c", live: false },
   ];
 
   switch (probe.kind) {
@@ -173,18 +181,51 @@ function footnoteFor(probe: Probe): string {
     case "failed":
       return `The sidecar did not answer: ${probe.detail}. Check that Python is on PATH and that the sidecar package is installed.`;
     default:
-      return "No chain can be opened yet. Nothing on this screen is a verification result.";
+      // Deliberately still says what this screen is NOT. A chain can be
+      // opened now, but nothing here verifies one — and a screen that stops
+      // saying so is a screen someone will read a verdict into.
+      return "Opening a chain reports what it is. Nothing on this screen is a verification result.";
   }
 }
 
-function useChosenFile(): [Chosen, () => void] {
-  const [chosen, setChosen] = useState<Chosen>({ kind: "none" });
+function useChain(probe: Probe): [ChainState, Choice, () => void] {
+  const [chain, setChain] = useState<ChainState>({ kind: "empty" });
+  const [choice, setChoice] = useState<Choice>({ kind: "idle" });
+
+  // The current chain state is read inside callbacks that outlive the render
+  // they were created in — the drop listener is registered once. Holding it
+  // in a ref as well keeps `openPath` from closing over a stale value and
+  // failing to close the session that is actually open.
+  const latest = useRef<ChainState>({ kind: "empty" });
+
+  const apply = (next: ChainState) => {
+    latest.current = next;
+    setChain(next);
+  };
+
+  const open = (path: string) => {
+    if (probe.kind !== "ready") {
+      setChoice({ kind: "no-shell" });
+      return;
+    }
+    setChoice({ kind: "idle" });
+    void openPath(probe.session, latest.current, path, apply);
+  };
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
 
-    void onChainFilesDropped((paths) => setChosen({ kind: "picked", paths }))
+    // Only the first dropped path is opened, and the rest are reported
+    // rather than dropped in silence. §22 has not decided what several files
+    // mean — a segment sequence, or a mistake — so the screen says what it
+    // did instead of pretending one file arrived.
+    void onChainFilesDropped((paths) => {
+      const first = paths[0];
+      if (first === undefined) return;
+      open(first);
+      if (paths.length > 1) setChoice({ kind: "extra-dropped", total: paths.length });
+    })
       .then((off) => {
         // The component may have unmounted while the listener was being
         // registered. Without this the unlisten function is lost and the
@@ -200,47 +241,43 @@ function useChosenFile(): [Chosen, () => void] {
       cancelled = true;
       unlisten?.();
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [probe.kind]);
 
   const pick = () => {
     void pickChainFile()
-      .then((path) =>
-        // null is a cancelled dialog. An ordinary outcome, and a separate
-        // state from "nothing chosen yet" so the screen can acknowledge the
-        // action without claiming something went wrong.
-        setChosen(
-          path === null ? { kind: "cancelled" } : { kind: "picked", paths: [path] },
-        ),
-      )
-      .catch((err) =>
-        setChosen(
-          err instanceof NoShellError ? { kind: "no-shell" } : { kind: "cancelled" },
-        ),
-      );
+      .then((path) => {
+        // null is a cancelled dialog: an ordinary outcome, and not a state of
+        // any chain. Whatever was open stays open.
+        if (path === null) setChoice({ kind: "cancelled" });
+        else open(path);
+      })
+      .catch((err) => {
+        if (err instanceof NoShellError) setChoice({ kind: "no-shell" });
+      });
   };
 
-  return [chosen, pick];
+  return [chain, choice, pick];
 }
 
-function chosenLine(chosen: Chosen): string {
-  switch (chosen.kind) {
-    case "none":
-      return "No chain chosen yet. Nothing on this screen is a verification result.";
+function choiceLine(choice: Choice): string | null {
+  switch (choice.kind) {
+    case "idle":
+      return null;
     case "cancelled":
       return "Dialog cancelled — nothing was opened.";
     case "no-shell":
       return "Choosing a file needs the desktop shell. Run `pnpm tauri dev`.";
-    case "picked":
-      return chosen.paths.length === 1
-        ? `Chosen: ${chosen.paths[0]}`
-        : `Chosen ${chosen.paths.length} files: ${chosen.paths.join(", ")}`;
+    case "extra-dropped":
+      return `${choice.total} files were dropped; only the first was opened. Several files as one chain is not supported yet.`;
   }
 }
 
 export default function App() {
   const probe = useProbe();
-  const [chosen, pick] = useChosenFile();
-  const rows = rowsFor(probe, chosen);
+  const [chain, choice, pick] = useChain(probe);
+  const rows = rowsFor(probe, chain);
+  const choiceNote = choiceLine(choice);
 
   return (
     <main className="shell">
@@ -296,7 +333,8 @@ export default function App() {
           <span className="choose-hint">or drop a file on this window</span>
         </div>
 
-        <p className="footnote">{chosenLine(chosen)}</p>
+        <p className="footnote">{chainLine(chain)}</p>
+        {choiceNote !== null && <p className="footnote">{choiceNote}</p>}
         <p className="footnote">{footnoteFor(probe)}</p>
       </div>
     </main>
