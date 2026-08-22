@@ -18,6 +18,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listProfiles } from "./api/chain";
 import { type ChainState, chainLine, openPath, openedOf, verifyOpen } from "./api/chainState";
+import { diagnosisCard } from "./api/diagnosis";
 import type { AnchorProfile } from "./api/generated/types";
 import { onChainFilesDropped, pickChainFile } from "./api/openFile";
 import { provenance, provenanceSummary } from "./api/provenance";
@@ -154,7 +155,15 @@ function rowsFor(probe: Probe, chain: ChainState): Row[] {
       state: chain.kind === "verified" ? `${chain.sources.length} configured` : "wired",
       live: chain.kind === "verified",
     },
-    { name: "diagnosis card", state: "B-08", live: false },
+    {
+      name: "diagnosis card",
+      state:
+        chain.kind === "verified" && chain.result.diagnosis !== null
+          ? chain.result.diagnosis.pattern
+          : "wired",
+      live: chain.kind === "verified" && chain.result.diagnosis !== null,
+    },
+    { name: "advisory lane", state: "B-09", live: false },
   ];
 
   switch (probe.kind) {
@@ -363,6 +372,10 @@ export default function App() {
   const sourcesOf = (name: string) =>
     profiles.find((p) => p.name === name)?.sources ?? [];
 
+  // Present only when the verifier produced a diagnosis, which is only when
+  // something failed.
+  const failure = chain.kind === "verified" ? diagnosisCard(chain.result.diagnosis) : null;
+
   // The chain as walked, including the links resolution never reached.
   // Only after a check: before one there is nothing to show, and an empty
   // provenance block would read as "no sources" rather than "not yet asked".
@@ -455,6 +468,54 @@ export default function App() {
             </select>
           </label>
         </div>
+
+        {failure !== null && (
+          <section className="diagnosis" aria-labelledby="diagnosis-title">
+            <h2 className="diagnosis-title" id="diagnosis-title">
+              {failure.title}
+            </h2>
+
+            {/* The verifier's own sentence is NOT repeated here. It is
+                already under question one, where it answers "why not"; a
+                second copy would read as emphasis, and emphasis is a claim.
+                This card carries what the panel does not: the location, the
+                expectation, and where to look. */}
+            <dl className="diagnosis-facts">
+              <div>
+                <dt>Pattern</dt>
+                <dd>
+                  <code>{failure.pattern}</code>
+                </dd>
+              </div>
+              {failure.atSeq !== null && (
+                <div>
+                  <dt>At record</dt>
+                  <dd>#{failure.atSeq}</dd>
+                </div>
+              )}
+              {failure.expected !== null && (
+                <div>
+                  <dt>Expected</dt>
+                  <dd>{failure.expected}</dd>
+                </div>
+              )}
+            </dl>
+
+            <p className="diagnosis-lead">
+              {failure.unrecognised
+                ? "This build has no guidance for this pattern."
+                : "Where to look — questions, not conclusions:"}
+            </p>
+            {/* Ordered: the guidance is written cheapest-and-likeliest
+                first, and an unordered list would turn a deliberate sequence
+                into three equally weighted suggestions. */}
+            <ol className="diagnosis-where">
+              {failure.whereToLook.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         {links.length > 0 && (
           <section className="provenance" aria-labelledby="provenance-title">
