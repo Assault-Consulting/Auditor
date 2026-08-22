@@ -23,7 +23,11 @@ import {
   openChain,
   verifyChain,
 } from "./chain";
-import type { SessionResponse, VerificationResponse } from "./generated/types";
+import type {
+  AnchorSourceSpec,
+  SessionResponse,
+  VerificationResponse,
+} from "./generated/types";
 import type { Session } from "./session";
 
 export type ChainState =
@@ -35,8 +39,22 @@ export type ChainState =
   | { kind: "open"; opened: SessionResponse }
   /** A check is running against a named profile. Still open, still known. */
   | { kind: "verifying"; opened: SessionResponse; profile: string }
-  /** Checked. The answer is the verifier's; this state only carries it. */
-  | { kind: "verified"; opened: SessionResponse; profile: string; result: VerificationResponse }
+  /**
+   * Checked. The answer is the verifier's; this state only carries it.
+   *
+   * `sources` is the profile as configured, kept alongside the result
+   * because the result cannot supply it: resolution stops at the first
+   * source that answers, so the ones after it are absent from
+   * `anchor_attempts` entirely. Without the configured list there is no way
+   * to tell a source that was empty from one nobody asked.
+   */
+  | {
+      kind: "verified";
+      opened: SessionResponse;
+      profile: string;
+      sources: AnchorSourceSpec[];
+      result: VerificationResponse;
+    }
   /** The bytes are not a container. Distinct from a chain that fails. */
   | { kind: "not-a-chain"; path: string; detail: string }
   /** The file moved under us. Whatever was on screen is no longer about it. */
@@ -86,11 +104,16 @@ export async function openPath(
  * disappears while a check runs and never has to be re-fetched afterwards.
  * A screen that loses what the file is while asking about it would make the
  * separation above pointless in practice.
+ *
+ * `sources` is the profile as the user configured it, and it is passed in
+ * rather than read back from the result because the result does not contain
+ * it — see the note on the `verified` state.
  */
 export async function verifyOpen(
   session: Session,
   state: ChainState,
   profile: string,
+  sources: AnchorSourceSpec[],
   onState: (state: ChainState) => void,
 ): Promise<void> {
   const opened = openedOf(state);
@@ -100,7 +123,7 @@ export async function verifyOpen(
 
   try {
     const result = await verifyChain(session, opened.session_id, profile);
-    onState({ kind: "verified", opened, profile, result });
+    onState({ kind: "verified", opened, profile, sources, result });
   } catch (err) {
     // A changed subject is not a failed verification. It means nothing on
     // screen describes the file any more, including the identity block, so

@@ -273,6 +273,122 @@ body {
   color: var(--unchecked);
 }
 
+.choose-profile {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.7);
+}
+
+.choose-profile select {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--vellum);
+  background: var(--ink-raised);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.5) var(--step);
+}
+
+.choose-profile select:disabled {
+  color: var(--unchecked);
+}
+
+/* The anchor chain, as walked. Four outcomes again, and again carried by
+   more than colour — this is the one screen where "empty" and "nobody asked"
+   must not look alike, and a reader in greyscale needs the difference too. */
+.provenance {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.provenance-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+.provenance-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.provenance-link {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: var(--step);
+  padding: calc(var(--step) * 0.9) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.provenance-link:last-of-type {
+  border-bottom: none;
+}
+
+.provenance-order {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+  padding-left: calc(var(--step) * 0.7);
+}
+
+.provenance-link[data-outcome="answered"] .provenance-order {
+  border-left: 2px solid var(--proved);
+  color: var(--proved);
+}
+.provenance-link[data-outcome="absent"] .provenance-order {
+  border-left: 2px dashed var(--unchecked);
+}
+.provenance-link[data-outcome="error"] .provenance-order {
+  border-left: 2px solid var(--recorded);
+  color: var(--recorded);
+}
+/* Never reached is dotted and dimmed further: it is not a result at all,
+   and the row exists only so its absence is not mistaken for emptiness. */
+.provenance-link[data-outcome="not-reached"] .provenance-order {
+  border-left: 2px dotted var(--rule);
+}
+
+.provenance-source {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+.provenance-link[data-outcome="answered"] .provenance-source {
+  color: var(--vellum);
+}
+
+.provenance-link[data-outcome="not-reached"] .provenance-source,
+.provenance-link[data-outcome="absent"] .provenance-source {
+  color: var(--vellum-dim);
+}
+
+.provenance-note {
+  margin: 0.3em 0 0;
+  font-size: 0.86rem;
+  color: var(--vellum-dim);
+}
+
+/* The sidecar's own sentence, quoted like a diagnosis narrative. */
+.provenance-error {
+  margin: 0.3em 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.provenance-summary {
+  margin: calc(var(--step) * 1.5) 0 0;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
 .footnote {
   margin: calc(var(--step) * 3) 0 0;
   font-family: var(--mono);
