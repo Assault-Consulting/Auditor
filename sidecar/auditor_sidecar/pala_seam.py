@@ -34,6 +34,7 @@ from palimpsests.audit.anchors import (
     FileAnchor,
     ManualAnchor,
 )
+from palimpsests.audit.names import assurance_tier_name, time_trust_name
 from palimpsests.audit.pala.codec import FORMAT_VERSION
 from palimpsests.audit.reader import AuditReader
 from pathlib import Path
@@ -342,7 +343,32 @@ class ChainHandle:
             "last_seq": max(seqs) if seqs else None,
             "boots": len(self._reader.boots()),
             "spans": len(self._reader.spans()),
+            # Every tier and time-trust value the chain carries, not just the
+            # last one. A chain whose records were written under different
+            # platform guarantees is a chain whose verdict wording cannot be
+            # one sentence, and picking one value would decide that silently.
+            "assurance_tiers": self._named(
+                {r.header.assurance_tier for r in records}, assurance_tier_name
+            ),
+            "time_trust_values": self._named(
+                {r.header.time_trust for r in records}, time_trust_name
+            ),
         }
+
+    @staticmethod
+    def _named(values: set[int], namer) -> list[dict[str, object]]:
+        """Pair each raw value with the package's name for it.
+
+        Both are carried. The name is what a person reads; the number is what
+        survives a name table changing, and what a reader can compare against
+        the specification. A UI given only names could not report a value
+        this build has no name for — and `namer` returns None for exactly
+        that case rather than inventing a label.
+        """
+        return [
+            {"value": v, "name": namer(v)}
+            for v in sorted(values)
+        ]
 
 
 def open_chain(path: Path) -> ChainHandle:
