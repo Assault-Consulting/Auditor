@@ -12,12 +12,17 @@
 import { describe as group, expect, it, vi } from "vitest";
 
 import { NotAChainError, SidecarError, SubjectChangedError } from "./chain";
+import type { SessionResponse } from "./generated/types";
 import { type ChainState, chainLine, describe, openPath } from "./chainState";
 import type { Session } from "./session";
 
 const SESSION: Session = { port: 8771, token: "t" };
 
-const OPENED = {
+// Typed rather than inferred. This fixture went stale the moment ChainSubject
+// gained two required fields, and tsc found it in four places — which is the
+// generated client doing its job: a model change is a compile error here
+// rather than a field that renders empty on screen.
+const OPENED: SessionResponse = {
   session_id: "s1",
   subject: {
     filename: "chain.pala",
@@ -29,6 +34,12 @@ const OPENED = {
     last_seq: 4,
     boots: 1,
     spans: 0,
+    // One tier, one time-trust value: a chain written under a single
+    // platform guarantee. The set shape is what matters here — a fixture
+    // with one entry must not tempt anyone into treating the field as
+    // scalar.
+    assurance_tiers: [{ value: 0, name: "A" }],
+    time_trust_values: [{ value: 1, name: "UNSYNCED" }],
   },
   verifier: { package: "palimpsests 0.9.0", spec: "PALA-1 format_version 1" },
 };
