@@ -17,6 +17,7 @@
  */
 
 import type {
+  AnchorProfile,
   SessionResponse,
   VerificationResponse,
 } from "./generated/types";
@@ -98,6 +99,21 @@ async function raise(response: Response): Promise<never> {
     default:
       throw new SidecarError(response.status, detail);
   }
+}
+
+/**
+ * Every anchor profile this sidecar knows, including the empty one.
+ *
+ * `none` is always present and is a real profile: it asks question one and
+ * leaves question two not checked. A chooser that filtered it out would make
+ * "verify without an anchor" look unavailable rather than default.
+ */
+export async function listProfiles(session: Session): Promise<AnchorProfile[]> {
+  const response = await fetch(url(session, "/anchors/profiles"), {
+    headers: headers(session),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as AnchorProfile[];
 }
 
 /**
