@@ -16,9 +16,10 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { type ChainState, chainLine, openPath } from "./api/chainState";
+import { type ChainState, chainLine, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { onChainFilesDropped, pickChainFile } from "./api/openFile";
 import { type Health, NoShellError, getHealth, getSession } from "./api/session";
+import { type Panel, triptych } from "./api/verdict";
 
 type Basis = "proved" | "recorded" | "unchecked";
 
@@ -30,10 +31,13 @@ interface Question {
 }
 
 /**
- * The three verification questions, in the order they can be answered.
- * The order is information: you cannot ask whether you hold all of a chain
- * until you know that what you hold is internally consistent, and evidence
- * that a history existed at a given time means little without both.
+ * The three questions with no chain open — the questions themselves, not
+ * answers to them.
+ *
+ * Shown before anything is verified so the screen states what the tool asks
+ * rather than sitting blank. Once a chain has been checked these are
+ * replaced by real panels; until then nothing here is a result, and the
+ * basis line on each says which kind of claim an answer would be.
  */
 const QUESTIONS: Question[] = [
   {
@@ -140,10 +144,15 @@ function rowsFor(probe: Probe, chain: ChainState): Row[] {
   const pending: Row[] = [
     {
       name: "open a chain",
-      state: chain.kind === "open" ? "open" : "wired",
-      live: chain.kind === "open",
+      state: openedOf(chain) !== null ? "open" : "wired",
+      live: openedOf(chain) !== null,
     },
-    { name: "verdict triptych", state: "B-06c", live: false },
+    {
+      name: "verdict triptych",
+      state: chain.kind === "verified" ? "answered" : "wired",
+      live: chain.kind === "verified",
+    },
+    { name: "anchor provenance", state: "B-07", live: false },
   ];
 
   switch (probe.kind) {
@@ -174,21 +183,51 @@ function rowsFor(probe: Probe, chain: ChainState): Row[] {
   }
 }
 
-function footnoteFor(probe: Probe): string {
+function footnoteFor(probe: Probe, chain: ChainState): string {
   switch (probe.kind) {
     case "no-shell":
       return "Running in a browser without the desktop shell, so there is no session token and no sidecar. Use `pnpm tauri dev` to run the whole application.";
     case "failed":
       return `The sidecar did not answer: ${probe.detail}. Check that Python is on PATH and that the sidecar package is installed.`;
     default:
-      // Deliberately still says what this screen is NOT. A chain can be
-      // opened now, but nothing here verifies one — and a screen that stops
-      // saying so is a screen someone will read a verdict into.
-      return "Opening a chain reports what it is. Nothing on this screen is a verification result.";
+      // This line has now been wrong twice by going stale — it claimed no
+      // chain could be opened after opening worked, and it would claim
+      // nothing on screen is a result now that the panels carry one. So it
+      // follows the state rather than describing a fixed moment.
+      //
+      // What it must never stop doing is refusing the overclaim. Once a
+      // verdict is on screen the risk is not that someone misses it; it is
+      // that they read it as certification.
+      return chain.kind === "verified"
+        ? "The panels above attest that this check was run against this file, with this anchor profile, at this time. They certify nothing."
+        : "Opening a chain reports what it is. Nothing on this screen is a verification result.";
   }
 }
 
-function useChain(probe: Probe): [ChainState, Choice, () => void] {
+/** Panels for the current state: real answers when there are any, the
+ *  standing questions when there are not. */
+function panelsFor(chain: ChainState): { panels: Panel[]; live: boolean } {
+  if (chain.kind === "verified") {
+    return { panels: triptych(chain.result, chain.opened.subject), live: true };
+  }
+  return {
+    panels: QUESTIONS.map((q) => ({
+      index: q.index as Panel["index"],
+      question: q.text,
+      // Not "not-checked": nothing was asked at all, and borrowing the
+      // standing that means "asked and unanswerable" would put a real
+      // verification state on a screen that has not run one.
+      standing: "unavailable" as const,
+      answer: "",
+      basis: q.basisLabel,
+    })),
+    live: false,
+  };
+}
+
+function useChain(
+  probe: Probe,
+): [ChainState, Choice, () => void, (profile: string) => void] {
   const [chain, setChain] = useState<ChainState>({ kind: "empty" });
   const [choice, setChoice] = useState<Choice>({ kind: "idle" });
 
@@ -257,7 +296,12 @@ function useChain(probe: Probe): [ChainState, Choice, () => void] {
       });
   };
 
-  return [chain, choice, pick];
+  const verify = (profile: string) => {
+    if (probe.kind !== "ready") return;
+    void verifyOpen(probe.session, latest.current, profile, apply);
+  };
+
+  return [chain, choice, pick, verify];
 }
 
 function choiceLine(choice: Choice): string | null {
@@ -275,9 +319,11 @@ function choiceLine(choice: Choice): string | null {
 
 export default function App() {
   const probe = useProbe();
-  const [chain, choice, pick] = useChain(probe);
+  const [chain, choice, pick, verify] = useChain(probe);
   const rows = rowsFor(probe, chain);
   const choiceNote = choiceLine(choice);
+  const { panels, live } = panelsFor(chain);
+  const canVerify = openedOf(chain) !== null && chain.kind !== "verifying";
 
   return (
     <main className="shell">
@@ -294,17 +340,21 @@ export default function App() {
           anchor, at a stated time. It certifies nothing.
         </p>
 
-        <ol className="questions">
-          {QUESTIONS.map((q) => (
-            <li className="question" key={q.index}>
+        <ol className="questions" data-live={live}>
+          {panels.map((p) => (
+            <li className="question" key={p.index} data-standing={p.standing}>
               <span className="question-index" aria-hidden="true">
-                {q.index}
+                {p.index}
               </span>
               <div>
-                <p className="question-text">{q.text}</p>
-                <p className={`question-basis basis-${q.basis}`}>
-                  {q.basisLabel}
-                </p>
+                <p className="question-text">{p.question}</p>
+                {p.answer !== "" && <p className="question-answer">{p.answer}</p>}
+                {/* The verifier's own sentence, set apart and never rewritten.
+                    A localised line may sit beside it; never instead of it. */}
+                {p.narrative !== undefined && (
+                  <p className="question-narrative">{p.narrative}</p>
+                )}
+                <p className="question-basis">{p.basis}</p>
               </div>
             </li>
           ))}
@@ -330,12 +380,26 @@ export default function App() {
           <button className="choose-button" onClick={pick} type="button">
             Open a chain…
           </button>
-          <span className="choose-hint">or drop a file on this window</span>
+          <button
+            className="choose-button"
+            disabled={!canVerify}
+            onClick={() => verify("none")}
+            type="button"
+          >
+            {chain.kind === "verifying" ? "Checking…" : "Verify"}
+          </button>
+          {/* "none" is a real profile, not the absence of one: it asks
+              question one and leaves question two not checked, which is a
+              truthful answer rather than a degraded mode. Choosing another
+              profile is B-07. */}
+          <span className="choose-hint">
+            {canVerify ? "without an anchor — question two stays unchecked" : "or drop a file on this window"}
+          </span>
         </div>
 
         <p className="footnote">{chainLine(chain)}</p>
         {choiceNote !== null && <p className="footnote">{choiceNote}</p>}
-        <p className="footnote">{footnoteFor(probe)}</p>
+        <p className="footnote">{footnoteFor(probe, chain)}</p>
       </div>
     </main>
   );
