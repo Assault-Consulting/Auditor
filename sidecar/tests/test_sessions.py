@@ -36,6 +36,27 @@ def test_digest_identifies_the_artifact(store: SessionStore, chain_path) -> None
     assert s.subject()["sha256"] == file_sha256(chain_path)
 
 
+def test_the_tiers_present_are_reported_as_a_set(store: SessionStore, chain_path) -> None:
+    """Every tier the records carry, not the latest one.
+
+    A chain written under more than one platform guarantee cannot have its
+    verdict worded in a single sentence, and reducing the set here would
+    decide that silently.
+    """
+    subject = store.open(chain_path).subject()
+    assert subject["assurance_tiers"] == [{"value": 0, "name": "A"}]
+    assert subject["time_trust_values"] == [{"value": 1, "name": "UNSYNCED"}]
+
+
+def test_each_enum_carries_both_its_number_and_its_name(
+    store: SessionStore, chain_path
+) -> None:
+    """The name is for a person; the number survives a name table changing."""
+    for entry in store.open(chain_path).subject()["assurance_tiers"]:
+        assert set(entry) == {"value", "name"}
+        assert isinstance(entry["value"], int)
+
+
 def test_two_sessions_on_one_file_are_independent(store: SessionStore, chain_path) -> None:
     a, b = store.open(chain_path), store.open(chain_path)
     assert a.session_id != b.session_id
@@ -145,14 +166,35 @@ def test_the_seam_returns_no_package_types(chain_path) -> None:
 
     A package dataclass in a route signature becomes one in a response model,
     and the single point of contact quietly becomes a hundred.
+
+    Checked by walking the whole structure and asking where each value's type
+    came from, rather than by listing the scalar types that happen to be in
+    use today. The earlier version enumerated `int | str` and failed the
+    moment a legitimately plain list of dicts was added — a guard that
+    obstructs correct changes gets loosened by whoever is in a hurry, and a
+    loosened guard is the one that misses the real violation.
     """
     handle = open_chain(chain_path)
     try:
         assert type(handle).__module__.startswith("auditor_sidecar")
-        for value in handle.subject().values():
-            assert value is None or isinstance(value, int | str)
+        _assert_plain(handle.subject())
+        _assert_plain(handle.verify())
     finally:
         handle.close()
+
+
+def _assert_plain(value: object, path: str = "subject") -> None:
+    """Every value here must be a builtin, however deeply nested."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _assert_plain(item, f"{path}.{key}")
+        return
+    if isinstance(value, list | tuple):
+        for index, item in enumerate(value):
+            _assert_plain(item, f"{path}[{index}]")
+        return
+    origin = type(value).__module__
+    assert origin == "builtins", f"{path} is a {origin} type: {type(value).__name__}"
 
 
 # --- the HTTP surface -------------------------------------------------------
