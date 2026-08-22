@@ -79,7 +79,7 @@ group("verifying is layered over open, not instead of it", () => {
     );
 
     const seen: ChainState[] = [];
-    await verifyOpen(SESSION, { kind: "open", opened: OPENED }, "desk", (s) => seen.push(s));
+    await verifyOpen(SESSION, { kind: "open", opened: OPENED }, "desk", [], (s) => seen.push(s));
 
     expect(seen.map((s) => s.kind)).toEqual(["verifying", "verified"]);
     // A screen that lost what the file is while asking about it would make
@@ -90,7 +90,7 @@ group("verifying is layered over open, not instead of it", () => {
 
   it("does nothing when no chain is open", async () => {
     const seen: ChainState[] = [];
-    await verifyOpen(SESSION, { kind: "empty" }, "none", (s) => seen.push(s));
+    await verifyOpen(SESSION, { kind: "empty" }, "none", [], (s) => seen.push(s));
     expect(seen).toEqual([]);
   });
 
@@ -103,10 +103,32 @@ group("verifying is layered over open, not instead of it", () => {
     );
 
     const seen: ChainState[] = [];
-    await verifyOpen(SESSION, { kind: "open", opened: OPENED }, "desk", (s) => seen.push(s));
+    await verifyOpen(SESSION, { kind: "open", opened: OPENED }, "desk", [], (s) => seen.push(s));
 
     expect(seen.map((s) => s.kind)).toEqual(["verifying", "subject-changed"]);
     expect(openedOf(seen[1]!)).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it("carries the configured sources through to the verified state", async () => {
+    // The field exists so provenance can show the links resolution never
+    // reached. A test where every call passes [] would never notice it being
+    // dropped on the way through.
+    const sources = [
+      { kind: "file", path: "/var/lib/pala/anchor.head", head: null, account: null, detail: "" },
+      { kind: "keychain", account: "prod", head: null, path: null, detail: "" },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(VERIFIED), { status: 200 })),
+    );
+
+    let final: ChainState = { kind: "empty" };
+    await verifyOpen(SESSION, { kind: "open", opened: OPENED }, "desk", sources, (s) => {
+      final = s;
+    });
+
+    expect(final).toMatchObject({ kind: "verified", sources });
     vi.unstubAllGlobals();
   });
 
@@ -114,7 +136,7 @@ group("verifying is layered over open, not instead of it", () => {
     // What the check found belongs in the panels, where each question keeps
     // its own answer. Summarising it here would be the single verdict field
     // this API refuses to have.
-    const line = chainLine({ kind: "verified", opened: OPENED, profile: "desk", result: VERIFIED });
+    const line = chainLine({ kind: "verified", opened: OPENED, profile: "desk", sources: [], result: VERIFIED });
     expect(line).toContain("chain.pala");
     expect(line).not.toMatch(/\b(valid|passed|failed|ok)\b/i);
   });
@@ -159,7 +181,7 @@ group("the wording describes rather than accuses", () => {
     { kind: "opening", path: "/tmp/chain.pala" },
     { kind: "open", opened: OPENED },
     { kind: "verifying", opened: OPENED, profile: "desk" },
-    { kind: "verified", opened: OPENED, profile: "desk", result: VERIFIED },
+    { kind: "verified", opened: OPENED, profile: "desk", sources: [], result: VERIFIED },
     { kind: "not-a-chain", path: "/tmp/notes.txt", detail: "no PALA-1 records" },
     { kind: "subject-changed", detail: "chain.pala has changed" },
     { kind: "failed", detail: "connection refused" },
@@ -216,7 +238,7 @@ group("opening replaces what was open", () => {
 
     await openPath(
       SESSION,
-      { kind: "verified", opened: OPENED, profile: "desk", result: VERIFIED },
+      { kind: "verified", opened: OPENED, profile: "desk", sources: [], result: VERIFIED },
       "/tmp/next.pala",
       () => {},
     );
