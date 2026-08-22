@@ -13,7 +13,14 @@ import { describe as group, expect, it, vi } from "vitest";
 
 import { NotAChainError, SidecarError, SubjectChangedError } from "./chain";
 import type { SessionResponse } from "./generated/types";
-import { type ChainState, chainLine, describe, openPath } from "./chainState";
+import {
+  type ChainState,
+  chainLine,
+  describe,
+  openPath,
+  openedOf,
+  verifyOpen,
+} from "./chainState";
 import type { Session } from "./session";
 
 const SESSION: Session = { port: 8771, token: "t" };
@@ -43,6 +50,75 @@ const OPENED: SessionResponse = {
   },
   verifier: { package: "palimpsests 0.9.0", spec: "PALA-1 format_version 1" },
 };
+
+const VERIFIED = {
+  session_id: "s1",
+  subject_sha256: "ab".repeat(32),
+  verifier: { package: "palimpsests 0.9.0", spec: "PALA-1 format_version 1" },
+  chain: {
+    chain_ok: true,
+    count: 5,
+    head: "cd".repeat(32),
+    breaks: [],
+    gaps: [],
+    violations: [],
+    uninterpretable: [],
+  },
+  completeness: { complete_to_anchor: null, anchor_lag: null, anchor_reason: null },
+  anchor: null,
+  anchor_attempts: [],
+  diagnosis: null,
+  advisory: { count: 0, items: [], note: "advisory items do not affect the verdict" },
+};
+
+group("verifying is layered over open, not instead of it", () => {
+  it("keeps the subject while the check runs", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(VERIFIED), { status: 200 })),
+    );
+
+    const seen: ChainState[] = [];
+    await verifyOpen(SESSION, { kind: "open", opened: OPENED }, "desk", (s) => seen.push(s));
+
+    expect(seen.map((s) => s.kind)).toEqual(["verifying", "verified"]);
+    // A screen that lost what the file is while asking about it would make
+    // the identity-before-verdict separation pointless in practice.
+    for (const s of seen) expect(openedOf(s)).toBe(OPENED);
+    vi.unstubAllGlobals();
+  });
+
+  it("does nothing when no chain is open", async () => {
+    const seen: ChainState[] = [];
+    await verifyOpen(SESSION, { kind: "empty" }, "none", (s) => seen.push(s));
+    expect(seen).toEqual([]);
+  });
+
+  it("a changed subject drops the subject rather than keeping a stale one", async () => {
+    // Not a failed verification. Nothing on screen describes the file any
+    // more, the identity block included.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ detail: "has changed" }), { status: 409 })),
+    );
+
+    const seen: ChainState[] = [];
+    await verifyOpen(SESSION, { kind: "open", opened: OPENED }, "desk", (s) => seen.push(s));
+
+    expect(seen.map((s) => s.kind)).toEqual(["verifying", "subject-changed"]);
+    expect(openedOf(seen[1]!)).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it("the line after a check stays about the artifact", () => {
+    // What the check found belongs in the panels, where each question keeps
+    // its own answer. Summarising it here would be the single verdict field
+    // this API refuses to have.
+    const line = chainLine({ kind: "verified", opened: OPENED, profile: "desk", result: VERIFIED });
+    expect(line).toContain("chain.pala");
+    expect(line).not.toMatch(/\b(valid|passed|failed|ok)\b/i);
+  });
+});
 
 group("each failure reaches its own state", () => {
   it("a non-container is not-a-chain, and keeps the path", () => {
@@ -82,6 +158,8 @@ group("the wording describes rather than accuses", () => {
     { kind: "empty" },
     { kind: "opening", path: "/tmp/chain.pala" },
     { kind: "open", opened: OPENED },
+    { kind: "verifying", opened: OPENED, profile: "desk" },
+    { kind: "verified", opened: OPENED, profile: "desk", result: VERIFIED },
     { kind: "not-a-chain", path: "/tmp/notes.txt", detail: "no PALA-1 records" },
     { kind: "subject-changed", detail: "chain.pala has changed" },
     { kind: "failed", detail: "connection refused" },
@@ -120,6 +198,30 @@ group("opening replaces what was open", () => {
 
     expect(calls[0]).toBe("DELETE /session/s1");
     expect(calls[1]).toBe("POST /session");
+    vi.unstubAllGlobals();
+  });
+
+  it("closes the previous session even when it was already verified", async () => {
+    // openedOf covers three states now. If openPath had kept checking for
+    // kind === "open", verifying a chain and then opening another would have
+    // leaked the first session silently.
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push(`${init?.method ?? "GET"} ${new URL(url).pathname}`);
+        return new Response(JSON.stringify(OPENED), { status: 201 });
+      }),
+    );
+
+    await openPath(
+      SESSION,
+      { kind: "verified", opened: OPENED, profile: "desk", result: VERIFIED },
+      "/tmp/next.pala",
+      () => {},
+    );
+
+    expect(calls[0]).toBe("DELETE /session/s1");
     vi.unstubAllGlobals();
   });
 
