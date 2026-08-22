@@ -111,7 +111,7 @@
             "type": "string"
           },
           "source_kind": {
-            "description": "'manual', 'file', ...",
+            "description": "'manual', 'file' or 'keychain'.",
             "title": "Source Kind",
             "type": "string"
           }
@@ -313,6 +313,14 @@
       "ChainSubject": {
         "description": "What the container *is*, stated before any verdict about it.\n\nSeparate from the verification result on purpose: a reader of a report\nmust be able to confirm they are holding the same artifact the check ran\nagainst, independently of whether that check passed.",
         "properties": {
+          "assurance_tiers": {
+            "description": "Every assurance tier the chain's records carry, not just the latest. More than one means the platform guarantee changed mid-chain, and the verdict wording cannot then be a single sentence \u2014 so the set is reported rather than reduced.",
+            "items": {
+              "$ref": "#/components/schemas/NamedValue"
+            },
+            "title": "Assurance Tiers",
+            "type": "array"
+          },
           "boots": {
             "description": "Distinct boot identifiers present.",
             "title": "Boots",
@@ -371,6 +379,14 @@
             "description": "Distinct spans present.",
             "title": "Spans",
             "type": "integer"
+          },
+          "time_trust_values": {
+            "description": "Every wall-clock trust level the chain's records carry. More than one means the writer's clock changed status mid-chain, which qualifies every wall-time claim in the file.",
+            "items": {
+              "$ref": "#/components/schemas/NamedValue"
+            },
+            "title": "Time Trust Values",
+            "type": "array"
           }
         },
         "required": [
@@ -382,7 +398,9 @@
           "first_seq",
           "last_seq",
           "boots",
-          "spans"
+          "spans",
+          "assurance_tiers",
+          "time_trust_values"
         ],
         "title": "ChainSubject",
         "type": "object"
@@ -574,6 +592,34 @@
           "detail"
         ],
         "title": "KeychainStatus",
+        "type": "object"
+      },
+      "NamedValue": {
+        "description": "A header enum value, with the package's name for it.\n\nBoth halves travel. The name is what a person reads; the number is what\nsurvives a name table changing and what can be checked against the\nspecification. `name` is null when this verifier build has no name for\nthe value \u2014 which is a real answer, and better than a label invented to\nfill the gap.",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's name, or null if this build does not know it.",
+            "title": "Name"
+          },
+          "value": {
+            "description": "The raw header value.",
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "value",
+          "name"
+        ],
+        "title": "NamedValue",
         "type": "object"
       },
       "SessionRequest": {

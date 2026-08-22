@@ -42,7 +42,7 @@ export interface AdvisoryModel {
  * One source that was consulted, and what came back.
  */
 export interface AnchorAttemptModel {
-  /** 'manual', 'file', ... */
+  /** 'manual', 'file' or 'keychain'. */
   source_kind: string;
   /** Which one — a path, or free text. */
   source_detail: string;
@@ -152,6 +152,10 @@ export interface ChainSubject {
   boots: number;
   /** Distinct spans present. */
   spans: number;
+  /** Every assurance tier the chain's records carry, not just the latest. More than one means the platform guarantee changed mid-chain, and the verdict wording cannot then be a single sentence — so the set is reported rather than reduced. */
+  assurance_tiers: Array<NamedValue>;
+  /** Every wall-clock trust level the chain's records carry. More than one means the writer's clock changed status mid-chain, which qualifies every wall-time claim in the file. */
+  time_trust_values: Array<NamedValue>;
 }
 
 /**
@@ -230,6 +234,22 @@ export interface KeychainStatus {
   available: boolean;
   /** What to do about it, when there is something to do. */
   detail: string;
+}
+
+/**
+ * A header enum value, with the package's name for it.
+ *
+ * Both halves travel. The name is what a person reads; the number is what
+ * survives a name table changing and what can be checked against the
+ * specification. `name` is null when this verifier build has no name for
+ * the value — which is a real answer, and better than a label invented to
+ * fill the gap.
+ */
+export interface NamedValue {
+  /** The raw header value. */
+  value: number;
+  /** The package's name, or null if this build does not know it. */
+  name: string | null;
 }
 
 /**

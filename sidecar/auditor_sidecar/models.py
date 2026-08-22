@@ -46,6 +46,22 @@ class HealthResponse(BaseModel):
     )
 
 
+class NamedValue(BaseModel):
+    """A header enum value, with the package's name for it.
+
+    Both halves travel. The name is what a person reads; the number is what
+    survives a name table changing and what can be checked against the
+    specification. `name` is null when this verifier build has no name for
+    the value — which is a real answer, and better than a label invented to
+    fill the gap.
+    """
+
+    value: int = Field(description="The raw header value.")
+    name: str | None = Field(
+        description="The package's name, or null if this build does not know it."
+    )
+
+
 class ChainSubject(BaseModel):
     """What the container *is*, stated before any verdict about it.
 
@@ -68,6 +84,21 @@ class ChainSubject(BaseModel):
     last_seq: int | None = Field(description="Highest sequence number present.")
     boots: int = Field(description="Distinct boot identifiers present.")
     spans: int = Field(description="Distinct spans present.")
+    assurance_tiers: list[NamedValue] = Field(
+        description=(
+            "Every assurance tier the chain's records carry, not just the "
+            "latest. More than one means the platform guarantee changed "
+            "mid-chain, and the verdict wording cannot then be a single "
+            "sentence — so the set is reported rather than reduced."
+        )
+    )
+    time_trust_values: list[NamedValue] = Field(
+        description=(
+            "Every wall-clock trust level the chain's records carry. More "
+            "than one means the writer's clock changed status mid-chain, "
+            "which qualifies every wall-time claim in the file."
+        )
+    )
 
 
 class SessionResponse(BaseModel):
@@ -260,7 +291,7 @@ class AnchorProfile(BaseModel):
 class AnchorAttemptModel(BaseModel):
     """One source that was consulted, and what came back."""
 
-    source_kind: str = Field(description="'manual', 'file', ...")
+    source_kind: str = Field(description="'manual', 'file' or 'keychain'.")
     source_detail: str = Field(description="Which one — a path, or free text.")
     outcome: str = Field(
         description=(
