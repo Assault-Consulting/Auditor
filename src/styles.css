@@ -130,6 +130,7 @@ body {
   font-size: 0.78rem;
   color: var(--unchecked);
   padding-top: 0.35em;
+  padding-left: calc(var(--step) * 0.9);
 }
 
 .question-text {
@@ -144,14 +145,54 @@ body {
   text-transform: uppercase;
 }
 
-.basis-proved {
+/* The four standings, and they are four rather than two on purpose. L6
+   keeps absent, unreadable and failed apart at the API; a stylesheet with a
+   green and a red would collapse them at the last step and waste that.
+
+   `unavailable` is deliberately the same inert slate as an unasked
+   question: a tier-A chain having no witness is not a failure of the log,
+   and nothing on the screen should make it look like one. */
+.question[data-standing="answered-yes"] .question-basis {
   color: var(--proved);
 }
-.basis-recorded {
+.question[data-standing="answered-no"] .question-basis {
   color: var(--recorded);
 }
-.basis-unchecked {
+.question[data-standing="not-checked"] .question-basis,
+.question[data-standing="unavailable"] .question-basis {
   color: var(--unchecked);
+}
+
+/* Colour is never the only carrier — a rule on the index, so the standing
+   survives greyscale, a projector, and colour blindness. Solid for an
+   answer either way, dashed for asked-and-unanswered, dotted for nothing
+   that could answer it. */
+.question[data-standing="answered-yes"] .question-index {
+  border-left: 2px solid var(--proved);
+}
+.question[data-standing="answered-no"] .question-index {
+  border-left: 2px solid var(--recorded);
+}
+.question[data-standing="not-checked"] .question-index {
+  border-left: 2px dashed var(--unchecked);
+}
+.question[data-standing="unavailable"] .question-index {
+  border-left: 2px dotted var(--unchecked);
+}
+
+.question-answer {
+  margin: 0.45em 0 0;
+  color: var(--vellum);
+}
+
+/* The verifier's own sentence. Set in the serif and indented, so it reads as
+   quoted rather than as ours — the visual form of carrying it verbatim. */
+.question-narrative {
+  margin: 0.45em 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--rule);
+  color: var(--vellum-dim);
+  font-style: italic;
 }
 
 /* Build status. An empty screen is an invitation to act, so it names what
@@ -194,8 +235,9 @@ body {
   color: var(--proved);
 }
 
-/* The one action on this screen, and it is deliberately plain. Nothing here
-   is a verdict, so nothing here should look like one. */
+/* The actions, deliberately plain. A filled accent button here would be the
+   loudest element on a screen whose whole claim is that it has decided
+   nothing on its own. */
 .choose {
   display: flex;
   align-items: baseline;
@@ -214,8 +256,15 @@ body {
   cursor: pointer;
 }
 
-.choose-button:hover {
+.choose-button:hover:not(:disabled) {
   border-color: var(--unchecked);
+}
+
+/* Dimmed rather than hidden. A Verify button that disappears until a chain
+   is open leaves the screen without saying what it will be able to do. */
+.choose-button:disabled {
+  color: var(--unchecked);
+  cursor: default;
 }
 
 .choose-hint {
