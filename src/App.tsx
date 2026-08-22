@@ -21,12 +21,9 @@ import { onChainFilesDropped, pickChainFile } from "./api/openFile";
 import { type Health, NoShellError, getHealth, getSession } from "./api/session";
 import { type Panel, triptych } from "./api/verdict";
 
-type Basis = "proved" | "recorded" | "unchecked";
-
 interface Question {
   index: string;
   text: string;
-  basis: Basis;
   basisLabel: string;
 }
 
@@ -43,19 +40,16 @@ const QUESTIONS: Question[] = [
   {
     index: "01",
     text: "Is what I hold internally consistent?",
-    basis: "proved",
     basisLabel: "Proved — hash chain, no key required",
   },
   {
     index: "02",
     text: "Is what I hold all of it?",
-    basis: "unchecked",
     basisLabel: "Not checked without an anchor",
   },
   {
     index: "03",
     text: "Did this history exist at time T?",
-    basis: "recorded",
     basisLabel: "Recorded — the writer's clock, until a witness says otherwise",
   },
 ];
