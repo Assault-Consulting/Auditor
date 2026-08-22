@@ -361,6 +361,105 @@ body {
   margin: 0.4em 0;
 }
 
+/* The advisory lane, and it is deliberately the quietest block on the page.
+   No ochre rule, no serif heading, nothing that echoes the diagnosis card.
+   L5 says these items change no verdict — and a lane that looked like a
+   finding would break that by presentation while the payload stayed exactly
+   correct. Quiet is the requirement, not the aesthetic. */
+.advisory {
+  margin-top: calc(var(--step) * 3);
+  border-top: 1px solid var(--rule);
+  padding-top: calc(var(--step) * 2);
+}
+
+.advisory-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 0.75);
+}
+
+.advisory-line {
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
+/* Collapsed by default. An item worth a glance should not cost a scroll,
+   and expanding is the reader deciding this one is worth their attention —
+   which is exactly the decision L5 reserves for them. */
+.advisory-group {
+  border-bottom: 1px solid var(--rule);
+}
+
+.advisory-group:last-of-type {
+  border-bottom: none;
+}
+
+.advisory-group summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+  padding: calc(var(--step) * 0.8) 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.advisory-count {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+  min-width: 2ch;
+  text-align: right;
+}
+
+.advisory-heading {
+  flex: 1;
+  color: var(--vellum-dim);
+}
+
+/* The one weight distinction §9 asks for, and it is a weight rather than a
+   colour: notable items read first and in the ordinary foreground. Giving
+   them ochre would put them in the same visual class as a diagnosis. */
+.advisory-group[data-weight="notable"] .advisory-heading {
+  color: var(--vellum);
+}
+
+.advisory-code {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--unchecked);
+}
+
+.advisory-note {
+  margin: 0 0 calc(var(--step) * 0.75);
+  padding-left: calc(var(--step) * 3);
+  font-size: 0.86rem;
+  color: var(--vellum-dim);
+}
+
+.advisory-items {
+  margin: 0 0 var(--step);
+  padding-left: calc(var(--step) * 3);
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
+.advisory-items li {
+  display: flex;
+  gap: var(--step);
+  padding: 0.15em 0;
+}
+
+.advisory-detail {
+  color: var(--vellum-dim);
+}
+
 /* The anchor chain, as walked. Four outcomes again, and again carried by
    more than colour — this is the one screen where "empty" and "nobody asked"
    must not look alike, and a reader in greyscale needs the difference too. */

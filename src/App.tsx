@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { advisoryGroups, advisoryLine } from "./api/advisory";
 import { listProfiles } from "./api/chain";
 import { type ChainState, chainLine, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { diagnosisCard } from "./api/diagnosis";
@@ -163,7 +164,13 @@ function rowsFor(probe: Probe, chain: ChainState): Row[] {
           : "wired",
       live: chain.kind === "verified" && chain.result.diagnosis !== null,
     },
-    { name: "advisory lane", state: "B-09", live: false },
+    {
+      name: "advisory lane",
+      state:
+        chain.kind === "verified" ? `${chain.result.advisory.count} items` : "wired",
+      live: chain.kind === "verified",
+    },
+    { name: "mutation fixtures", state: "B-11", live: false },
   ];
 
   switch (probe.kind) {
@@ -376,6 +383,12 @@ export default function App() {
   // something failed.
   const failure = chain.kind === "verified" ? diagnosisCard(chain.result.diagnosis) : null;
 
+  // Shown after any check, including when it is empty. Hiding the lane when
+  // there is nothing in it would be ambiguous between "no advisory items"
+  // and "nobody built this" — the same ambiguity the status panel exists to
+  // remove.
+  const advisory = chain.kind === "verified" ? chain.result.advisory : null;
+
   // The chain as walked, including the links resolution never reached.
   // Only after a check: before one there is nothing to show, and an empty
   // provenance block would read as "no sources" rather than "not yet asked".
@@ -514,6 +527,39 @@ export default function App() {
                 <li key={line}>{line}</li>
               ))}
             </ol>
+          </section>
+        )}
+
+        {advisory !== null && (
+          <section className="advisory" aria-labelledby="advisory-title">
+            <h2 className="advisory-title" id="advisory-title">
+              Advisory
+            </h2>
+
+            {/* The payload's own sentence, quoted. The API put it in the
+                response so a UI could not soften it or leave it out. */}
+            <p className="advisory-line">{advisoryLine(advisory)}</p>
+
+            {advisoryGroups(advisory).map((g) => (
+              <details className="advisory-group" data-weight={g.weight} key={g.code}>
+                <summary>
+                  <span className="advisory-count">{g.count}</span>
+                  <span className="advisory-heading">{g.title}</span>
+                  <code className="advisory-code">{g.code}</code>
+                </summary>
+                <p className="advisory-note">{g.note}</p>
+                <ul className="advisory-items">
+                  {g.items.map((item, i) => (
+                    <li key={`${g.code}-${item.at_seq ?? "x"}-${i}`}>
+                      {item.at_seq !== null && <span>record #{item.at_seq}</span>}
+                      {item.boot_id !== null && <span>boot {item.boot_id.slice(0, 8)}</span>}
+                      {/* The package's own description of this item. */}
+                      {item.detail !== null && <span className="advisory-detail">{item.detail}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ))}
           </section>
         )}
 
