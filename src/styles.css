@@ -292,6 +292,75 @@ body {
   color: var(--unchecked);
 }
 
+/* The diagnosis. Ruled in ochre — the Recorded colour — because a failure is
+   a description of evidence, not a proof of anything, and it must not take
+   the green that means "proved". Nor the red a status pane would reach for:
+   this application does not have an alarm state, and a card that looked like
+   one would be making the accusation the wording refuses to make. */
+.diagnosis {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--recorded);
+  padding: calc(var(--step) * 2);
+}
+
+.diagnosis-title {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 1.15rem;
+}
+
+.diagnosis-facts {
+  margin: calc(var(--step) * 1.5) 0 0;
+  display: grid;
+  gap: calc(var(--step) * 0.5);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.diagnosis-facts > div {
+  display: flex;
+  gap: var(--step);
+}
+
+.diagnosis-facts dt {
+  color: var(--unchecked);
+  min-width: 7ch;
+}
+
+.diagnosis-facts dd {
+  margin: 0;
+  color: var(--vellum-dim);
+}
+
+.diagnosis-facts code {
+  font-family: var(--mono);
+  color: var(--recorded);
+}
+
+.diagnosis-lead {
+  margin: calc(var(--step) * 2) 0 calc(var(--step) * 0.75);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+}
+
+/* Numbered, because the order is the order worth checking in — the cheapest
+   and most likely explanation first. An unordered list would make three
+   equally weighted suggestions out of a deliberate sequence. */
+.diagnosis-where {
+  margin: 0;
+  padding-left: calc(var(--step) * 2.5);
+  color: var(--vellum-dim);
+}
+
+.diagnosis-where li {
+  margin: 0.4em 0;
+}
+
 /* The anchor chain, as walked. Four outcomes again, and again carried by
    more than colour — this is the one screen where "empty" and "nobody asked"
    must not look alike, and a reader in greyscale needs the difference too. */
