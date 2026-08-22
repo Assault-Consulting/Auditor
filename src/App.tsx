@@ -16,8 +16,11 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { listProfiles } from "./api/chain";
 import { type ChainState, chainLine, openPath, openedOf, verifyOpen } from "./api/chainState";
+import type { AnchorProfile } from "./api/generated/types";
 import { onChainFilesDropped, pickChainFile } from "./api/openFile";
+import { provenance, provenanceSummary } from "./api/provenance";
 import { type Health, NoShellError, getHealth, getSession } from "./api/session";
 import { type Panel, triptych } from "./api/verdict";
 
@@ -131,10 +134,10 @@ type Choice =
 
 function rowsFor(probe: Probe, chain: ChainState): Row[] {
   // This panel exists to be honest about what is wired, so it has to be
-  // corrected when something becomes wired. It still claimed the typed API
-  // client was pending under A-07, which shipped several changes ago — a
-  // status display that goes stale is worse than none, because it is read as
-  // current.
+  // corrected when something becomes wired. It has gone stale twice now —
+  // once claiming the typed API client was pending, once claiming provenance
+  // was. A status display that is read as current and is not is worse than
+  // none at all.
   const pending: Row[] = [
     {
       name: "open a chain",
@@ -146,7 +149,12 @@ function rowsFor(probe: Probe, chain: ChainState): Row[] {
       state: chain.kind === "verified" ? "answered" : "wired",
       live: chain.kind === "verified",
     },
-    { name: "anchor provenance", state: "B-07", live: false },
+    {
+      name: "anchor provenance",
+      state: chain.kind === "verified" ? `${chain.sources.length} configured` : "wired",
+      live: chain.kind === "verified",
+    },
+    { name: "diagnosis card", state: "B-08", live: false },
   ];
 
   switch (probe.kind) {
@@ -219,9 +227,40 @@ function panelsFor(chain: ChainState): { panels: Panel[]; live: boolean } {
   };
 }
 
+/**
+ * The anchor profiles this sidecar knows.
+ *
+ * Fetched once the shell is ready rather than on every verify: the list
+ * changes only when someone edits it, and re-fetching per check would put a
+ * network round trip in front of an action whose whole point is to be
+ * repeatable.
+ */
+function useProfiles(probe: Probe): AnchorProfile[] {
+  const [profiles, setProfiles] = useState<AnchorProfile[]>([]);
+
+  useEffect(() => {
+    if (probe.kind !== "ready") return;
+    let cancelled = false;
+    void listProfiles(probe.session)
+      .then((list) => {
+        if (!cancelled) setProfiles(list);
+      })
+      .catch(() => {
+        // A sidecar that cannot list profiles can still verify against
+        // "none", so this failure narrows the choice rather than blocking
+        // the action.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [probe]);
+
+  return profiles;
+}
+
 function useChain(
   probe: Probe,
-): [ChainState, Choice, () => void, (profile: string) => void] {
+): [ChainState, Choice, () => void, (profile: string, sources: AnchorProfile["sources"]) => void] {
   const [chain, setChain] = useState<ChainState>({ kind: "empty" });
   const [choice, setChoice] = useState<Choice>({ kind: "idle" });
 
@@ -290,9 +329,9 @@ function useChain(
       });
   };
 
-  const verify = (profile: string) => {
+  const verify = (profile: string, sources: AnchorProfile["sources"]) => {
     if (probe.kind !== "ready") return;
-    void verifyOpen(probe.session, latest.current, profile, apply);
+    void verifyOpen(probe.session, latest.current, profile, sources, apply);
   };
 
   return [chain, choice, pick, verify];
@@ -313,11 +352,24 @@ function choiceLine(choice: Choice): string | null {
 
 export default function App() {
   const probe = useProbe();
+  const profiles = useProfiles(probe);
+  const [chosenProfile, setChosenProfile] = useState("none");
   const [chain, choice, pick, verify] = useChain(probe);
   const rows = rowsFor(probe, chain);
   const choiceNote = choiceLine(choice);
   const { panels, live } = panelsFor(chain);
   const canVerify = openedOf(chain) !== null && chain.kind !== "verifying";
+
+  const sourcesOf = (name: string) =>
+    profiles.find((p) => p.name === name)?.sources ?? [];
+
+  // The chain as walked, including the links resolution never reached.
+  // Only after a check: before one there is nothing to show, and an empty
+  // provenance block would read as "no sources" rather than "not yet asked".
+  const links =
+    chain.kind === "verified"
+      ? provenance(chain.result.anchor_attempts, chain.sources)
+      : [];
 
   return (
     <main className="shell">
@@ -377,19 +429,60 @@ export default function App() {
           <button
             className="choose-button"
             disabled={!canVerify}
-            onClick={() => verify("none")}
+            onClick={() => verify(chosenProfile, sourcesOf(chosenProfile))}
             type="button"
           >
             {chain.kind === "verifying" ? "Checking…" : "Verify"}
           </button>
-          {/* "none" is a real profile, not the absence of one: it asks
-              question one and leaves question two not checked, which is a
-              truthful answer rather than a degraded mode. Choosing another
-              profile is B-07. */}
-          <span className="choose-hint">
-            {canVerify ? "without an anchor — question two stays unchecked" : "or drop a file on this window"}
-          </span>
+          {/* "none" stays in the list rather than being filtered out. It is a
+              real profile — it asks question one and leaves question two not
+              checked — and hiding it would make verifying without an anchor
+              look unavailable rather than default. */}
+          <label className="choose-profile">
+            <span className="choose-hint">against</span>
+            <select
+              disabled={!canVerify}
+              onChange={(e) => setChosenProfile(e.target.value)}
+              value={chosenProfile}
+            >
+              {(profiles.length > 0 ? profiles : [{ name: "none", sources: [] }]).map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name === "none"
+                    ? "no anchor — question two stays unchecked"
+                    : `${p.name} (${p.sources.length} ${p.sources.length === 1 ? "source" : "sources"})`}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
+
+        {links.length > 0 && (
+          <section className="provenance" aria-labelledby="provenance-title">
+            <h2 className="provenance-title" id="provenance-title">
+              Anchor provenance
+            </h2>
+            <ol className="provenance-list">
+              {links.map((l) => (
+                <li className="provenance-link" data-outcome={l.outcome} key={l.order}>
+                  <span className="provenance-order" aria-hidden="true">
+                    {l.order}
+                  </span>
+                  <div>
+                    <p className="provenance-source">
+                      {l.kind} — {l.detail}
+                    </p>
+                    <p className="provenance-note">{l.note}</p>
+                    {/* The sidecar's own words, never rewritten. */}
+                    {l.error !== undefined && (
+                      <p className="provenance-error">{l.error}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <p className="provenance-summary">{provenanceSummary(links)}</p>
+          </section>
+        )}
 
         <p className="footnote">{chainLine(chain)}</p>
         {choiceNote !== null && <p className="footnote">{choiceNote}</p>}
