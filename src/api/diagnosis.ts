@@ -54,7 +54,7 @@ const GUIDANCE: Record<string, Guidance> = {
   truncated_tail: {
     title: "The file ends mid-record",
     whereToLook: [
-      "Whether the writing process was still running when this file was copied — a live log ends mid-record by definition.",
+      "Whether the writing process was still running when this file was copied — a live log ends mid-record by definition, and the rule is to verify a copy rather than the file being written.",
       "The host's own logs around the end of this file, for a restart or a power loss.",
       "Whether a later segment of the same chain exists; a truncated tail is often only the end of one file, not the end of the history.",
     ],
