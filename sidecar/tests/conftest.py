@@ -197,7 +197,7 @@ def lagging_chain(tmp_path):
     Returns (path, head as it stood partway through, records written since).
     Built with the writer's own `head_hex` rather than by hashing anything
     here — a fixture that computed a head itself would be re-implementing the
-    format in order to test the rule that forbids re-implementing it.
+    format in order to test the rule that forbids re-implementing the format.
     """
     from palimpsests.audit.pala_writer import PalaWriter
 
@@ -211,3 +211,38 @@ def lagging_chain(tmp_path):
     w.anchor()
     w.close()
     return path, early, 2
+
+
+@pytest.fixture
+def body_swapped_chain(tmp_path):
+    """A chain whose header links are intact and one of whose bodies is not.
+
+    Sixteen bytes of a cleartext record body are replaced in place, so every
+    header — and therefore the whole chain hash — still verifies, while the
+    body no longer matches the `body_digest` its own header carries.
+
+    Written with a distinctive marker rather than by computing offsets: the
+    fixture finds the text it wrote and overwrites it, which needs no
+    knowledge of the format's layout.
+
+    This is the shape neither the agreement suite nor the mutation fixtures
+    contained. Every fixture in both damages a header or the chain; none
+    touched a body, which is why a real overclaim survived nine pull requests
+    of wording discipline.
+    """
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    marker = b"A" * 16
+    path = tmp_path / "bodyswap.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
+    w.incident_candidate(category=1, severity=2, detail=marker.decode())
+    w.anchor()
+    w.close()
+
+    data = path.read_bytes()
+    at = data.index(marker)
+    path.write_bytes(data[:at] + b"B" * 16 + data[at + 16 :])
+    return path
