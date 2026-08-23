@@ -44,10 +44,33 @@ def test_there_is_no_single_valid_field(open_client: TestClient, chain_path) -> 
     A field collapsing them would be the shell deciding what a verdict means.
     This test fails the moment someone adds the convenience field a UI
     developer will eventually ask for.
+
+    **This is about the sidecar's response, not about reports.**
+    `pala-verification-report/1` carries a top-level `verdict`, derived only
+    by `palimpsests.audit.report.derive_verdict` — a different artifact with
+    a different author. Do not relax this list on the strength of that
+    schema; see docs/API.md.
     """
     body = _verify(open_client, chain_path)
     for forbidden in ("valid", "ok", "passed", "verdict", "status"):
         assert forbidden not in body
+
+
+def test_chain_ok_describes_headers_only(open_client: TestClient, body_swapped_chain) -> None:
+    """What `chain_ok` covers, asserted rather than assumed.
+
+    `AuditReader.verify()` walks headers. A body swapped under an intact
+    header chain leaves this field true — the CLI, which runs a second walk
+    over the bodies, reports the mismatch and exits 1 on the same bytes.
+
+    Pinned here as well as in the agreement suite because this is the file
+    that describes what an answer *means*, and "internally consistent" was
+    read as covering the whole file until the 2026-08 interface audit
+    (finding K5) established otherwise.
+    """
+    body = _verify(open_client, body_swapped_chain)
+    assert body["chain"]["chain_ok"] is True
+    assert body["diagnosis"] is None
 
 
 def test_the_answer_carries_its_subject(open_client: TestClient, chain_path) -> None:
