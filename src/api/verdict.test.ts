@@ -66,6 +66,21 @@ group("question one is chain_ok AND no diagnosis", () => {
     expect(q1.standing).toBe("answered-yes");
   });
 
+  it("says it checked headers, and that bodies were not compared", () => {
+    // Audit finding K5, confirmed against a real file: AuditReader.verify()
+    // does not compare bodies to the body_digest their headers carry.
+    // Swapping sixteen body bytes leaves chain_ok true with no diagnosis,
+    // while `pala verify` on the same bytes reports a mismatch and exits 1.
+    //
+    // An unqualified "internally consistent" would therefore be an
+    // overclaim — the exact failure this application's wording exists to
+    // avoid — so the panel states the scope of what was checked.
+    const [q1] = triptych(response(), TIER_A);
+    expect(q1.answer).toContain("record headers");
+    expect(q1.answer).toContain("bodies are not compared");
+    expect(q1.basis).toContain("header chain");
+  });
+
   it("a TRUNCATED chain is answered no, even though chain_ok is true", () => {
     // The rule this module exists for. The verifier really does report
     // chain_ok: true here — every record it could read links — and a panel
