@@ -66,13 +66,19 @@ never instead of it, or the artifact stops saying what the verifier said.
 
 ### `chain_ok` is not, by itself, an answer
 
-A container cut mid-record reports `chain_ok: true` — every record the
-reader could read does link to its predecessor — with the truncation carried
-in `diagnosis`. Rendering `chain_ok` alone would put a green tick on a
-truncated file: truthful about the field, misleading about the file.
+Twice over, and the second reason was found later than it should have been.
 
-The answer to "is what I hold internally consistent?" is `chain_ok` **and**
-the absence of a diagnosis.
+**It is true for a truncated file.** A container cut mid-record reports
+`chain_ok: true` — every record the reader could read does link to its
+predecessor — with the truncation carried in `diagnosis`. Rendering
+`chain_ok` alone would put a green tick on a cut file: truthful about the
+field, misleading about the file. So the answer to "is what I hold
+internally consistent?" is `chain_ok` **and** the absence of a diagnosis.
+
+**And it covers headers only.** `AuditReader.verify()` does not compare
+record bodies against the `body_digest` their headers carry. That is a
+separate walk, run by `pala verify` and, from the next release, by the
+report builder — see Part 2.
 
 ### Unknown is reported, never rejected
 
@@ -95,6 +101,41 @@ which is the one thing ADR-0001 exists to prevent.
 A test greps responses for `valid`, `ok`, `passed`, `verdict` and `status`,
 so the convenience field a UI developer will eventually and reasonably ask
 for cannot arrive quietly.
+
+**This is not contradicted by the report's `verdict` field**, and the
+distinction is worth stating before someone reads the new schema and
+"corrects" the test above.
+
+`pala-verification-report/1` gains a top-level `verdict`
+(`sound | partial | violation`) from the 2026-08 interface audit — see
+`docs/SCHEMA-DELTA-2026-08.md`. Two things make that compatible:
+
+- **A different artifact.** This API answers questions about an open
+  session. The report is a document a person or an authority reads, and a
+  document that refused to name its own conclusion would be useless as one.
+- **A different author.** The report's verdict comes only from
+  `palimpsests.audit.report.derive_verdict`. A renderer reads the field or
+  calls the function; it never re-derives the rule. The prohibition here was
+  always about *the shell deciding*, not about the word existing.
+
+If the sidecar ever surfaces a verdict, it does so by carrying that
+function's output — not by computing one from the fields on this response.
+
+### Question one is a header check, and the wording says so
+
+`chain_ok` and the diagnosis describe the **header chain**.
+`AuditReader.verify()` does not compare record bodies against the
+`body_digest` their headers carry; that is a separate walk, run by
+`pala verify` and, from the next release, by the report builder.
+
+Confirmed rather than assumed: swapping sixteen bytes of a record body
+leaves `chain_ok` true with no diagnosis and no advisory item, while the CLI
+on the same bytes reports `body_digest_mismatches` and exits 1. The
+divergence is pinned by a test, and the triptych's first panel says it
+checked headers.
+
+Until the sidecar offers the body walk, no rendering of this API may claim
+the file is internally consistent without that qualification.
 
 ### Status codes carry meaning, not habit
 
