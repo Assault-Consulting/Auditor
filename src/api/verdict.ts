@@ -77,10 +77,25 @@ function isTierAOnly(subject: ChainSubject): boolean {
  *
  * Answerable always — it needs no key and no anchor, only the bytes. Which
  * is why it is the one question that never returns `not-checked`.
+ *
+ * **It is a check of the header chain, and the wording says so.** The
+ * interface audit of 2026-08 (finding K5) established that
+ * `AuditReader.verify()` does not compare record bodies against the
+ * `body_digest` their headers carry — that comparison is a separate walk,
+ * done by the CLI and, from the next release, by the report builder.
+ *
+ * Confirmed on a real file rather than taken from the audit: swapping
+ * sixteen bytes of a record body leaves `chain_ok` true with no diagnosis
+ * and no advisory item, while `pala verify` on the same bytes reports
+ * `body_digest_mismatches: [3]` and exits 1.
+ *
+ * So an unqualified "internally consistent" would be an overclaim — the
+ * kind this application spends its wording avoiding. Until the sidecar can
+ * offer the body walk, the panel states what was actually checked.
  */
 function consistency(v: VerificationResponse): Panel {
   const question = "Is what I hold internally consistent?";
-  const basis = "Proved — hash chain, no key required";
+  const basis = "Proved — header chain, no key required";
 
   // BOTH conditions. See the module docstring: chain_ok is true for a
   // truncated container.
@@ -89,7 +104,7 @@ function consistency(v: VerificationResponse): Panel {
       index: "01",
       question,
       standing: "answered-yes",
-      answer: `${v.chain.count} records, each linked to the one before it.`,
+      answer: `${v.chain.count} record headers, each linked to the one before it. Record bodies are not compared against their digests by this check.`,
       basis,
     };
   }
@@ -100,8 +115,8 @@ function consistency(v: VerificationResponse): Panel {
     question,
     standing: "answered-no",
     answer: failed
-      ? `${v.chain.count} records read; the chain does not hold.`
-      : `${v.chain.count} records read and linked, but the file is not whole.`,
+      ? `${v.chain.count} record headers read; the chain does not hold.`
+      : `${v.chain.count} record headers read and linked, but the file is not whole.`,
     basis,
     narrative: v.diagnosis?.narrative,
   };
