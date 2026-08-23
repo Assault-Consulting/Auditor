@@ -188,3 +188,26 @@ def head_hex(chain_path) -> str:
         return handle.verify()["chain"]["head"]
     finally:
         handle.close()
+
+
+@pytest.fixture
+def lagging_chain(tmp_path):
+    """A chain with records written after the head that was anchored.
+
+    Returns (path, head as it stood partway through, records written since).
+    Built with the writer's own `head_hex` rather than by hashing anything
+    here — a fixture that computed a head itself would be re-implementing the
+    format in order to test the rule that forbids re-implementing it.
+    """
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "lagging.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
+    early = w.head_hex
+    w.incident_candidate(category=1, severity=2, detail="written after the anchor")
+    w.anchor()
+    w.close()
+    return path, early, 2

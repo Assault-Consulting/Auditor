@@ -77,7 +77,7 @@ group("the two patterns that matter most are told apart", () => {
   });
 
   it("gives them different guidance entirely", () => {
-    // If a shared line ever appears in both, the distinction has started to
+    // If a shared line ever appears in both, the distinction has begun to
     // blur — and the distinction is the point.
     const a = diagnosisCard(TRUNCATED)?.whereToLook ?? [];
     const b = diagnosisCard(REPLACED)?.whereToLook ?? [];
@@ -103,6 +103,35 @@ group("every known pattern is usable", () => {
     // is handled, but a pattern the specification already lists arriving
     // with none would just be an omission.
     expect(KNOWN_PATTERNS).toHaveLength(7);
+  });
+
+  it("covers every pattern the sidecar's mutation suite can produce", () => {
+    // The other half of B-11. sidecar/tests/test_mutations.py builds a real
+    // container for each of these and asserts the verifier names it; this
+    // asserts the frontend has something to say when it does.
+    //
+    // The two lists are written out rather than shared through a generated
+    // file. A generated one would be better and is not worth its machinery
+    // for seven strings — but it does mean this test is the only thing
+    // holding the halves together, so it is named for what it guards.
+    const producedBySidecar = [
+      "truncated_tail",
+      "prefix_absent",
+      "seq_gap",
+      "chain_break",
+      "replaced_or_rolled_back",
+      "unanchored_tail",
+    ];
+    for (const pattern of producedBySidecar) {
+      expect(KNOWN_PATTERNS).toContain(pattern);
+    }
+  });
+
+  it("has guidance for the one the sidecar cannot build either", () => {
+    // record_violation is skipped in the mutation suite — PalaWriter cannot
+    // emit a record that breaks a normative MUST. It will still arrive from
+    // a real writer one day, so the copy exists ahead of the fixture.
+    expect(KNOWN_PATTERNS).toContain("record_violation");
   });
 });
 
