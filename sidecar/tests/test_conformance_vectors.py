@@ -10,69 +10,89 @@ or disagree, never both be checked. The published vectors are an independent
 authority: they are what a third-party verifier written from the prose alone
 is measured against.
 
-It cannot run yet, and the skip is the point.
+U9 has landed: the palimpsests distribution now ships the published vectors
+(`palimpsests.audit.pala.vectors`), so the envelope half of this check runs
+from an installed package for the first time. The `>=0.10` dependency floor
+guarantees the vectors are present, so the old `@requires_vectors` skip is
+gone; the expected values are pinned below as constants — the frozen §8
+Expected-results block — rather than read back from the vectors' own `verify`
+block, so this checks Auditor's read path against the specification, not the
+fixture against itself.
 
-The vectors live in the Palimpsests repository at
-`docs/specs/pala-1/test-vectors.json` and `.../profiles/inference-vectors.json`
-and are **not shipped in the distribution** — `importlib.metadata.files()`
-does not list them. So they are reachable only by someone who cloned the
-repository, which is close to the opposite of what publishing a vector set is
-for.
-
-Tracked upstream as U9: package both files and expose them through one
-accessor, so any consumer — this shell, a third-party tool, a CI run — can
-self-check. Vendoring a copy here was considered and rejected: a second copy
-is a second source of truth, and it would drift exactly like the offset table
-U4 exists to prevent.
-
-The skip is deliberate rather than a TODO. A pending conformance check should
-be visible in every run, not filed somewhere nobody reads.
+The profile-semantics half is a different gap, and it is no longer the
+dependency. It resolves the decoded r2/r3 body expectations — kind names,
+incident candidates, oversight acks, tool calls — which is what a user of this
+shell actually sees. The sidecar does not decode record bodies yet:
+`open_chain(...).verify()` answers the three envelope questions, and there is
+no read path that renders body semantics. That test therefore stays pending —
+now on an Auditor-side rendering path, tracked as a feature, not on U9.
 """
 
 from __future__ import annotations
 
 import pytest
+from auditor_sidecar.pala_seam import open_chain
+from palimpsests.audit.pala import vectors
+from pathlib import Path
 
 
-def _vectors_available() -> bool:
-    """Whether the package ships the published vectors (U9)."""
-    try:
-        from palimpsests.audit.pala import vectors  # noqa: F401
-    except ImportError:
-        return False
-    return True
+def _container_from(vec: dict) -> bytes:
+    """Assemble the §2.4 container from a vector set: each record is its header
+    bytes followed by its body bytes where present, concatenated in order."""
+    return b"".join(
+        bytes.fromhex(r["header_hex"]) + bytes.fromhex(r.get("body_hex", ""))
+        for r in vec["records"]
+    )
 
 
-requires_vectors = pytest.mark.skipif(
-    not _vectors_available(),
-    reason=(
-        "U9 not released: the published PALA-1 vectors are not shipped in the "
-        "palimpsests distribution, so conformance cannot be checked from an "
-        "installed package. Remove this skip with the dependency bump."
-    ),
-)
+# Published expectations as constants — the frozen §8 Expected-results block
+# (PALA-1.md §8), pinned here rather than read from the vectors' own `verify`
+# block. The point of an independent authority is lost if the test reads its
+# expectation from the same file it is checking.
+CORE_CHAIN_OK = True
+CORE_RECORD_COUNT = 12
+CORE_CHAIN_HEAD = "3a1a3673f50498eb1d1c6f94b983d6c606cd85ed53627b4e4ffe55153c7af813"
 
 
-@requires_vectors
-def test_the_core_vectors_verify_as_published() -> None:
+def test_the_core_vectors_verify_as_published(tmp_path: Path) -> None:
     """Envelope conformance: the frozen `verify` block must be reproduced.
 
     The core set covers one record of each type — genesis through key_shred —
-    and states the expected chain_ok, count, breaks, gaps, violations and
-    complete_to_anchor. Reproducing it is what "this build reads PALA-1
+    and states the expected chain_ok, count, breaks, gaps and violations.
+    Reproducing it *through Auditor's own read path* (`open_chain(...).verify()`,
+    the one seam that touches the package) is what "this build reads PALA-1
     correctly" means.
     """
-    raise NotImplementedError("write against palimpsests.audit.pala.vectors when U9 lands")
+    path = tmp_path / "core.pala"
+    path.write_bytes(_container_from(vectors.load("core")))
+
+    handle = open_chain(path)
+    try:
+        chain = handle.verify()["chain"]
+    finally:
+        handle.close()
+
+    assert chain["chain_ok"] is CORE_CHAIN_OK
+    assert chain["count"] == CORE_RECORD_COUNT
+    assert chain["breaks"] == []
+    assert chain["gaps"] == []
+    assert chain["violations"] == []
+    assert chain["head"] == CORE_CHAIN_HEAD
 
 
-@requires_vectors
+@pytest.mark.skip(
+    reason=(
+        "pending an Auditor profile-semantics read path. The published vectors "
+        "are shipped now (U9; the dependency floor is >=0.10), so this no longer "
+        "waits on the package. It waits on the sidecar: open_chain(...).verify() "
+        "answers the envelope questions only, and nothing yet decodes r2/r3 "
+        "record bodies into kind names, incident candidates or oversight acks. "
+        "That rendering path is the gap, tracked as an Auditor feature."
+    )
+)
 def test_the_inference_profile_semantics_are_resolved_as_published() -> None:
-    """Profile conformance: the part that matters most to this shell.
-
-    The companion vectors carry a `semantics` block — the decoded r2/r3 body
-    expectations a profile-aware reader must resolve to. That is precisely
-    what Auditor renders: kind names, incident candidates, oversight
-    acknowledgements. The core set would check the envelope and none of what
-    a user actually sees.
+    """Profile conformance: the decoded r2/r3 body semantics a profile-aware
+    reader must resolve to — kind names, incident candidates, oversight acks,
+    tool calls. Blocked on a body-semantics read path the sidecar does not yet
+    expose; see the module docstring.
     """
-    raise NotImplementedError("write against palimpsests.audit.pala.vectors when U9 lands")
