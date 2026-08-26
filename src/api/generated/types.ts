@@ -117,6 +117,26 @@ export interface AnchorSourceSpec {
 }
 
 /**
+ * Where one boot begins and ends, on both axes.
+ *
+ * Rendered as an axis break rather than a seam (§C-03). `monotonic_ns`
+ * resets across a boot, so no duration spans one — and nothing in this
+ * payload computes one that does.
+ */
+export interface BootBoundary {
+  /** Hex boot identifier. */
+  boot_id: string;
+  /** First record of this boot. */
+  first_seq: number;
+  /** Last record of this boot. */
+  last_seq: number;
+  /** Wall clock at its first record. */
+  first_wall_ns: number;
+  /** Wall clock at its last record. */
+  last_wall_ns: number;
+}
+
+/**
  * One boot, with the statistics the package computes for it.
  *
  * A boot is the unit that matters for reading time: `monotonic_ns` resets
@@ -450,6 +470,72 @@ export interface SpanView {
   record_seqs: Array<number>;
 }
 
+/**
+ * A step in the writer's clock, as the package detected it.
+ */
+export interface TimeStepModel {
+  /** Where the step was detected. */
+  seq: number;
+  /** The package's name for the kind of step. */
+  kind: string;
+  /** How far the clock moved. */
+  delta_ns: number;
+  /** Which boot it happened in. */
+  boot_id: string;
+}
+
+/**
+ * Record density along one axis, and what breaks the ruler.
+ *
+ * **Two axes, and they are not interchangeable (L3).** `seq` is proved
+ * order: the hash chain establishes it and nothing can reorder it. `wall`
+ * is the writer's clock — a recorded claim, qualified by `time_trust`.
+ */
+export interface Timeline {
+  /** 'seq' or 'wall'. */
+  axis: string;
+  /** 'proved' for the seq axis, 'recorded' for the wall axis. Carried as its own field rather than left to be derived from `axis`, so a consumer cannot label a wall chart 'proved' by reading the wrong one. */
+  basis: string;
+  /** Uniform intervals across the range, empty ones included. */
+  buckets: Array<TimelineBucket>;
+  /** Lowest position on this axis. */
+  start: number | null;
+  /** Highest position on this axis. */
+  end: number | null;
+  /** Reported apart from the series, because they are axis breaks. */
+  boot_boundaries: Array<BootBoundary>;
+  /** The intervals between boots, where the ruler does not apply. */
+  wall_gaps: Array<WallGap>;
+  /** Whether wall_clock_ns is non-decreasing along proved order. FALSE MEANS THE WALL AXIS REORDERS RECORDS relative to the chain, and a UI showing that axis must say so. */
+  wall_follows_seq: boolean;
+  /** Every clock-trust level the records carry. The watermark for a wall-time view: it says whose clock this is, and how much the writer claimed for it. */
+  time_trust_values: Array<NamedValue>;
+  /** Clock steps the package detected, with where and how far. */
+  steps: Array<TimeStepModel>;
+}
+
+/**
+ * One interval of the axis, and what fell inside it.
+ *
+ * Present even when empty. An empty stretch is a fact about the chain —
+ * the quiet week, the gap between boots — and a series that omitted empty
+ * buckets would draw a dense chain out of a sparse one.
+ */
+export interface TimelineBucket {
+  /** First position in this bucket, inclusive. */
+  start: number;
+  /** Last position in this bucket, inclusive. */
+  end: number;
+  /** Records in it. */
+  count: number;
+  /** How many of them are SAFETY records. */
+  safety: number;
+  /** How many of them are ANCHOR records. */
+  anchor: number;
+  /** Whether the writer's clock stepped inside this bucket. On the wall axis a stepped bucket is measuring two different clocks, so its width means nothing — a UI must mark it rather than draw it like the others. */
+  stepped: boolean;
+}
+
 export interface ValidationError {
   loc: Array<string | number>;
   msg: string;
@@ -483,4 +569,25 @@ export interface VerificationResponse {
   /** Present only when something failed. */
   diagnosis: DiagnosisModel | null;
   advisory: AdvisoryModel;
+}
+
+/**
+ * The wall-clock distance between one boot's end and the next one's start.
+ *
+ * Reported with both ends so a consumer can hatch the interval and **remove
+ * the ruler inside it**: the clock is unverifiable while the system is
+ * down, which is a statement about the gap rather than about the records
+ * on either side.
+ */
+export interface WallGap {
+  /** The boot that ended. */
+  after_boot_id: string;
+  /** The boot that started. */
+  before_boot_id: string;
+  /** Wall clock at the earlier boot's last record. */
+  from_wall_ns: number;
+  /** Wall clock at the later boot's first record. */
+  to_wall_ns: number;
+  /** to_wall_ns minus from_wall_ns. CAN BE NEGATIVE — that means the writer's clock moved backwards across the boundary, which the ruler cannot represent and a UI must not hide. */
+  duration_ns: number;
 }

@@ -42,6 +42,7 @@ from .models import (
     SessionRequest,
     SessionResponse,
     SpanView,
+    Timeline,
     VerificationResponse,
 )
 from .pala_seam import NotAChain, UnknownAnchorKind, verifier_identity
@@ -395,6 +396,41 @@ def build_app(token: str | None = None) -> FastAPI:
         _assert_still_the_subject(session)
         origin = session.origin(seq)
         return None if origin is None else OriginModel(**origin)
+
+    @app.get("/session/{session_id}/timeline", response_model=Timeline)
+    def session_timeline(
+        session_id: str,
+        axis: str = Query(
+            default="seq",
+            description=(
+                "'seq' for proved order, 'wall' for the writer's clock. "
+                "Defaults to seq because that is the axis the chain "
+                "establishes; wall time is a claim and is opt-in (L3)."
+            ),
+        ),
+        buckets: int = Query(
+            default=120,
+            ge=1,
+            le=2000,
+            description=(
+                "How many intervals to divide the range into. Bounded for "
+                "the same reason the record page is: the caller choosing the "
+                "resolution must not be able to ask for a response the "
+                "sidecar cannot build."
+            ),
+        ),
+    ) -> Timeline:
+        """Record density along one axis, with the boot breaks beside it."""
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        try:
+            return Timeline(**session.timeline(axis=axis, buckets=buckets))
+        except ValueError as exc:
+            # 422 rather than a silent fall back to the seq axis. Answering
+            # on a different axis than the one asked for, and labelling it as
+            # the caller's choice, is how a recorded claim gets read as a
+            # proved one.
+            raise HTTPException(status_code=422, detail=str(exc)) from None
 
     @app.get("/session/{session_id}/verify", response_model=VerificationResponse)
     def verify_session(

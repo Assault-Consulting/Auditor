@@ -597,6 +597,122 @@ class OriginModel(BaseModel):
     )
 
 
+class TimelineBucket(BaseModel):
+    """One interval of the axis, and what fell inside it.
+
+    Present even when empty. An empty stretch is a fact about the chain —
+    the quiet week, the gap between boots — and a series that omitted empty
+    buckets would draw a dense chain out of a sparse one.
+    """
+
+    start: int = Field(description="First position in this bucket, inclusive.")
+    end: int = Field(description="Last position in this bucket, inclusive.")
+    count: int = Field(description="Records in it.")
+    safety: int = Field(description="How many of them are SAFETY records.")
+    anchor: int = Field(description="How many of them are ANCHOR records.")
+    stepped: bool = Field(
+        description=(
+            "Whether the writer's clock stepped inside this bucket. On the "
+            "wall axis a stepped bucket is measuring two different clocks, "
+            "so its width means nothing — a UI must mark it rather than draw "
+            "it like the others."
+        )
+    )
+
+
+class BootBoundary(BaseModel):
+    """Where one boot begins and ends, on both axes.
+
+    Rendered as an axis break rather than a seam (§C-03). `monotonic_ns`
+    resets across a boot, so no duration spans one — and nothing in this
+    payload computes one that does.
+    """
+
+    boot_id: str = Field(description="Hex boot identifier.")
+    first_seq: int = Field(description="First record of this boot.")
+    last_seq: int = Field(description="Last record of this boot.")
+    first_wall_ns: int = Field(description="Wall clock at its first record.")
+    last_wall_ns: int = Field(description="Wall clock at its last record.")
+
+
+class WallGap(BaseModel):
+    """The wall-clock distance between one boot's end and the next one's start.
+
+    Reported with both ends so a consumer can hatch the interval and **remove
+    the ruler inside it**: the clock is unverifiable while the system is
+    down, which is a statement about the gap rather than about the records
+    on either side.
+    """
+
+    after_boot_id: str = Field(description="The boot that ended.")
+    before_boot_id: str = Field(description="The boot that started.")
+    from_wall_ns: int = Field(description="Wall clock at the earlier boot's last record.")
+    to_wall_ns: int = Field(description="Wall clock at the later boot's first record.")
+    duration_ns: int = Field(
+        description=(
+            "to_wall_ns minus from_wall_ns. CAN BE NEGATIVE — that means the "
+            "writer's clock moved backwards across the boundary, which the "
+            "ruler cannot represent and a UI must not hide."
+        )
+    )
+
+
+class TimeStepModel(BaseModel):
+    """A step in the writer's clock, as the package detected it."""
+
+    seq: int = Field(description="Where the step was detected.")
+    kind: str = Field(description="The package's name for the kind of step.")
+    delta_ns: int = Field(description="How far the clock moved.")
+    boot_id: str = Field(description="Which boot it happened in.")
+
+
+class Timeline(BaseModel):
+    """Record density along one axis, and what breaks the ruler.
+
+    **Two axes, and they are not interchangeable (L3).** `seq` is proved
+    order: the hash chain establishes it and nothing can reorder it. `wall`
+    is the writer's clock — a recorded claim, qualified by `time_trust`.
+    """
+
+    axis: str = Field(description="'seq' or 'wall'.")
+    basis: str = Field(
+        description=(
+            "'proved' for the seq axis, 'recorded' for the wall axis. "
+            "Carried as its own field rather than left to be derived from "
+            "`axis`, so a consumer cannot label a wall chart 'proved' by "
+            "reading the wrong one."
+        )
+    )
+    buckets: list[TimelineBucket] = Field(
+        description="Uniform intervals across the range, empty ones included."
+    )
+    start: int | None = Field(description="Lowest position on this axis.")
+    end: int | None = Field(description="Highest position on this axis.")
+    boot_boundaries: list[BootBoundary] = Field(
+        description="Reported apart from the series, because they are axis breaks."
+    )
+    wall_gaps: list[WallGap] = Field(
+        description="The intervals between boots, where the ruler does not apply."
+    )
+    wall_follows_seq: bool = Field(
+        description=(
+            "Whether wall_clock_ns is non-decreasing along proved order. "
+            "FALSE MEANS THE WALL AXIS REORDERS RECORDS relative to the "
+            "chain, and a UI showing that axis must say so."
+        )
+    )
+    time_trust_values: list[NamedValue] = Field(
+        description=(
+            "Every clock-trust level the records carry. The watermark for a "
+            "wall-time view: it says whose clock this is, and how much the "
+            "writer claimed for it."
+        )
+    )
+    steps: list[TimeStepModel] = Field(
+        description="Clock steps the package detected, with where and how far."
+    )
+
+
 class KeychainStatus(BaseModel):
     """Whether this machine has a usable secret store at all."""
 

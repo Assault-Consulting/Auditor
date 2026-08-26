@@ -267,3 +267,32 @@ def spanned_chain(tmp_path):
     w.anchor()
     w.close()
     return path
+
+
+@pytest.fixture
+def two_boot_chain(tmp_path):
+    """A chain spanning two boots, so a boundary and a wall gap are real.
+
+    One caveat this fixture cannot escape: `PalaWriter` reads the process
+    monotonic clock, so a second boot written by the same process does NOT
+    reset `monotonic_ns` the way a real restart would. A test asserting that
+    monotonic is incomparable across a boot must rest on the format's rule,
+    never on what this fixture happens to produce.
+    """
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "twoboot.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
+    w.incident_candidate(category=1, severity=2, detail="first boot")
+    w.anchor()
+    w.close()
+
+    w2 = PalaWriter.open_existing(path)
+    w2.boot()
+    w2.incident_candidate(category=1, severity=3, detail="second boot")
+    w2.anchor()
+    w2.close()
+    return path
