@@ -59,18 +59,36 @@ def test_there_is_no_single_valid_field(open_client: TestClient, chain_path) -> 
 def test_chain_ok_describes_headers_only(open_client: TestClient, body_swapped_chain) -> None:
     """What `chain_ok` covers, asserted rather than assumed.
 
-    `AuditReader.verify()` walks headers. A body swapped under an intact
-    header chain leaves this field true — the CLI, which runs a second walk
-    over the bodies, reports the mismatch and exits 1 on the same bytes.
+    Still headers only on 0.10 — checked here rather than taken on trust,
+    because this is the field every consumer reaches for first. A body
+    swapped under an intact header chain leaves it true with no diagnosis.
 
-    Pinned here as well as in the agreement suite because this is the file
-    that describes what an answer *means*, and "internally consistent" was
-    read as covering the whole file until the 2026-08 interface audit
-    (finding K5) established otherwise.
+    That is not a defect: header verification needs no keys, which is the
+    property the whole format is built around. It is a scope, and the scope
+    has to be stated somewhere a reader will meet it.
     """
     body = _verify(open_client, body_swapped_chain)
     assert body["chain"]["chain_ok"] is True
     assert body["diagnosis"] is None
+
+
+def test_the_container_walk_sees_what_the_chain_does_not(
+    open_client: TestClient, body_swapped_chain, chain_path
+) -> None:
+    """The other half of question one, and the reason it is a separate key.
+
+    `chain` answers "do these records link"; `container` answers "is each
+    record the bytes its header claims". Folding them into one field would
+    make the two indistinguishable exactly when they disagree — which is the
+    case that matters.
+    """
+    swapped = _verify(open_client, body_swapped_chain)
+    assert swapped["container"]["body_digest_mismatches"] == [3]
+    assert swapped["container"]["well_formed"] is True
+
+    sound = _verify(open_client, chain_path)
+    assert sound["container"]["body_digest_mismatches"] == []
+    assert sound["container"]["bytes_parsed"] == sound["container"]["bytes_total"]
 
 
 def test_the_answer_carries_its_subject(open_client: TestClient, chain_path) -> None:
@@ -119,6 +137,19 @@ def test_a_failing_chain_still_reports_its_structure(
     assert len(body["chain"]["head"]) == 64
 
 
+def test_a_truncated_container_reports_how_far_it_parsed(
+    open_client: TestClient, truncated_chain
+) -> None:
+    """The container block says where the file stopped making sense.
+
+    `bytes_parsed` short of `bytes_total` is the truncation stated as a
+    quantity rather than as a word, which is what an operator needs when
+    deciding whether a later segment exists.
+    """
+    container = _verify(open_client, truncated_chain)["container"]
+    assert container["bytes_parsed"] < container["bytes_total"]
+
+
 def test_the_narrative_is_the_packages_own_sentence(truncated_chain) -> None:
     """Carried verbatim. A shell may show a localised sentence beside it and
     never instead of it, or the report stops saying what the verifier said."""
@@ -148,6 +179,9 @@ def test_verifying_twice_returns_the_same_object(store, chain_path) -> None:
     Two runs that disagreed would mean the shell had shown a verdict it could
     no longer reproduce, and reproducibility is this application's entire
     claim. Caching makes disagreement impossible rather than unlikely.
+
+    It also matters more now than it did: the answer costs two passes over
+    the file, the second one for the body digests.
     """
     s = store.open(chain_path)
     assert s.verify() is s.verify()
