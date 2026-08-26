@@ -361,6 +361,151 @@ body {
   margin: 0.4em 0;
 }
 
+/* The Chronoscope. Ruled like the provenance block rather than the
+   diagnosis card: this is structure, not a finding.
+
+   Everything in it is a RECORDED claim — dates exist only in the writer's
+   clock — so nothing here may take the Proved verdigris. The bars and the
+   date labels sit in the Recorded ochre family or in plain vellum, never in
+   the colour that means "the chain establishes this". */
+.rail {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.rail-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 0.5);
+}
+
+/* The watermark is permanent, not a state. It says whose clock the whole
+   view rests on, and it must be legible without being the loudest thing —
+   a warning nobody can stop reading gets ignored like any other. */
+.rail-watermark {
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--recorded);
+}
+
+/* Pinned caps: the first and last dates, before any interaction. */
+.rail-caps {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--vellum-dim);
+  padding-bottom: calc(var(--step) * 0.5);
+  border-bottom: 1px solid var(--rule);
+}
+
+.rail-days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rail-day {
+  display: grid;
+  grid-template-columns: 10ch 1fr 2ch;
+  align-items: center;
+  gap: var(--step);
+  padding: 0.15em 0;
+}
+
+.rail-date {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--vellum-dim);
+}
+
+/* Ochre, not verdigris: a density bar is drawn from the writer's clock. */
+.rail-bar {
+  height: 0.55em;
+  background: var(--recorded);
+  min-width: 0;
+}
+
+/* An empty day dims and its bar has no width at all. A visible minimum
+   would make a quiet day read as a busy one at a glance, which is the one
+   thing a density rail must not do. */
+.rail-day[data-empty="true"] .rail-date {
+  color: var(--unchecked);
+}
+
+/* A day the clock stepped inside is measuring two different clocks, so its
+   bar is hatched rather than solid: the width is not a quantity that can be
+   compared with its neighbours. */
+.rail-day[data-stepped="true"] .rail-bar {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--recorded),
+    var(--recorded) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+.rail-safety {
+  font-size: 0.7rem;
+  color: var(--recorded);
+  text-align: center;
+}
+
+.rail-strip {
+  list-style: none;
+  margin: calc(var(--step) * 1.5) 0 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+}
+
+.rail-segment {
+  padding: calc(var(--step) * 0.6) var(--step);
+  border-left: 2px solid var(--rule);
+  color: var(--vellum-dim);
+}
+
+.rail-segment[data-kind="boot"] {
+  border-left-color: var(--vellum-dim);
+  color: var(--vellum);
+}
+
+/* The ruler disappears inside a gap. Hatched, dimmed, and with no border
+   colour of its own: there is no scale here to read, and drawing one would
+   claim a duration nobody observed. */
+.rail-segment[data-kind="gap"] {
+  border-left-style: dashed;
+  color: var(--unchecked);
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 5px,
+    var(--rule) 5px,
+    var(--rule) 6px
+  );
+}
+
+/* A gap the clock cannot account for — it ran backwards across the
+   boundary. Ochre because it is a fact about the writer's clock, never red:
+   this application has no alarm state. */
+.rail-segment[data-backwards="true"] {
+  border-left-color: var(--recorded);
+  color: var(--recorded);
+}
+
+.rail-pins {
+  margin: calc(var(--step) * 1.5) 0 0;
+  font-size: 0.86rem;
+  color: var(--unchecked);
+}
+
 /* The advisory lane, and it is deliberately the quietest block on the page.
    No ochre rule, no serif heading, nothing that echoes the diagnosis card.
    L5 says these items change no verdict — and a lane that looked like a
