@@ -39,6 +39,7 @@ from palimpsests.audit.names import assurance_tier_name, time_trust_name
 from palimpsests.audit.pala.codec import FORMAT_VERSION, ZERO16
 from palimpsests.audit.reader import AuditReader
 from palimpsests.audit.report import build_report
+from palimpsests.audit.timehealth import step_catalog
 from pathlib import Path
 
 __all__ = [
@@ -585,6 +586,158 @@ class ChainHandle:
             # An integer, and zero means "not encrypted under a named key"
             # rather than "key number zero".
             "key_id": None if header.key_id == 0 else header.key_id,
+        }
+
+    def timeline(self, axis: str = "seq", buckets: int = 120) -> dict[str, object]:
+        """Record density along one of two axes, and what breaks the ruler.
+
+        **Two axes, and they are not interchangeable (L3).** `seq` is proved
+        order — the hash chain establishes it and nothing can reorder it.
+        `wall` is the writer's clock: a recorded claim, qualified by
+        `time_trust`, and the payload carries that qualifier so no consumer
+        can present a wall-time chart without saying whose clock it was.
+
+        Buckets are **uniform and never omitted when empty**. An empty
+        stretch is a fact about the chain — it is the quiet week, the gap
+        between boots — and a series that skipped empty buckets would draw a
+        dense chain out of a sparse one.
+
+        Boot boundaries are reported separately rather than smoothed into the
+        series, because §C-03 renders them as axis breaks. `monotonic_ns`
+        resets across a boot, so no duration spans one; this endpoint never
+        computes one that does.
+
+        A wall gap between boots is reported with both ends, so a UI can
+        hatch it and remove the ruler inside it — "the clock is unverifiable
+        while down" is a statement about the gap, not about the records
+        either side of it.
+
+        Steps in the writer's clock come from the package's own
+        `step_catalog`, and any bucket containing one is marked. A density
+        bar drawn on wall time across a clock step is measuring two different
+        clocks and saying nothing about either.
+        """
+        if axis not in ("seq", "wall"):
+            raise ValueError(f"unknown axis: {axis!r}")
+
+        records = list(self._reader.records())
+        if not records:
+            # Cannot happen through open_chain, which refuses an empty
+            # container — but a timeline of nothing is still an answer rather
+            # than a division by zero.
+            return {
+                "axis": axis,
+                "basis": "proved" if axis == "seq" else "recorded",
+                "buckets": [],
+                "start": None,
+                "end": None,
+                "boot_boundaries": [],
+                "wall_gaps": [],
+                "wall_follows_seq": True,
+                "time_trust_values": [],
+                "steps": [],
+            }
+
+        position = (
+            (lambda r: r.seq) if axis == "seq" else (lambda r: r.header.wall_clock_ns)
+        )
+        lo = min(position(r) for r in records)
+        hi = max(position(r) for r in records)
+
+        # A single-point range still gets one bucket rather than a zero-width
+        # division: one record, or a whole chain written inside one clock
+        # tick, is a real chain.
+        width = max(1, (hi - lo + 1 + buckets - 1) // buckets)
+        used = min(buckets, (hi - lo) // width + 1)
+
+        counted: list[dict[str, object]] = [
+            {
+                "start": lo + i * width,
+                "end": lo + (i + 1) * width - 1,
+                "count": 0,
+                "safety": 0,
+                "anchor": 0,
+            }
+            for i in range(used)
+        ]
+        for record in records:
+            index = min(used - 1, (position(record) - lo) // width)
+            bucket = counted[index]
+            bucket["count"] = int(bucket["count"]) + 1
+            if record.type_name == "SAFETY":
+                bucket["safety"] = int(bucket["safety"]) + 1
+            elif record.type_name == "ANCHOR":
+                bucket["anchor"] = int(bucket["anchor"]) + 1
+
+        steps = [
+            {
+                "seq": step.seq,
+                "kind": step.kind,
+                "delta_ns": step.delta_ns,
+                "boot_id": step.boot_id.hex(),
+            }
+            for step in step_catalog(self._reader)
+        ]
+        stepped_seqs = {step["seq"] for step in steps}
+        for record in records:
+            if record.seq in stepped_seqs:
+                index = min(used - 1, (position(record) - lo) // width)
+                counted[index]["stepped"] = True
+        for bucket in counted:
+            bucket.setdefault("stepped", False)
+
+        boots = self._reader.boots()
+        by_seq = {r.seq: r for r in records}
+        boundaries = [
+            {
+                "boot_id": boot.boot_id.hex(),
+                "first_seq": boot.first_seq,
+                "last_seq": boot.last_seq,
+                "first_wall_ns": by_seq[boot.first_seq].header.wall_clock_ns,
+                "last_wall_ns": by_seq[boot.last_seq].header.wall_clock_ns,
+            }
+            for boot in boots
+            if boot.first_seq in by_seq and boot.last_seq in by_seq
+        ]
+
+        # The gap between one boot's last wall reading and the next boot's
+        # first. Reported even when it is zero or negative: a negative gap
+        # means the clock moved backwards across the boundary, which is a
+        # fact the ruler cannot represent and a UI must not hide.
+        gaps = [
+            {
+                "after_boot_id": earlier["boot_id"],
+                "before_boot_id": later["boot_id"],
+                "from_wall_ns": earlier["last_wall_ns"],
+                "to_wall_ns": later["first_wall_ns"],
+                "duration_ns": int(later["first_wall_ns"]) - int(earlier["last_wall_ns"]),
+            }
+            # strict=False on purpose: this pairs the list with its own tail,
+            # so the lengths differ by one by construction.
+            for earlier, later in zip(boundaries, boundaries[1:], strict=False)
+        ]
+
+        walls = [r.header.wall_clock_ns for r in sorted(records, key=lambda r: r.seq)]
+        return {
+            "axis": axis,
+            # Carried rather than inferred from `axis`, so a consumer cannot
+            # label a wall chart "proved" by reading the wrong field.
+            "basis": "proved" if axis == "seq" else "recorded",
+            "buckets": counted,
+            "start": lo,
+            "end": hi,
+            "boot_boundaries": boundaries,
+            "wall_gaps": gaps,
+            # False means the writer's clock disagrees with proved order
+            # somewhere. The wall axis then reorders records relative to the
+            # chain, and a UI showing it must say so.
+            "wall_follows_seq": all(
+                a <= b for a, b in zip(walls, walls[1:], strict=False)
+            ),
+            "time_trust_values": self._named(
+                {r.header.time_trust for r in records}, time_trust_name
+            ),
+            "steps": steps,
         }
 
     def origin(self, seq: int) -> dict[str, object] | None:
