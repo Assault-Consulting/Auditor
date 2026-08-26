@@ -103,14 +103,19 @@ export interface AnchorSourceSpec {
 }
 
 /**
- * Question one: is what I hold internally consistent?
+ * Question one, first half: do these records link to each other?
  *
  * Always answerable. It needs no key and no anchor — only the bytes in
  * front of it — which is why it is the one question a chain can never
  * decline to answer.
+ *
+ * **It is a header walk.** Whether each record still *is* the bytes its
+ * header claims is a separate question, answered by
+ * :class:`ContainerCheck`. A consumer that renders `chain_ok` alone will
+ * show a sound file when a body has been swapped.
  */
 export interface ChainResult {
-  /** Whether every record links to its predecessor. */
+  /** Whether every record header links to its predecessor. Headers only — see ContainerCheck.body_digest_mismatches for whether the bodies still match their digests. */
   chain_ok: boolean;
   /** Records the verifier walked. */
   count: number;
@@ -170,6 +175,31 @@ export interface Completeness {
   anchor_lag: number | null;
   /** The verifier's sentence explaining an incomplete answer. */
   anchor_reason: string | null;
+}
+
+/**
+ * Whether each record is the bytes its own header claims.
+ *
+ * A different question from the one `ChainResult` answers. The chain is
+ * about how records link to each other; this is about whether a record's
+ * body still hashes to the `body_digest` its header carries.
+ *
+ * `AuditReader.verify()` does not perform this comparison — that is by
+ * design, and it is why verification needs no keys. The walk comes from the
+ * package's report builder, so the shell never decides what a body digest
+ * means.
+ */
+export interface ContainerCheck {
+  /** Whether the container parsed end to end as PALA-1. */
+  well_formed: boolean;
+  /** The parser's sentence, when it could not finish. */
+  malformed: string | null;
+  /** Bytes the parser consumed. */
+  bytes_parsed: number;
+  /** Bytes in the file. */
+  bytes_total: number;
+  /** Sequence numbers whose body does not hash to the digest their header carries. NON-EMPTY MEANS THE HEADER CHAIN CAN STILL BE INTACT — a swapped body leaves every link verifying, so a consumer that renders chain_ok alone would show a sound file. The answer to 'is what I hold internally consistent?' requires this list to be empty as well. */
+  body_digest_mismatches: Array<number>;
 }
 
 /**
@@ -295,6 +325,8 @@ export interface VerificationResponse {
   /** Package and wire format behind it. */
   verifier: Record<string, string>;
   chain: ChainResult;
+  /** The body-digest walk. Required rather than optional: a response that could omit it would let a consumer answer question one from the header chain alone. */
+  container: ContainerCheck;
   completeness: Completeness;
   /** The source that answered, or null when none did. A completeness answer is worth exactly as much as the anchor behind it, so the two are never separated. */
   anchor: AnchorReadingModel | null;

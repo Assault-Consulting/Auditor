@@ -12,7 +12,7 @@
 import { describe as group, expect, it, vi } from "vitest";
 
 import { NotAChainError, SidecarError, SubjectChangedError } from "./chain";
-import type { SessionResponse } from "./generated/types";
+import type { SessionResponse, VerificationResponse } from "./generated/types";
 import {
   type ChainState,
   chainLine,
@@ -48,13 +48,15 @@ const OPENED: SessionResponse = {
     assurance_tiers: [{ value: 0, name: "A" }],
     time_trust_values: [{ value: 1, name: "UNSYNCED" }],
   },
-  verifier: { package: "palimpsests 0.9.0", spec: "PALA-1 format_version 1" },
+  verifier: { package: "palimpsests 0.10.0", spec: "PALA-1 format_version 1" },
 };
 
-const VERIFIED = {
+// Typed for the same reason OPENED is: a response model that grows a
+// required field must fail here rather than in a component.
+const VERIFIED: VerificationResponse = {
   session_id: "s1",
   subject_sha256: "ab".repeat(32),
-  verifier: { package: "palimpsests 0.9.0", spec: "PALA-1 format_version 1" },
+  verifier: { package: "palimpsests 0.10.0", spec: "PALA-1 format_version 1" },
   chain: {
     chain_ok: true,
     count: 5,
@@ -63,6 +65,13 @@ const VERIFIED = {
     gaps: [],
     violations: [],
     uninterpretable: [],
+  },
+  container: {
+    well_formed: true,
+    malformed: null,
+    bytes_parsed: 966,
+    bytes_total: 966,
+    body_digest_mismatches: [],
   },
   completeness: { complete_to_anchor: null, anchor_lag: null, anchor_reason: null },
   anchor: null,

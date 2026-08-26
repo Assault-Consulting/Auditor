@@ -32,7 +32,7 @@ function response(over: Partial<VerificationResponse> = {}): VerificationRespons
   return {
     session_id: "s1",
     subject_sha256: "ab".repeat(32),
-    verifier: { package: "palimpsests 0.9.0", spec: "PALA-1 format_version 1" },
+    verifier: { package: "palimpsests 0.10.0", spec: "PALA-1 format_version 1" },
     chain: {
       chain_ok: true,
       count: 5,
@@ -41,6 +41,13 @@ function response(over: Partial<VerificationResponse> = {}): VerificationRespons
       gaps: [],
       violations: [],
       uninterpretable: [],
+    },
+    container: {
+      well_formed: true,
+      malformed: null,
+      bytes_parsed: 966,
+      bytes_total: 966,
+      body_digest_mismatches: [],
     },
     completeness: { complete_to_anchor: null, anchor_lag: null, anchor_reason: null },
     anchor: null,
@@ -66,19 +73,75 @@ group("question one is chain_ok AND no diagnosis", () => {
     expect(q1.standing).toBe("answered-yes");
   });
 
-  it("says it checked headers, and that bodies were not compared", () => {
-    // Audit finding K5, confirmed against a real file: AuditReader.verify()
-    // does not compare bodies to the body_digest their headers carry.
-    // Swapping sixteen body bytes leaves chain_ok true with no diagnosis,
-    // while `pala verify` on the same bytes reports a mismatch and exits 1.
-    //
-    // An unqualified "internally consistent" would therefore be an
-    // overclaim — the exact failure this application's wording exists to
-    // avoid — so the panel states the scope of what was checked.
+  it("says both walks ran when both did", () => {
     const [q1] = triptych(response(), TIER_A);
-    expect(q1.answer).toContain("record headers");
-    expect(q1.answer).toContain("bodies are not compared");
-    expect(q1.basis).toContain("header chain");
+    expect(q1.answer).toContain("matching its own body digest");
+    expect(q1.basis).toContain("body digests");
+  });
+
+  it("a swapped body is answered no even though the headers link", () => {
+    // Audit finding K5. chain_ok covers headers only — still true of the
+    // reader path on 0.10 — so a body that no longer matches its digest
+    // leaves every link verifying. Answering question one from chain_ok
+    // alone put a green panel on a file whose contents had changed.
+    const [q1] = triptych(
+      response({
+        container: {
+          well_formed: true,
+          malformed: null,
+          bytes_parsed: 966,
+          bytes_total: 966,
+          body_digest_mismatches: [3],
+        },
+      }),
+      TIER_A,
+    );
+    expect(q1.standing).toBe("answered-no");
+    expect(q1.answer).toContain("record #3");
+    expect(q1.answer).toContain("headers link");
+  });
+
+  it("names several mismatched records rather than only the first", () => {
+    const [q1] = triptych(
+      response({
+        container: {
+          well_formed: true,
+          malformed: null,
+          bytes_parsed: 966,
+          bytes_total: 966,
+          body_digest_mismatches: [3, 7],
+        },
+      }),
+      TIER_A,
+    );
+    expect(q1.answer).toContain("2 records");
+    expect(q1.answer).toContain("#3, #7");
+  });
+
+  it("reports a mismatched body before a truncation", () => {
+    // The more specific finding wins the line. A cut file is missing its
+    // end; a body that does not match its digest is a record that is not
+    // what its own header says.
+    const [q1] = triptych(
+      response({
+        container: {
+          well_formed: true,
+          malformed: null,
+          bytes_parsed: 900,
+          bytes_total: 966,
+          body_digest_mismatches: [3],
+        },
+        diagnosis: {
+          pattern: "truncated_tail",
+          at_seq: null,
+          expected: null,
+          narrative: "The container ends in the middle of a record.",
+        },
+      }),
+      TIER_A,
+    );
+    expect(q1.answer).toContain("body digest");
+    expect(q1.narrative).toContain("middle of a record");
   });
 
   it("a TRUNCATED chain is answered no, even though chain_ok is true", () => {
@@ -275,6 +338,22 @@ group("no panel accuses anyone of anything", () => {
       }),
       TIER_A,
     ],
+    [
+      // The newest branch, and the one most likely to reach for a verdict:
+      // a body that does not match its digest is the closest this tool
+      // comes to evidence of alteration, and it still only names records.
+      "body mismatch",
+      response({
+        container: {
+          well_formed: true,
+          malformed: null,
+          bytes_parsed: 966,
+          bytes_total: 966,
+          body_digest_mismatches: [3],
+        },
+      }),
+      TIER_A,
+    ],
   ];
 
   it.each(cases)("%s says nothing about intent", (_name, v, subject) => {
@@ -282,7 +361,7 @@ group("no panel accuses anyone of anything", () => {
     // we carry it verbatim — but every sentence this module writes is ours.
     for (const panel of triptych(v, subject)) {
       const ours = `${panel.question} ${panel.answer} ${panel.basis}`.toLowerCase();
-      for (const forbidden of ["tamper", "corrupt", "invalid", "malicious", "attack", "fraud"]) {
+      for (const forbidden of ["tamper", "corrupt", "invalid", "malicious", "attack", "fraud", "altered", "modified"]) {
         expect(ours).not.toContain(forbidden);
       }
     }

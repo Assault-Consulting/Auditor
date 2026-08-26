@@ -247,7 +247,7 @@
         "type": "object"
       },
       "ChainResult": {
-        "description": "Question one: is what I hold internally consistent?\n\nAlways answerable. It needs no key and no anchor \u2014 only the bytes in\nfront of it \u2014 which is why it is the one question a chain can never\ndecline to answer.",
+        "description": "Question one, first half: do these records link to each other?\n\nAlways answerable. It needs no key and no anchor \u2014 only the bytes in\nfront of it \u2014 which is why it is the one question a chain can never\ndecline to answer.\n\n**It is a header walk.** Whether each record still *is* the bytes its\nheader claims is a separate question, answered by\n:class:`ContainerCheck`. A consumer that renders `chain_ok` alone will\nshow a sound file when a body has been swapped.",
         "properties": {
           "breaks": {
             "description": "Sequence numbers where prev_hash does not name the predecessor.",
@@ -258,7 +258,7 @@
             "type": "array"
           },
           "chain_ok": {
-            "description": "Whether every record links to its predecessor.",
+            "description": "Whether every record header links to its predecessor. Headers only \u2014 see ContainerCheck.body_digest_mismatches for whether the bodies still match their digests.",
             "title": "Chain Ok",
             "type": "boolean"
           },
@@ -451,6 +451,55 @@
           "anchor_reason"
         ],
         "title": "Completeness",
+        "type": "object"
+      },
+      "ContainerCheck": {
+        "description": "Whether each record is the bytes its own header claims.\n\nA different question from the one `ChainResult` answers. The chain is\nabout how records link to each other; this is about whether a record's\nbody still hashes to the `body_digest` its header carries.\n\n`AuditReader.verify()` does not perform this comparison \u2014 that is by\ndesign, and it is why verification needs no keys. The walk comes from the\npackage's report builder, so the shell never decides what a body digest\nmeans.",
+        "properties": {
+          "body_digest_mismatches": {
+            "description": "Sequence numbers whose body does not hash to the digest their header carries. NON-EMPTY MEANS THE HEADER CHAIN CAN STILL BE INTACT \u2014 a swapped body leaves every link verifying, so a consumer that renders chain_ok alone would show a sound file. The answer to 'is what I hold internally consistent?' requires this list to be empty as well.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Body Digest Mismatches",
+            "type": "array"
+          },
+          "bytes_parsed": {
+            "description": "Bytes the parser consumed.",
+            "title": "Bytes Parsed",
+            "type": "integer"
+          },
+          "bytes_total": {
+            "description": "Bytes in the file.",
+            "title": "Bytes Total",
+            "type": "integer"
+          },
+          "malformed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The parser's sentence, when it could not finish.",
+            "title": "Malformed"
+          },
+          "well_formed": {
+            "description": "Whether the container parsed end to end as PALA-1.",
+            "title": "Well Formed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "well_formed",
+          "malformed",
+          "bytes_parsed",
+          "bytes_total",
+          "body_digest_mismatches"
+        ],
+        "title": "ContainerCheck",
         "type": "object"
       },
       "DiagnosisModel": {
@@ -737,6 +786,10 @@
           "completeness": {
             "$ref": "#/components/schemas/Completeness"
           },
+          "container": {
+            "$ref": "#/components/schemas/ContainerCheck",
+            "description": "The body-digest walk. Required rather than optional: a response that could omit it would let a consumer answer question one from the header chain alone."
+          },
           "diagnosis": {
             "anyOf": [
               {
@@ -772,6 +825,7 @@
           "subject_sha256",
           "verifier",
           "chain",
+          "container",
           "completeness",
           "anchor",
           "anchor_attempts",

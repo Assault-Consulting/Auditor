@@ -13,17 +13,16 @@ it is worth having: distortion is the failure this codebase is most likely to
 produce, because every field is copied by hand at the seam.
 
 It does **not** prove the verifier is correct. Both sides would be wrong
-together. Conformance against an independent authority means the published
-vectors, which are not shipped with the package today — tracked as U9, with
-the skipped test in `test_conformance_vectors.py` naming the gap so its
-absence is visible on every run rather than filed in a TODO.
+together. Conformance against an independent authority is
+`test_conformance_vectors.py`, which runs the published vectors from the
+installed package.
 
-Nor does agreement here mean the two run the same checks. The CLI performs a
-second walk comparing bodies to their digests; `AuditReader.verify()` does
-not. Every case below except the body-swap one damages a header or the
-chain, so the difference never showed — which is how a real overclaim
-reached the screen and stayed there. A suite is only as broad as the shapes
-someone thought to build.
+Nor did agreement here originally mean the two ran the same checks. The CLI
+performs a second walk comparing bodies to their digests; `AuditReader.verify()`
+does not. Every case below except the body one damages a header or the chain,
+so the difference never showed — which is how a real overclaim reached the
+screen and stayed there for nine pull requests. The sidecar now runs that
+second walk too, through the package's report builder, and the case is here.
 
 The comparison is deliberately made at the level of *meaning* rather than
 field names. The two surfaces are shaped differently on purpose: the CLI
@@ -188,38 +187,43 @@ def test_the_record_count_and_head_survive_the_seam(
     assert ours["chain"]["head"] == cli["head"]
 
 
-# --- a divergence that is NOT deliberate, found by the interface audit ------
+# --- the gap the audit found, now closed ------------------------------------
 
 
-def test_a_swapped_body_is_invisible_to_the_sidecar_and_not_to_the_cli(
+def test_a_swapped_body_is_seen_by_both(
     open_client: TestClient, body_swapped_chain
 ) -> None:
-    """The gap finding K5 named, pinned rather than described.
+    """Finding K5, closed — and this test is the record of the whole episode.
 
-    `AuditReader.verify()` walks headers. A record body swapped under an
-    intact header chain leaves chain_ok true, no diagnosis and no advisory
-    item — while `pala verify` on the same bytes reports the mismatch and
-    exits 1, because it runs a second walk comparing each body against the
-    `body_digest` its header carries.
+    It was written asserting a *divergence*: `AuditReader.verify()` walks
+    headers, so a body swapped under an intact header chain left chain_ok
+    true with no diagnosis while `pala verify` reported the mismatch and
+    exited 1. The panel above it said "5 records, each linked" in green.
 
-    Neither the agreement suite nor the mutation fixtures caught this: every
-    fixture in both damages headers or the chain, and none touches a body.
-    That is the more useful lesson than the gap itself — a suite is only as
-    broad as the shapes someone thought to build.
+    That is still true of the reader path on 0.10 — checked, not assumed —
+    which is why the sidecar now runs the package's report builder for the
+    container facts. The header answer and the body answer are two different
+    questions and both are reported.
 
-    The panel wording was corrected to say it checked headers. Closing the
-    gap properly needs the body walk the report builder gains upstream; when
-    the sidecar can offer it, this test flips to asserting agreement.
+    The lesson outlasts the fix. Every fixture in this suite and in the
+    mutation suite damaged a header or the chain; none touched a body, so
+    nothing here could have caught it. A suite is only as broad as the shapes
+    someone thought to build.
     """
     code, cli = _cli(body_swapped_chain)
     assert code == EXIT_TAMPERED
     assert cli["consistency"]["ok"] is False
-    assert cli["consistency"]["body_digest_mismatches"]
 
     ours = _sidecar(open_client, body_swapped_chain)
+
+    # Same finding, same records named.
+    assert ours["container"]["body_digest_mismatches"] == cli["consistency"][
+        "body_digest_mismatches"
+    ]
+
+    # And the header chain really is intact on both sides — the reason this
+    # was invisible for as long as it was.
     assert ours["chain"]["chain_ok"] is True
-    assert ours["diagnosis"] is None
-    assert ours["advisory"]["count"] == 0
 
 
 # --- a divergence that is deliberate, and therefore recorded ----------------

@@ -37,6 +37,7 @@ from palimpsests.audit.anchors import (
 from palimpsests.audit.names import assurance_tier_name, time_trust_name
 from palimpsests.audit.pala.codec import FORMAT_VERSION
 from palimpsests.audit.reader import AuditReader
+from palimpsests.audit.report import build_report
 from pathlib import Path
 
 __all__ = [
@@ -212,6 +213,39 @@ class ChainHandle:
     def close(self) -> None:
         self._reader.close()
 
+    def container(self, anchor_specs: list[dict[str, str]] | None = None) -> dict[str, object]:
+        """The container-level facts, including the body-digest walk.
+
+        ``AuditReader.verify()`` walks headers only — confirmed on 0.10, not
+        assumed: a record body swapped under an intact header chain still
+        reports ``chain_ok`` true with no diagnosis. That is by design, and
+        it is why verification needs no keys.
+
+        The body comparison lives in ``build_report``, which runs its own
+        pass and reports ``body_digest_mismatches``. Calling it here rather
+        than walking bodies ourselves is ADR-0001 applied literally: the
+        package owns what a body digest means, and a second implementation
+        would be a second thing to be wrong.
+
+        The cost is a second full pass over the file. It is paid once per
+        (session, profile) because the result is cached alongside the
+        verification, and it buys the difference between "the headers link"
+        and "the file is what it says it is".
+        """
+        specs = anchor_specs or []
+        data = build_report(
+            self._path,
+            anchor_source=_anchor_source(specs) if specs else None,
+            tool="palimpsests-auditor-sidecar",
+        ).data["container"]
+        return {
+            "well_formed": data["well_formed"],
+            "malformed": data["malformed"],
+            "bytes_parsed": data["bytes_parsed"],
+            "bytes_total": data["bytes_total"],
+            "body_digest_mismatches": list(data["body_digest_mismatches"]),
+        }
+
     def verify(self, anchor_specs: list[dict[str, str]] | None = None) -> dict[str, object]:
         """Ask the verifier the three questions, and pass the answer through.
 
@@ -244,10 +278,18 @@ class ChainHandle:
         if anchor_specs:
             reader = AuditReader.open(self._path, anchor=_anchor_source(anchor_specs))
             try:
-                return self._render(reader.verify())
+                rendered = self._render(reader.verify())
             finally:
                 reader.close()
-        return self._render(self._reader.verify())
+        else:
+            rendered = self._render(self._reader.verify())
+
+        # The body walk, from the package's own report builder. Carried in
+        # its own key rather than folded into `chain`, because it answers a
+        # different question: `chain` is about how records link, `container`
+        # is about whether each record is the bytes its header claims.
+        rendered["container"] = self.container(anchor_specs)
+        return rendered
 
     def _render(self, result) -> dict[str, object]:
         chain = result.chain
