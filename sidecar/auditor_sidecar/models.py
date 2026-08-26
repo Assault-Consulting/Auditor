@@ -403,6 +403,164 @@ class VerificationResponse(BaseModel):
     advisory: AdvisoryModel
 
 
+class AnchorCadenceModel(BaseModel):
+    """How often this boot anchored its head.
+
+    The widest gap is the useful figure: it is how long the chain went
+    without an external witness, and therefore how wide an "existed by"
+    bracket would be for records inside it.
+    """
+
+    count: int = Field(description="Anchor records written during this boot.")
+    widest_gap_ns: int | None = Field(
+        description="Longest interval between anchors, in nanoseconds."
+    )
+
+
+class SpanStatsModel(BaseModel):
+    """Spans opened during this boot, and how many were left open."""
+
+    closed: int = Field(description="Spans that have an end record.")
+    open: int = Field(
+        description=(
+            "Spans opened and never closed. Evidence of an interrupted "
+            "operation, not a defect in the log."
+        )
+    )
+    open_rate: float | None = Field(
+        description="Open spans as a fraction, or null when there were no spans."
+    )
+    median_duration_ns: int | None = Field(
+        description="Median closed-span duration, or null when none closed."
+    )
+
+
+class BootView(BaseModel):
+    """One boot, with the statistics the package computes for it.
+
+    A boot is the unit that matters for reading time: `monotonic_ns` resets
+    across a boundary, so no duration spans one.
+    """
+
+    boot_id: str = Field(description="Hex boot identifier.")
+    first_seq: int = Field(description="First record in this boot.")
+    last_seq: int = Field(description="Last record in this boot.")
+    record_count: int = Field(description="Records written during it.")
+    time_trust_values: list[NamedValue] = Field(
+        description=(
+            "Every wall-clock trust level seen inside this boot. More than "
+            "one means the clock changed status mid-boot, which qualifies "
+            "every wall-time claim in it — so the set is carried rather than "
+            "reduced to the latest."
+        )
+    )
+    recovery_seq: int | None = Field(
+        description=(
+            "Where this boot recovered a truncated tail, when it did. Null "
+            "is the ordinary case rather than a missing value."
+        )
+    )
+    uptime_ns: int | None = Field(
+        description="Monotonic span of this boot, computed by the package."
+    )
+    anchors: AnchorCadenceModel
+    spans: SpanStatsModel
+
+
+class SpanView(BaseModel):
+    """One span, and the records it covers."""
+
+    span_id: str = Field(description="Hex span identifier.")
+    parent_span_id: str | None = Field(
+        description="The enclosing span, or null at the top level."
+    )
+    start_seq: int | None = Field(
+        description="The SPAN_START record, or null when it is not in this file."
+    )
+    end_seq: int | None = Field(
+        description=(
+            "The SPAN_END record, or NULL FOR A SPAN NEVER CLOSED. Null is "
+            "first-class evidence — an interrupted operation looks exactly "
+            "like this — and must never be filled in with the last record "
+            "seen."
+        )
+    )
+    record_count: int = Field(description="Records carrying this span id.")
+    record_seqs: list[int] = Field(description="Their sequence numbers.")
+
+
+class RecordView(BaseModel):
+    """One record, as structure rather than as content.
+
+    Header fields and the shape of the body. What is *inside* a record is a
+    separate view with its own decisions about keys and redaction.
+    """
+
+    seq: int = Field(description="Sequence number.")
+    record_type: int = Field(description="Raw record type.")
+    type_name: str | None = Field(
+        description="The package's name for the type, or null if unknown to this build."
+    )
+    kind: int | None = Field(description="Raw kind, for types that carry one.")
+    kind_name: str | None = Field(
+        description=(
+            "The package's name for the kind. Null where the record type "
+            "has no kind at all — GENESIS, BOOT and ANCHOR do not — which "
+            "is not the same as a kind this build cannot name."
+        )
+    )
+    boot_id: str = Field(description="Hex boot identifier.")
+    span_id: str | None = Field(
+        description=(
+            "Hex span identifier, or null when the record is in no span. "
+            "PALA-1 spells that as sixteen zero bytes; this field reports "
+            "null rather than a span named 00000000…"
+        )
+    )
+    parent_span_id: str | None = Field(description="The enclosing span, when there is one.")
+    wall_clock_ns: int = Field(
+        description="The writer's wall clock. A Recorded claim, qualified by time_trust."
+    )
+    monotonic_ns: int = Field(
+        description="Monotonic clock. Comparable only within one boot."
+    )
+    assurance_tier: NamedValue
+    time_trust: NamedValue
+    body_len: int = Field(description="Body length in bytes.")
+    body_tlv_types: list[int] | None = Field(
+        description=(
+            "TLV types present in the body, or null when this view has none "
+            "to show — a record type with no body, an encrypted body, or one "
+            "this build cannot parse. Distinct from [], which would mean a "
+            "decoded body containing nothing."
+        )
+    )
+    key_id: int | None = Field(
+        description="Encryption key identifier, or null when the body is not encrypted."
+    )
+
+
+class RecordPage(BaseModel):
+    """A window onto the records.
+
+    Paginated because a chain has no bound: a container from a busy
+    deployment can hold millions of records, and an endpoint that serialised
+    all of them would fail in the situation where the tool is most needed.
+    """
+
+    records: list[RecordView]
+    offset: int = Field(description="First sequence number this window could include.")
+    limit: int = Field(description="Most records this window would return.")
+    total: int = Field(description="Records in the whole chain.")
+    has_more: bool = Field(
+        description=(
+            "Whether records remain past this window. Stated rather than "
+            "left to be inferred from len(records) == limit, which is "
+            "ambiguous when a window ends exactly on the last record."
+        )
+    )
+
+
 class KeychainStatus(BaseModel):
     """Whether this machine has a usable secret store at all."""
 

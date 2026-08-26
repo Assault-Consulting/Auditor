@@ -52,6 +52,14 @@ class Session:
     #: and this application's entire claim is that its answers are
     #: reproducible.
     verifications: dict[str, dict] = field(default_factory=dict)
+    #: The structural views, computed at most once each.
+    #:
+    #: Boots and spans each walk every record, and neither answer can change
+    #: while the session is open — the file is the same bytes or the session
+    #: is refused. Caching them is the same argument as caching a
+    #: verification, one question down.
+    _boots: list[dict] | None = None
+    _spans: list[dict] | None = None
 
     def verify(
         self, profile: str = "none", sources: list[dict[str, str]] | None = None
@@ -66,6 +74,28 @@ class Session:
         if profile not in self.verifications:
             self.verifications[profile] = self.chain.verify(sources)
         return self.verifications[profile]
+
+    def boots(self) -> list[dict]:
+        """The boots in this container, computed at most once."""
+        if self._boots is None:
+            self._boots = self.chain.boots()
+        return self._boots
+
+    def spans(self) -> list[dict]:
+        """The spans in this container, computed at most once."""
+        if self._spans is None:
+            self._spans = self.chain.spans()
+        return self._spans
+
+    def records(self, offset: int = 0, limit: int = 200) -> dict:
+        """A window onto the records.
+
+        Deliberately NOT cached. Every window is a different question, and a
+        cache keyed by (offset, limit) would grow with the number of pages a
+        user happened to scroll through — holding a decoded copy of a chain
+        that may be far larger than the window they are looking at.
+        """
+        return self.chain.records(offset=offset, limit=limit)
 
     def subject(self) -> dict[str, object]:
         """Identity plus structure, as one payload."""

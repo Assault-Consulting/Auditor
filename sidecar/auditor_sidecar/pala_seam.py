@@ -34,8 +34,9 @@ from palimpsests.audit.anchors import (
     FileAnchor,
     ManualAnchor,
 )
+from palimpsests.audit.bootstats import boot_statistics
 from palimpsests.audit.names import assurance_tier_name, time_trust_name
-from palimpsests.audit.pala.codec import FORMAT_VERSION
+from palimpsests.audit.pala.codec import FORMAT_VERSION, ZERO16
 from palimpsests.audit.reader import AuditReader
 from palimpsests.audit.report import build_report
 from pathlib import Path
@@ -156,6 +157,20 @@ def _anchor_source(specs: list[dict[str, str]]):
         else:
             raise UnknownAnchorKind(kind)
     return ChainedAnchorSource(sources)
+
+
+def _span_or_none(span_id: bytes | None) -> str | None:
+    """A span identifier, or None when there is no span.
+
+    PALA-1 spells "no span" as sixteen zero bytes rather than as an absent
+    field — checked against the package's own ``spans()``, which skips
+    records whose ``span_id`` is ``ZERO16``. A shell that hexed it blindly
+    would put a span called ``00000000000000000000000000000000`` on the
+    screen and, worse, into a report.
+    """
+    if span_id is None or span_id == ZERO16:
+        return None
+    return span_id.hex()
 
 
 class NotAChain(Exception):
@@ -367,6 +382,136 @@ class ChainHandle:
                     for item in result.advisory.items
                 ],
             },
+        }
+
+    def boots(self) -> list[dict[str, object]]:
+        """Every boot in the chain, with the statistics the package computes.
+
+        A boot is the unit that matters for reading time: `monotonic_ns`
+        resets across one, so no duration may be computed across a boundary.
+        The uptime here is the package's own figure, not a subtraction done
+        in this file.
+
+        `time_trust_values` is a set on the package's view and a sorted list
+        here. More than one value means the clock changed status mid-boot,
+        which qualifies every wall-time claim inside it — so the set is
+        carried rather than reduced.
+        """
+        return [
+            {
+                "boot_id": stats.view.boot_id.hex(),
+                "first_seq": stats.view.first_seq,
+                "last_seq": stats.view.last_seq,
+                "record_count": stats.view.record_count,
+                "time_trust_values": self._named(
+                    set(stats.view.time_trust_values), time_trust_name
+                ),
+                # Present when this boot began by recovering a truncated
+                # tail. Null is the ordinary case, not a missing value.
+                "recovery_seq": stats.view.recovery_seq,
+                "uptime_ns": stats.uptime_ns,
+                "anchors": {
+                    "count": stats.anchors.count,
+                    "widest_gap_ns": stats.anchors.widest_anchor_gap_ns,
+                },
+                "spans": {
+                    "closed": stats.spans.closed,
+                    "open": stats.spans.open,
+                    "open_rate": stats.spans.open_rate,
+                    "median_duration_ns": stats.spans.median_duration_ns,
+                },
+            }
+            for stats in boot_statistics(self._reader)
+        ]
+
+    def spans(self) -> list[dict[str, object]]:
+        """Every span, with its parent and the records it covers.
+
+        `end_seq` is null for a span that was opened and never closed. That
+        is first-class evidence rather than a defect — an interrupted
+        operation looks exactly like this, and the record of it is intact —
+        so it is reported as null and never as the last record seen.
+        """
+        return [
+            {
+                "span_id": span.span_id.hex(),
+                "parent_span_id": _span_or_none(span.parent_span_id),
+                "start_seq": span.start_seq,
+                "end_seq": span.end_seq,
+                "record_count": len(span.record_seqs),
+                "record_seqs": list(span.record_seqs),
+            }
+            for span in self._reader.spans()
+        ]
+
+    def records(self, offset: int = 0, limit: int = 200) -> dict[str, object]:
+        """A window onto the records, with the header fields for each.
+
+        Paginated because a chain has no bound. A container from a busy
+        deployment can hold millions of records, and an endpoint that
+        serialised all of them would fail in the one situation the tool is
+        most needed — which is why §C-10 asks for a size envelope rather
+        than assuming files stay small.
+
+        Body TLVs are reported as **type and length, not content**. Bodies
+        may be encrypted, and a records list is a structural view; showing
+        what is inside a record is R-01's job and needs its own decisions
+        about keys and redaction.
+        """
+        window = []
+        for record in self._reader.records():
+            if record.seq < offset:
+                continue
+            if len(window) >= limit:
+                break
+            header = record.header
+            window.append(
+                {
+                    "seq": record.seq,
+                    "record_type": record.record_type,
+                    "type_name": record.type_name,
+                    "kind": record.kind,
+                    "kind_name": record.kind_name,
+                    "boot_id": header.boot_id.hex(),
+                    # The absence of a span is sixteen zero bytes, not None —
+                    # the package's own `spans()` skips records whose span_id
+                    # is ZERO16. Rendering that as an identifier would put a
+                    # span called 00000000… on the screen and in reports.
+                    "span_id": _span_or_none(header.span_id),
+                    "parent_span_id": _span_or_none(header.parent_span_id),
+                    "wall_clock_ns": header.wall_clock_ns,
+                    "monotonic_ns": header.monotonic_ns,
+                    "assurance_tier": self._named(
+                        {header.assurance_tier}, assurance_tier_name
+                    )[0],
+                    "time_trust": self._named({header.time_trust}, time_trust_name)[0],
+                    "body_len": header.body_len,
+                    # None when the reader produced no TLV list at all. On
+                    # a plain chain that is the record types with no body —
+                    # GENESIS, BOOT and ANCHOR all report body_len 0 — but
+                    # an encrypted or unparseable body reaches here the same
+                    # way. Either way it is "this view has no TLV types to
+                    # show", which is a different fact from "the body has
+                    # none", and [] would conflate them.
+                    "body_tlv_types": None
+                    if record.body_tlvs is None
+                    else sorted({tlv_type for tlv_type, _ in record.body_tlvs}),
+                    # An integer, and zero means "not encrypted under a
+                    # named key" rather than "key number zero".
+                    "key_id": None if header.key_id == 0 else header.key_id,
+                }
+            )
+
+        total = sum(1 for _ in self._reader.records())
+        return {
+            "records": window,
+            "offset": offset,
+            "limit": limit,
+            "total": total,
+            # Stated rather than left to be inferred from len(records) ==
+            # limit, which is ambiguous when the window ends exactly on the
+            # last record.
+            "has_more": offset + len(window) < total,
         }
 
     def subject(self) -> dict[str, object]:
