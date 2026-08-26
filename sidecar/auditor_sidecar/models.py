@@ -675,6 +675,15 @@ class Timeline(BaseModel):
     """
 
     axis: str = Field(description="'seq' or 'wall'.")
+    align: str | None = Field(
+        description=(
+            "Null for uniform buckets, 'day' when each bucket is one UTC "
+            "calendar day. A CONSUMER RENDERING DATES MUST CHECK THIS: a "
+            "date printed from a uniform bucket's start is a date the "
+            "records inside it may not have happened on, because such a "
+            "bucket straddles midnight."
+        )
+    )
     basis: str = Field(
         description=(
             "'proved' for the seq axis, 'recorded' for the wall axis. "
@@ -684,9 +693,22 @@ class Timeline(BaseModel):
         )
     )
     buckets: list[TimelineBucket] = Field(
-        description="Uniform intervals across the range, empty ones included."
+        description=(
+            "Equal-width intervals covering the range, empty ones included. "
+            "How many there are depends on `align`: without it the range is "
+            "divided into at most the number requested; with 'day' each is "
+            "one calendar day and the count is however many days the chain "
+            "spans."
+        )
     )
-    start: int | None = Field(description="Lowest position on this axis.")
+    start: int | None = Field(
+        description=(
+            "Where the first bucket begins. Equal to the lowest position on "
+            "this axis for uniform buckets, and THE UTC MIDNIGHT AT OR "
+            "BEFORE IT when align='day' — the first day is a whole day even "
+            "when the chain starts in the middle of one."
+        )
+    )
     end: int | None = Field(description="Highest position on this axis.")
     boot_boundaries: list[BootBoundary] = Field(
         description="Reported apart from the series, because they are axis breaks."
