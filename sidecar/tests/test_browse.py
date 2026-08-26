@@ -249,15 +249,163 @@ def test_the_page_size_is_bounded(open_client: TestClient, chain_path, query: st
     assert open_client.get(f"/session/{sid}/records?{query}").status_code == 422
 
 
+# --- filters ----------------------------------------------------------------
+
+
+def test_a_type_filter_narrows_the_window(open_client: TestClient, chain_path) -> None:
+    sid = _open(open_client, chain_path)
+    page = open_client.get(f"/session/{sid}/records?record_type=64").json()
+
+    assert [r["seq"] for r in page["records"]] == [3]
+    assert page["records"][0]["type_name"] == "SAFETY"
+
+
+def test_total_counts_the_matches_not_the_file(
+    open_client: TestClient, chain_path
+) -> None:
+    """A total counting everything would print "1 of 5" above the only row
+    there is, which is a different and false statement."""
+    sid = _open(open_client, chain_path)
+    page = open_client.get(f"/session/{sid}/records?record_type=64").json()
+
+    assert page["total"] == 1
+    assert page["has_more"] is False
+
+
+def test_a_boot_filter_keeps_that_boot(open_client: TestClient, chain_path) -> None:
+    sid = _open(open_client, chain_path)
+    boot_id = open_client.get(f"/session/{sid}/boots").json()[0]["boot_id"]
+    page = open_client.get(f"/session/{sid}/records?boot_id={boot_id}").json()
+
+    assert page["total"] == 5
+    assert all(r["boot_id"] == boot_id for r in page["records"])
+
+
+def test_filtering_by_something_absent_is_an_empty_answer(
+    open_client: TestClient, chain_path
+) -> None:
+    """Not an error. "Show me that boot's records" has a truthful answer
+    when the file does not contain that boot, and it is an empty list."""
+    sid = _open(open_client, chain_path)
+    page = open_client.get(f"/session/{sid}/records?boot_id={'ff' * 16}").json()
+
+    assert page["records"] == []
+    assert page["total"] == 0
+    assert page["has_more"] is False
+
+
+def test_filters_and_paging_compose(open_client: TestClient, chain_path) -> None:
+    """The window is drawn from the matches, so has_more is about them too."""
+    sid = _open(open_client, chain_path)
+    boot_id = open_client.get(f"/session/{sid}/boots").json()[0]["boot_id"]
+    page = open_client.get(
+        f"/session/{sid}/records?boot_id={boot_id}&limit=2"
+    ).json()
+
+    assert len(page["records"]) == 2
+    assert page["total"] == 5
+    assert page["has_more"] is True
+
+
+# --- one record -------------------------------------------------------------
+
+
+def test_a_record_by_sequence(open_client: TestClient, chain_path) -> None:
+    sid = _open(open_client, chain_path)
+    record = open_client.get(f"/session/{sid}/record/3").json()
+
+    assert record["seq"] == 3
+    assert record["type_name"] == "SAFETY"
+    assert record["kind_name"] == "INCIDENT_CANDIDATE"
+
+
+def test_a_record_view_is_identical_from_both_routes(
+    open_client: TestClient, chain_path
+) -> None:
+    """One builder, so the window and the single view cannot describe the
+    same record differently — which they would, eventually, if each built
+    its own dict."""
+    sid = _open(open_client, chain_path)
+    from_window = next(
+        r
+        for r in open_client.get(f"/session/{sid}/records").json()["records"]
+        if r["seq"] == 3
+    )
+    assert open_client.get(f"/session/{sid}/record/3").json() == from_window
+
+
+def test_a_sequence_this_file_does_not_hold_is_404(
+    open_client: TestClient, chain_path
+) -> None:
+    """A segment covering records 400-900 legitimately has no record 12, and
+    the message says which is missing rather than implying the session is."""
+    sid = _open(open_client, chain_path)
+    r = open_client.get(f"/session/{sid}/record/99")
+
+    assert r.status_code == 404
+    assert "record 99" in r.json()["detail"]
+
+
+# --- origin -----------------------------------------------------------------
+
+
+def test_origin_reports_what_was_running(open_client: TestClient, chain_path) -> None:
+    sid = _open(open_client, chain_path)
+    origin = open_client.get(f"/session/{sid}/origin?seq=4").json()
+
+    assert origin["role"] == "engine.native"
+    assert len(origin["model_digest"]) == 64
+    assert origin["since_seq"] == 2
+
+
+def test_origin_names_the_record_that_declared_it(
+    open_client: TestClient, chain_path
+) -> None:
+    """since_seq is what makes this checkable rather than a claim to accept:
+    a reader jumps to that record and sees the declaration."""
+    sid = _open(open_client, chain_path)
+    origin = open_client.get(f"/session/{sid}/origin?seq=4").json()
+
+    declaring = open_client.get(f"/session/{sid}/record/{origin['since_seq']}").json()
+    assert declaring["kind_name"] == "MODEL_LOAD"
+
+
+def test_no_origin_before_the_first_declaration_is_null_not_missing(
+    open_client: TestClient, chain_path
+) -> None:
+    """200 with a null body, not 404.
+
+    Nothing before the first MODEL_LOAD has an origin because none had been
+    declared. The question was answered; the answer is that the file does
+    not say — and a UI must render that as "not stated" rather than as an
+    empty card, which would read as "nothing was running".
+    """
+    sid = _open(open_client, chain_path)
+    r = open_client.get(f"/session/{sid}/origin?seq=0")
+
+    assert r.status_code == 200
+    assert r.json() is None
+
+
+def test_origin_requires_a_sequence(open_client: TestClient, chain_path) -> None:
+    """Origin changes along a chain, so a defaulted seq would answer a
+    different question than the caller meant."""
+    sid = _open(open_client, chain_path)
+    assert open_client.get(f"/session/{sid}/origin").status_code == 422
+
+
 # --- the same refusals the rest of the surface makes ------------------------
 
 
-@pytest.mark.parametrize("view", ["boots", "spans", "records"])
+BROWSE_VIEWS = ["boots", "spans", "records", "record/0", "origin?seq=0"]
+
+
+@pytest.mark.parametrize("view", BROWSE_VIEWS)
 def test_browsing_an_unknown_session_is_404(open_client: TestClient, view: str) -> None:
     assert open_client.get(f"/session/never-existed/{view}").status_code == 404
 
 
-@pytest.mark.parametrize("view", ["boots", "spans", "records"])
+@pytest.mark.parametrize("view", BROWSE_VIEWS)
 def test_browsing_refuses_when_the_file_changed(
     open_client: TestClient, chain_path, view: str
 ) -> None:
@@ -275,7 +423,7 @@ def test_browsing_refuses_when_the_file_changed(
     assert open_client.get(f"/session/{sid}/{view}").status_code == 409
 
 
-@pytest.mark.parametrize("view", ["boots", "spans", "records"])
+@pytest.mark.parametrize("view", BROWSE_VIEWS)
 def test_browsing_requires_the_token(
     gated_client: TestClient, auth, chain_path, view: str
 ) -> None:
@@ -311,7 +459,7 @@ def test_browsing_says_nothing_about_a_verdict(
     """No browse view carries a verdict field, by the same rule /verify
     follows: three questions, three answers, and none of them here."""
     sid = _open(open_client, chain_path)
-    for view in ("boots", "spans", "records"):
+    for view in BROWSE_VIEWS:
         body = str(open_client.get(f"/session/{sid}/{view}").json())
         for forbidden in ("chain_ok", "complete_to_anchor", "verdict", "diagnosis"):
             assert forbidden not in body
