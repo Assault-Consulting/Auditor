@@ -551,13 +551,49 @@ class RecordPage(BaseModel):
     records: list[RecordView]
     offset: int = Field(description="First sequence number this window could include.")
     limit: int = Field(description="Most records this window would return.")
-    total: int = Field(description="Records in the whole chain.")
+    total: int = Field(
+        description=(
+            "Records that MATCHED THE FILTERS, not records in the file. With "
+            "no filters the two are the same, which is why this field could "
+            "quietly say the wrong thing once filters existed: a total "
+            "counting everything would print '3 of 40000' above three rows "
+            "that are the only three there are."
+        )
+    )
     has_more: bool = Field(
         description=(
             "Whether records remain past this window. Stated rather than "
             "left to be inferred from len(records) == limit, which is "
             "ambiguous when a window ends exactly on the last record."
         )
+    )
+
+
+class OriginModel(BaseModel):
+    """What was running when a record was written.
+
+    Every field is a **Recorded** claim: the writer declared it, and nothing
+    in the chain proves the process was actually running that model. The
+    digests let a reader compare against an artifact they hold; they do not
+    establish what produced the records.
+    """
+
+    role: str = Field(description="The declared role, e.g. 'engine.native'.")
+    model_digest: str = Field(
+        description="Hex digest of the model as the writer declared it."
+    )
+    config_digest: str = Field(
+        description="Hex digest of the configuration as the writer declared it."
+    )
+    since_seq: int = Field(
+        description=(
+            "The record that declared this origin. A reader can jump to it "
+            "and see the declaration rather than take this on trust — the "
+            "same reason every other claim here names its source."
+        )
+    )
+    detail: str | None = Field(
+        description="Free text the writer attached, when it attached any."
     )
 
 
