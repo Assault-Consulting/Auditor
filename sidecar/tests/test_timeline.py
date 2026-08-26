@@ -163,6 +163,119 @@ def test_every_record_lands_in_exactly_one_bucket(
         assert sum(b["count"] for b in timeline["buckets"]) == total
 
 
+# --- day alignment: a different question, not a nicer default ---------------
+
+
+def test_day_buckets_start_at_midnight(open_client: TestClient, multi_day_chain) -> None:
+    """The whole reason this mode exists.
+
+    A uniform bucket of roughly a day begins wherever the first record did,
+    so it straddles midnight — and a record just after that midnight is
+    counted in a bucket that began the previous day. A rail built from those
+    would label a SAFETY record with the wrong date, which is the quiet kind
+    of wrong this application exists to refuse.
+    """
+    sid = _open(open_client, multi_day_chain)
+    buckets = open_client.get(
+        f"/session/{sid}/timeline?axis=wall&align=day&buckets=400"
+    ).json()["buckets"]
+
+    day_ns = 86_400_000_000_000
+    for bucket in buckets:
+        assert bucket["start"] % day_ns == 0
+        assert bucket["end"] - bucket["start"] + 1 == day_ns
+
+
+def test_a_quiet_day_is_a_row_not_a_missing_one(
+    open_client: TestClient, multi_day_chain
+) -> None:
+    """Three days, and the middle one has nothing in it. A rail that skipped
+    it would put two busy days side by side and hide the pause between.
+
+    Asserted as the shape rather than as three numbers: the middle day is
+    empty, the outer two are not, and the rows account for every record. The
+    first draft asserted [3, 0, 3] — the number of *stamps* the fixture
+    supplied rather than the number of records it wrote, which were five.
+    The split is fixture detail; the pause is the property.
+    """
+    sid = _open(open_client, multi_day_chain)
+    buckets = open_client.get(
+        f"/session/{sid}/timeline?axis=wall&align=day&buckets=400"
+    ).json()["buckets"]
+    total = open_client.get(f"/session/{sid}/records").json()["total"]
+
+    assert len(buckets) == 3
+    assert buckets[0]["count"] > 0
+    assert buckets[1]["count"] == 0
+    assert buckets[2]["count"] > 0
+    assert sum(b["count"] for b in buckets) == total
+
+
+def test_align_is_reported_so_a_consumer_can_check_it(
+    open_client: TestClient, multi_day_chain
+) -> None:
+    """A date printed from a uniform bucket is a date the records may not
+    have happened on, so the consumer has to be able to tell the two apart
+    rather than assume."""
+    sid = _open(open_client, multi_day_chain)
+    uniform = open_client.get(f"/session/{sid}/timeline?axis=wall").json()
+    aligned = open_client.get(
+        f"/session/{sid}/timeline?axis=wall&align=day&buckets=400"
+    ).json()
+
+    assert uniform["align"] is None
+    assert aligned["align"] == "day"
+
+
+def test_alignment_and_uniform_buckets_do_not_share_a_cache_entry(
+    store, multi_day_chain
+) -> None:
+    """Caught before it could do damage: `align` was missing from the cache
+    key, so the second caller would have received the first's buckets with
+    the wrong `align` attached — uniform boundaries labelled as calendar
+    days. Not a slow answer; a silently wrong one."""
+    s = store.open(multi_day_chain)
+    uniform = s.timeline(axis="wall", buckets=400)
+    aligned = s.timeline(axis="wall", buckets=400, align="day")
+
+    assert uniform is not aligned
+    assert uniform["align"] is None
+    assert aligned["align"] == "day"
+
+
+def test_the_seq_axis_has_no_calendar(open_client: TestClient, chain_path) -> None:
+    """Refused rather than ignored. Silently dropping the alignment would
+    return uniform buckets with align='day' on them."""
+    sid = _open(open_client, chain_path)
+    r = open_client.get(f"/session/{sid}/timeline?axis=seq&align=day")
+
+    assert r.status_code == 422
+    assert "calendar" in r.json()["detail"]
+
+
+def test_an_unknown_alignment_is_refused(open_client: TestClient, chain_path) -> None:
+    sid = _open(open_client, chain_path)
+    assert (
+        open_client.get(f"/session/{sid}/timeline?axis=wall&align=hour").status_code
+        == 422
+    )
+
+
+def test_too_few_buckets_for_the_span_is_refused_not_truncated(
+    open_client: TestClient, multi_day_chain
+) -> None:
+    """With day alignment `buckets` stops being a resolution: the number of
+    days is a fact about the chain, not something the caller picks. Silently
+    truncating would show a rail missing its last stretch, which looks
+    exactly like a chain that ended early — and the message says the number
+    to raise it to."""
+    sid = _open(open_client, multi_day_chain)
+    r = open_client.get(f"/session/{sid}/timeline?axis=wall&align=day&buckets=1")
+
+    assert r.status_code == 422
+    assert "spans 3 days" in r.json()["detail"]
+
+
 # --- boot boundaries are breaks, not seams ----------------------------------
 
 
