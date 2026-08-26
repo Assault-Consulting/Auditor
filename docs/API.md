@@ -76,9 +76,10 @@ field, misleading about the file. So the answer to "is what I hold
 internally consistent?" is `chain_ok` **and** the absence of a diagnosis.
 
 **And it covers headers only.** `AuditReader.verify()` does not compare
-record bodies against the `body_digest` their headers carry. That is a
-separate walk, run by `pala verify` and, from the next release, by the
-report builder — see Part 2.
+record bodies against the `body_digest` their headers carry — still true on
+0.10, checked rather than assumed. That is a separate walk, and the response
+carries its result in `container`. The answer to question one is `chain_ok`,
+**and** no diagnosis, **and** an empty `body_digest_mismatches`.
 
 ### Unknown is reported, never rejected
 
@@ -121,21 +122,31 @@ distinction is worth stating before someone reads the new schema and
 If the sidecar ever surfaces a verdict, it does so by carrying that
 function's output — not by computing one from the fields on this response.
 
-### Question one is a header check, and the wording says so
+### Question one takes two walks, and the response carries both
 
-`chain_ok` and the diagnosis describe the **header chain**.
-`AuditReader.verify()` does not compare record bodies against the
-`body_digest` their headers carry; that is a separate walk, run by
-`pala verify` and, from the next release, by the report builder.
+`chain` answers *do these records link to each other*. `container` answers
+*is each record the bytes its own header claims*. They are separate keys
+because they are separate questions, and folding them into one field would
+make them indistinguishable exactly when they disagree — which is the case
+that matters.
 
-Confirmed rather than assumed: swapping sixteen bytes of a record body
-leaves `chain_ok` true with no diagnosis and no advisory item, while the CLI
-on the same bytes reports `body_digest_mismatches` and exits 1. The
-divergence is pinned by a test, and the triptych's first panel says it
-checked headers.
+The history is worth keeping, because the shape of the mistake recurs.
+Between the 2026-08 audit and palimpsests 0.10 this API had only the header
+walk, and the triptych rendered `chain_ok` as though it settled the
+question. A body swapped under an intact header chain therefore produced a
+green panel. The panel was qualified first — "bodies are not compared" — and
+the qualification was removed only when the response could support the
+stronger sentence.
 
-Until the sidecar offers the body walk, no rendering of this API may claim
-the file is internally consistent without that qualification.
+`container` comes from the package's report builder rather than from a walk
+written here. The `bodies` module exports `body_digest_of` and doing it
+ourselves would have been three lines, which is precisely the shape of the
+small reasonable helper ADR-0001 exists to refuse: the package owns what a
+body digest means, and a second implementation is a second thing to be
+wrong.
+
+The cost is a second pass over the file, paid once per (session, profile)
+and cached with the verification.
 
 ### Status codes carry meaning, not habit
 
@@ -178,7 +189,8 @@ pastes a head by hand has asked two questions rather than corrected one.
 
 Caching is a correctness measure before it is a performance one. Two runs
 that disagreed would mean a verdict was shown that can no longer be
-reproduced.
+reproduced — and since the answer now costs two passes over the file, it is
+a performance measure as well.
 
 ### Every route but `/health` requires the session token
 
@@ -206,8 +218,9 @@ Field descriptions are generated into the OpenAPI schema and from there into
 the TypeScript client — so the reasoning arrives where someone is deciding
 how to render the value, rather than in a specification they may never open.
 
-That is why `complete_to_anchor` says, in capitals, that null is not a pass.
-It is the last place able to say so.
+That is why `complete_to_anchor` says, in capitals, that null is not a pass,
+and why `chain_ok` now says it is a header walk and names the field that
+covers the rest. Both are the last place able to say so.
 
 ---
 
