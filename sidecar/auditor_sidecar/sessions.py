@@ -87,15 +87,40 @@ class Session:
             self._spans = self.chain.spans()
         return self._spans
 
-    def records(self, offset: int = 0, limit: int = 200) -> dict:
+    def record(self, seq: int) -> dict | None:
+        """One record, or None when the container holds no such sequence."""
+        return self.chain.record(seq)
+
+    def origin(self, seq: int) -> dict | None:
+        """The origin in force at a record, or None when none was declared."""
+        return self.chain.origin(seq)
+
+    def records(
+        self,
+        offset: int = 0,
+        limit: int = 200,
+        record_type: int | None = None,
+        boot_id: str | None = None,
+        span_id: str | None = None,
+    ) -> dict:
         """A window onto the records.
 
-        Deliberately NOT cached. Every window is a different question, and a
-        cache keyed by (offset, limit) would grow with the number of pages a
-        user happened to scroll through — holding a decoded copy of a chain
-        that may be far larger than the window they are looking at.
+        Deliberately NOT cached, and neither are `record` or `origin` above.
+        Every window is a different question, and a cache keyed by (offset,
+        limit, filters) would grow with the pages a user happened to scroll
+        through — holding a decoded copy of a chain that may be far larger
+        than the window they are looking at.
+
+        Boots and spans are cached because there is one answer each. These
+        have one per question asked, which is the difference that decides it.
         """
-        return self.chain.records(offset=offset, limit=limit)
+        return self.chain.records(
+            offset=offset,
+            limit=limit,
+            record_type=record_type,
+            boot_id=boot_id,
+            span_id=span_id,
+        )
 
     def subject(self) -> dict[str, object]:
         """Identity plus structure, as one payload."""
