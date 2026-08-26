@@ -54,12 +54,22 @@ class Session:
     verifications: dict[str, dict] = field(default_factory=dict)
     #: The structural views, computed at most once each.
     #:
-    #: Boots and spans each walk every record, and neither answer can change
-    #: while the session is open — the file is the same bytes or the session
-    #: is refused. Caching them is the same argument as caching a
-    #: verification, one question down.
+    #: The rule that decides what is cached here is whether the set of
+    #: questions **converges**, not whether an answer is expensive.
+    #:
+    #: * Boots and spans: one answer each for the life of the session.
+    #: * Timelines: two axes and a bounded set of resolutions a UI asks for,
+    #:   so the keyspace is small and stops growing.
+    #: * Record windows, a single record, an origin: one answer *per question
+    #:   asked*. An offset or a seq makes every call new, so a cache would
+    #:   grow with the browsing and never converge — which is the failure a
+    #:   paginated endpoint exists to avoid, reintroduced one layer up.
+    #:
+    #: None of these can change while the session is open: the file is the
+    #: same bytes or the session is refused.
     _boots: list[dict] | None = None
     _spans: list[dict] | None = None
+    _timelines: dict[tuple[str, int], dict] = field(default_factory=dict)
 
     def verify(
         self, profile: str = "none", sources: list[dict[str, str]] | None = None
@@ -91,6 +101,13 @@ class Session:
         """One record, or None when the container holds no such sequence."""
         return self.chain.record(seq)
 
+    def timeline(self, axis: str = "seq", buckets: int = 120) -> dict:
+        """Density along an axis, computed once per (axis, buckets)."""
+        key = (axis, buckets)
+        if key not in self._timelines:
+            self._timelines[key] = self.chain.timeline(axis=axis, buckets=buckets)
+        return self._timelines[key]
+
     def origin(self, seq: int) -> dict | None:
         """The origin in force at a record, or None when none was declared."""
         return self.chain.origin(seq)
@@ -103,17 +120,7 @@ class Session:
         boot_id: str | None = None,
         span_id: str | None = None,
     ) -> dict:
-        """A window onto the records.
-
-        Deliberately NOT cached, and neither are `record` or `origin` above.
-        Every window is a different question, and a cache keyed by (offset,
-        limit, filters) would grow with the pages a user happened to scroll
-        through — holding a decoded copy of a chain that may be far larger
-        than the window they are looking at.
-
-        Boots and spans are cached because there is one answer each. These
-        have one per question asked, which is the difference that decides it.
-        """
+        """A window onto the records. Deliberately uncached — see above."""
         return self.chain.records(
             offset=offset,
             limit=limit,
