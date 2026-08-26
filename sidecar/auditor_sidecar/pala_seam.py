@@ -444,7 +444,28 @@ class ChainHandle:
             for span in self._reader.spans()
         ]
 
-    def records(self, offset: int = 0, limit: int = 200) -> dict[str, object]:
+    def record(self, seq: int) -> dict[str, object] | None:
+        """One record by sequence number, or None when there is no such record.
+
+        None rather than an exception: asking for a record that is not in
+        this file is an ordinary question with an ordinary answer, and a
+        segment holding records 400–900 legitimately has no record 12.
+        """
+        for record in self._reader.records():
+            if record.seq == seq:
+                return self._record_view(record)
+            if record.seq > seq:
+                break
+        return None
+
+    def records(
+        self,
+        offset: int = 0,
+        limit: int = 200,
+        record_type: int | None = None,
+        boot_id: str | None = None,
+        span_id: str | None = None,
+    ) -> dict[str, object]:
         """A window onto the records, with the header fields for each.
 
         Paginated because a chain has no bound. A container from a busy
@@ -453,65 +474,141 @@ class ChainHandle:
         most needed — which is why §C-10 asks for a size envelope rather
         than assuming files stay small.
 
+        The filters narrow *which* records the window is drawn from, and
+        `total` counts the matches rather than the file. A `total` that
+        counted everything would make "3 of 40000" appear above three rows
+        that are the only three there are.
+
+        Filtering by an unknown value is not an error. A boot identifier
+        that appears nowhere yields an empty window, which is the truthful
+        answer to "show me that boot's records" when the file does not have
+        it.
+
+        `span_id=None` means *do not filter by span*, so there is currently
+        no way to ask for "records in no span at all". That is a real gap
+        rather than an oversight to fix in passing: the filter chips of
+        §C-09 will need it, and inventing a sentinel here — an empty string,
+        or the literal "none" — would decide their vocabulary from the
+        wrong end.
+
         Body TLVs are reported as **type and length, not content**. Bodies
         may be encrypted, and a records list is a structural view; showing
         what is inside a record is R-01's job and needs its own decisions
         about keys and redaction.
         """
-        window = []
+        window: list[dict[str, object]] = []
+        matched = 0
+        matched_at_or_past_offset = 0
+
+        # One walk. An earlier version computed `has_more` with a second
+        # pass over the file, which is the cost a paginated endpoint exists
+        # to avoid — on the million-record container §C-10 targets, every
+        # page would have read the whole chain twice.
         for record in self._reader.records():
+            if not self._matches(record, record_type, boot_id, span_id):
+                continue
+            matched += 1
             if record.seq < offset:
                 continue
-            if len(window) >= limit:
-                break
-            header = record.header
-            window.append(
-                {
-                    "seq": record.seq,
-                    "record_type": record.record_type,
-                    "type_name": record.type_name,
-                    "kind": record.kind,
-                    "kind_name": record.kind_name,
-                    "boot_id": header.boot_id.hex(),
-                    # The absence of a span is sixteen zero bytes, not None —
-                    # the package's own `spans()` skips records whose span_id
-                    # is ZERO16. Rendering that as an identifier would put a
-                    # span called 00000000… on the screen and in reports.
-                    "span_id": _span_or_none(header.span_id),
-                    "parent_span_id": _span_or_none(header.parent_span_id),
-                    "wall_clock_ns": header.wall_clock_ns,
-                    "monotonic_ns": header.monotonic_ns,
-                    "assurance_tier": self._named(
-                        {header.assurance_tier}, assurance_tier_name
-                    )[0],
-                    "time_trust": self._named({header.time_trust}, time_trust_name)[0],
-                    "body_len": header.body_len,
-                    # None when the reader produced no TLV list at all. On
-                    # a plain chain that is the record types with no body —
-                    # GENESIS, BOOT and ANCHOR all report body_len 0 — but
-                    # an encrypted or unparseable body reaches here the same
-                    # way. Either way it is "this view has no TLV types to
-                    # show", which is a different fact from "the body has
-                    # none", and [] would conflate them.
-                    "body_tlv_types": None
-                    if record.body_tlvs is None
-                    else sorted({tlv_type for tlv_type, _ in record.body_tlvs}),
-                    # An integer, and zero means "not encrypted under a
-                    # named key" rather than "key number zero".
-                    "key_id": None if header.key_id == 0 else header.key_id,
-                }
-            )
+            matched_at_or_past_offset += 1
+            if len(window) < limit:
+                window.append(self._record_view(record))
 
-        total = sum(1 for _ in self._reader.records())
         return {
             "records": window,
             "offset": offset,
             "limit": limit,
-            "total": total,
-            # Stated rather than left to be inferred from len(records) ==
-            # limit, which is ambiguous when the window ends exactly on the
-            # last record.
-            "has_more": offset + len(window) < total,
+            # The matches, not the file. A total counting everything would
+            # print "3 of 40000" above three rows that are the only three
+            # there are.
+            "total": matched,
+            # Whether any match past this window exists, counted over the
+            # matches rather than inferred from the window's length — which
+            # is ambiguous when it ends exactly on the last one.
+            "has_more": matched_at_or_past_offset > len(window),
+        }
+
+    @staticmethod
+    def _matches(
+        record,
+        record_type: int | None,
+        boot_id: str | None,
+        span_id: str | None,
+    ) -> bool:
+        """Whether a record passes the filters, all of which are ANDed."""
+        if record_type is not None and record.record_type != record_type:
+            return False
+        if boot_id is not None and record.header.boot_id.hex() != boot_id:
+            return False
+        if span_id is not None and _span_or_none(record.header.span_id) != span_id:
+            return False
+        return True
+
+    def _record_view(self, record) -> dict[str, object]:
+        """One record's header fields, as plain data.
+
+        Shared by the window and the single-record view so the two cannot
+        describe the same record differently — which they would, eventually,
+        if each built its own dict.
+        """
+        header = record.header
+        return {
+            "seq": record.seq,
+            "record_type": record.record_type,
+            "type_name": record.type_name,
+            "kind": record.kind,
+            "kind_name": record.kind_name,
+            "boot_id": header.boot_id.hex(),
+            # The absence of a span is sixteen zero bytes, not None —
+            # the package's own `spans()` skips records whose span_id
+            # is ZERO16. Rendering that as an identifier would put a
+            # span called 00000000… on the screen and in reports.
+            "span_id": _span_or_none(header.span_id),
+            "parent_span_id": _span_or_none(header.parent_span_id),
+            "wall_clock_ns": header.wall_clock_ns,
+            "monotonic_ns": header.monotonic_ns,
+            "assurance_tier": self._named(
+                {header.assurance_tier}, assurance_tier_name
+            )[0],
+            "time_trust": self._named({header.time_trust}, time_trust_name)[0],
+            "body_len": header.body_len,
+            # None when the reader produced no TLV list at all. On
+            # a plain chain that is the record types with no body —
+            # GENESIS, BOOT and ANCHOR all report body_len 0 — but
+            # an encrypted or unparseable body reaches here the same
+            # way. Either way it is "this view has no TLV types to
+            # show", which is a different fact from "the body has
+            # none", and [] would conflate them.
+            "body_tlv_types": None
+            if record.body_tlvs is None
+            else sorted({tlv_type for tlv_type, _ in record.body_tlvs}),
+            # An integer, and zero means "not encrypted under a named key"
+            # rather than "key number zero".
+            "key_id": None if header.key_id == 0 else header.key_id,
+        }
+
+    def origin(self, seq: int) -> dict[str, object] | None:
+        """What was running when a record was written, or None if unstated.
+
+        `None` is a real answer and the common one at the start of a chain:
+        nothing before the first MODEL_LOAD has an origin, because none had
+        been declared. A UI must show that as "not stated in this file"
+        rather than as an empty card, which would read as "nothing was
+        running".
+
+        `since_seq` is the record that declared it, so a reader can jump to
+        the declaration rather than take this on trust — the same reason
+        every other claim here names its source.
+        """
+        view = self._reader.origin_at(seq)
+        if view is None:
+            return None
+        return {
+            "role": view.role,
+            "model_digest": view.model_digest.hex(),
+            "config_digest": view.config_digest.hex(),
+            "since_seq": view.since_seq,
+            "detail": view.detail,
         }
 
     def subject(self) -> dict[str, object]:
