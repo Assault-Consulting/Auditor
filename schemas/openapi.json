@@ -274,6 +274,45 @@
         "title": "AnchorSourceSpec",
         "type": "object"
       },
+      "BootBoundary": {
+        "description": "Where one boot begins and ends, on both axes.\n\nRendered as an axis break rather than a seam (\u00a7C-03). `monotonic_ns`\nresets across a boot, so no duration spans one \u2014 and nothing in this\npayload computes one that does.",
+        "properties": {
+          "boot_id": {
+            "description": "Hex boot identifier.",
+            "title": "Boot Id",
+            "type": "string"
+          },
+          "first_seq": {
+            "description": "First record of this boot.",
+            "title": "First Seq",
+            "type": "integer"
+          },
+          "first_wall_ns": {
+            "description": "Wall clock at its first record.",
+            "title": "First Wall Ns",
+            "type": "integer"
+          },
+          "last_seq": {
+            "description": "Last record of this boot.",
+            "title": "Last Seq",
+            "type": "integer"
+          },
+          "last_wall_ns": {
+            "description": "Wall clock at its last record.",
+            "title": "Last Wall Ns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "boot_id",
+          "first_seq",
+          "last_seq",
+          "first_wall_ns",
+          "last_wall_ns"
+        ],
+        "title": "BootBoundary",
+        "type": "object"
+      },
       "BootView": {
         "description": "One boot, with the statistics the package computes for it.\n\nA boot is the unit that matters for reading time: `monotonic_ns` resets\nacross a boundary, so no duration spans one.",
         "properties": {
@@ -1169,6 +1208,182 @@
         "title": "SpanView",
         "type": "object"
       },
+      "TimeStepModel": {
+        "description": "A step in the writer's clock, as the package detected it.",
+        "properties": {
+          "boot_id": {
+            "description": "Which boot it happened in.",
+            "title": "Boot Id",
+            "type": "string"
+          },
+          "delta_ns": {
+            "description": "How far the clock moved.",
+            "title": "Delta Ns",
+            "type": "integer"
+          },
+          "kind": {
+            "description": "The package's name for the kind of step.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "seq": {
+            "description": "Where the step was detected.",
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "kind",
+          "delta_ns",
+          "boot_id"
+        ],
+        "title": "TimeStepModel",
+        "type": "object"
+      },
+      "Timeline": {
+        "description": "Record density along one axis, and what breaks the ruler.\n\n**Two axes, and they are not interchangeable (L3).** `seq` is proved\norder: the hash chain establishes it and nothing can reorder it. `wall`\nis the writer's clock \u2014 a recorded claim, qualified by `time_trust`.",
+        "properties": {
+          "axis": {
+            "description": "'seq' or 'wall'.",
+            "title": "Axis",
+            "type": "string"
+          },
+          "basis": {
+            "description": "'proved' for the seq axis, 'recorded' for the wall axis. Carried as its own field rather than left to be derived from `axis`, so a consumer cannot label a wall chart 'proved' by reading the wrong one.",
+            "title": "Basis",
+            "type": "string"
+          },
+          "boot_boundaries": {
+            "description": "Reported apart from the series, because they are axis breaks.",
+            "items": {
+              "$ref": "#/components/schemas/BootBoundary"
+            },
+            "title": "Boot Boundaries",
+            "type": "array"
+          },
+          "buckets": {
+            "description": "Uniform intervals across the range, empty ones included.",
+            "items": {
+              "$ref": "#/components/schemas/TimelineBucket"
+            },
+            "title": "Buckets",
+            "type": "array"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Highest position on this axis.",
+            "title": "End"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lowest position on this axis.",
+            "title": "Start"
+          },
+          "steps": {
+            "description": "Clock steps the package detected, with where and how far.",
+            "items": {
+              "$ref": "#/components/schemas/TimeStepModel"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "time_trust_values": {
+            "description": "Every clock-trust level the records carry. The watermark for a wall-time view: it says whose clock this is, and how much the writer claimed for it.",
+            "items": {
+              "$ref": "#/components/schemas/NamedValue"
+            },
+            "title": "Time Trust Values",
+            "type": "array"
+          },
+          "wall_follows_seq": {
+            "description": "Whether wall_clock_ns is non-decreasing along proved order. FALSE MEANS THE WALL AXIS REORDERS RECORDS relative to the chain, and a UI showing that axis must say so.",
+            "title": "Wall Follows Seq",
+            "type": "boolean"
+          },
+          "wall_gaps": {
+            "description": "The intervals between boots, where the ruler does not apply.",
+            "items": {
+              "$ref": "#/components/schemas/WallGap"
+            },
+            "title": "Wall Gaps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "axis",
+          "basis",
+          "buckets",
+          "start",
+          "end",
+          "boot_boundaries",
+          "wall_gaps",
+          "wall_follows_seq",
+          "time_trust_values",
+          "steps"
+        ],
+        "title": "Timeline",
+        "type": "object"
+      },
+      "TimelineBucket": {
+        "description": "One interval of the axis, and what fell inside it.\n\nPresent even when empty. An empty stretch is a fact about the chain \u2014\nthe quiet week, the gap between boots \u2014 and a series that omitted empty\nbuckets would draw a dense chain out of a sparse one.",
+        "properties": {
+          "anchor": {
+            "description": "How many of them are ANCHOR records.",
+            "title": "Anchor",
+            "type": "integer"
+          },
+          "count": {
+            "description": "Records in it.",
+            "title": "Count",
+            "type": "integer"
+          },
+          "end": {
+            "description": "Last position in this bucket, inclusive.",
+            "title": "End",
+            "type": "integer"
+          },
+          "safety": {
+            "description": "How many of them are SAFETY records.",
+            "title": "Safety",
+            "type": "integer"
+          },
+          "start": {
+            "description": "First position in this bucket, inclusive.",
+            "title": "Start",
+            "type": "integer"
+          },
+          "stepped": {
+            "description": "Whether the writer's clock stepped inside this bucket. On the wall axis a stepped bucket is measuring two different clocks, so its width means nothing \u2014 a UI must mark it rather than draw it like the others.",
+            "title": "Stepped",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "count",
+          "safety",
+          "anchor",
+          "stepped"
+        ],
+        "title": "TimelineBucket",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -1287,6 +1502,45 @@
           "advisory"
         ],
         "title": "VerificationResponse",
+        "type": "object"
+      },
+      "WallGap": {
+        "description": "The wall-clock distance between one boot's end and the next one's start.\n\nReported with both ends so a consumer can hatch the interval and **remove\nthe ruler inside it**: the clock is unverifiable while the system is\ndown, which is a statement about the gap rather than about the records\non either side.",
+        "properties": {
+          "after_boot_id": {
+            "description": "The boot that ended.",
+            "title": "After Boot Id",
+            "type": "string"
+          },
+          "before_boot_id": {
+            "description": "The boot that started.",
+            "title": "Before Boot Id",
+            "type": "string"
+          },
+          "duration_ns": {
+            "description": "to_wall_ns minus from_wall_ns. CAN BE NEGATIVE \u2014 that means the writer's clock moved backwards across the boundary, which the ruler cannot represent and a UI must not hide.",
+            "title": "Duration Ns",
+            "type": "integer"
+          },
+          "from_wall_ns": {
+            "description": "Wall clock at the earlier boot's last record.",
+            "title": "From Wall Ns",
+            "type": "integer"
+          },
+          "to_wall_ns": {
+            "description": "Wall clock at the later boot's first record.",
+            "title": "To Wall Ns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "after_boot_id",
+          "before_boot_id",
+          "from_wall_ns",
+          "to_wall_ns",
+          "duration_ns"
+        ],
+        "title": "WallGap",
         "type": "object"
       }
     }
@@ -1891,6 +2145,72 @@
           }
         },
         "summary": "Session Spans"
+      }
+    },
+    "/session/{session_id}/timeline": {
+      "get": {
+        "description": "Record density along one axis, with the boot breaks beside it.",
+        "operationId": "session_timeline_session__session_id__timeline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "'seq' for proved order, 'wall' for the writer's clock. Defaults to seq because that is the axis the chain establishes; wall time is a claim and is opt-in (L3).",
+            "in": "query",
+            "name": "axis",
+            "required": false,
+            "schema": {
+              "default": "seq",
+              "description": "'seq' for proved order, 'wall' for the writer's clock. Defaults to seq because that is the axis the chain establishes; wall time is a claim and is opt-in (L3).",
+              "title": "Axis",
+              "type": "string"
+            }
+          },
+          {
+            "description": "How many intervals to divide the range into. Bounded for the same reason the record page is: the caller choosing the resolution must not be able to ask for a response the sidecar cannot build.",
+            "in": "query",
+            "name": "buckets",
+            "required": false,
+            "schema": {
+              "default": 120,
+              "description": "How many intervals to divide the range into. Bounded for the same reason the record page is: the caller choosing the resolution must not be able to ask for a response the sidecar cannot build.",
+              "maximum": 2000,
+              "minimum": 1,
+              "title": "Buckets",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timeline"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session Timeline"
       }
     },
     "/session/{session_id}/verify": {
