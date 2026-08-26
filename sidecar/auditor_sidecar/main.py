@@ -36,7 +36,9 @@ from .models import (
     HealthResponse,
     KeychainSeedRequest,
     KeychainStatus,
+    OriginModel,
     RecordPage,
+    RecordView,
     SessionRequest,
     SessionResponse,
     SpanView,
@@ -317,11 +319,82 @@ def build_app(token: str | None = None) -> FastAPI:
                 "response the sidecar cannot build."
             ),
         ),
+        record_type: int | None = Query(
+            default=None,
+            description=(
+                "Keep only records of this raw type. Filtering by a type "
+                "that appears nowhere yields an empty window rather than an "
+                "error — that is the truthful answer to the question asked."
+            ),
+        ),
+        boot_id: str | None = Query(
+            default=None, description="Keep only records from this boot."
+        ),
+        span_id: str | None = Query(
+            default=None, description="Keep only records carrying this span."
+        ),
     ) -> RecordPage:
-        """A window onto the records, as structure rather than content."""
+        """A window onto the records, as structure rather than content.
+
+        `total` counts the records that matched the filters, not the records
+        in the file. A total that counted everything would print "3 of 40000"
+        above three rows that are the only three there are.
+        """
         session = _session_or_404(app, session_id)
         _assert_still_the_subject(session)
-        return RecordPage(**session.records(offset=offset, limit=limit))
+        return RecordPage(
+            **session.records(
+                offset=offset,
+                limit=limit,
+                record_type=record_type,
+                boot_id=boot_id,
+                span_id=span_id,
+            )
+        )
+
+    @app.get("/session/{session_id}/record/{seq}", response_model=RecordView)
+    def session_record(session_id: str, seq: int) -> RecordView:
+        """One record by sequence number.
+
+        404 when the file holds no such record. A segment covering records
+        400–900 legitimately has no record 12, and saying so is different
+        from saying the session is unknown — which the caller can tell apart
+        because that 404 names the session instead.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        record = session.record(seq)
+        if record is None:
+            raise HTTPException(
+                status_code=404, detail=f"this container holds no record {seq}"
+            )
+        return RecordView(**record)
+
+    @app.get("/session/{session_id}/origin", response_model=OriginModel | None)
+    def session_origin(
+        session_id: str,
+        seq: int = Query(
+            description=(
+                "The record to ask about. Required rather than defaulted: "
+                "origin changes along a chain, so an unasked-for default "
+                "would answer a different question than the caller meant."
+            ),
+        ),
+    ) -> OriginModel | None:
+        """What was running when a record was written, or null if unstated.
+
+        **Null is an answer, not an absence.** Nothing before the first
+        MODEL_LOAD has an origin, because none had been declared — and a UI
+        must render that as "not stated in this file" rather than as an
+        empty card, which would read as "nothing was running".
+
+        200 with a null body rather than 404 for that reason: the question
+        was answered, and the answer is that the file does not say.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        origin = session.origin(seq)
+        return None if origin is None else OriginModel(**origin)
 
     @app.get("/session/{session_id}/verify", response_model=VerificationResponse)
     def verify_session(
