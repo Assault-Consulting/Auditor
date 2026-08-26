@@ -148,12 +148,51 @@ wrong.
 The cost is a second pass over the file, paid once per (session, profile)
 and cached with the verification.
 
+### An answer of "the file does not say" is a 200, not a 404
+
+`GET /session/{id}/origin` returns **200 with a null body** when no origin
+had been declared at that record — which is the ordinary state before the
+first `MODEL_LOAD`.
+
+The question was asked and it was answered: this file does not say. A 404
+would mean the question cannot be asked here, which is a different and false
+statement, and a UI receiving it would show an error where it should show
+"not stated in this file" — the same failure as rendering `not checked` as
+`failed`.
+
+The response is typed `OriginModel | null` in the schema, so a generated
+client cannot forget the case.
+
+The counterpart: `GET /session/{id}/record/{seq}` **is** a 404 when the file
+holds no such record, and the message names the record. A segment covering
+400–900 legitimately has no record 12. A caller distinguishes it from an
+unknown session because that 404 says "no such session" instead — two
+absences, two messages.
+
+### Filtering by something absent is an empty answer
+
+`/records` accepts `record_type`, `boot_id` and `span_id`, ANDed. A value
+that appears nowhere in the file yields an empty window rather than an
+error, because "show me that boot's records" has a truthful answer when the
+file does not contain that boot.
+
+**`total` counts the matches, not the file.** A total that counted
+everything would print "3 of 40000" above three rows that are the only three
+there are. Its description said "records in the whole chain" until the
+filters landed — true before, false after, and nothing failed, because with
+no filters the two readings agree.
+
+There is currently **no way to ask for "records in no span at all"**:
+`span_id` absent already means "do not filter by span". That is a real gap
+rather than an oversight — the filter chips of §C-09 will need it, and
+inventing a sentinel here would decide their vocabulary from the wrong end.
+
 ### Status codes carry meaning, not habit
 
 | Code | When | Why not something else |
 |---|---|---|
 | **422** | the path resolved and the bytes are not a chain | 404 would say the file is missing; 500 would say this service is broken. Both send the operator to the wrong place |
-| **404** | no such session, or no such anchor profile | Never a silent fallback to "no anchor": that answers a question the caller did not ask and labels it as theirs, and *not checked* looks identical whether it was requested or substituted |
+| **404** | no such session, no such anchor profile, or no such record | Never a silent fallback to "no anchor": that answers a question the caller did not ask and labels it as theirs, and *not checked* looks identical whether it was requested or substituted. The three 404s carry different messages so the caller knows which thing is missing |
 | **409** | the file changed under an open session; or an attempt to redefine the `none` profile | A verdict about bytes that have since changed is worse than no verdict, because it looks like one |
 | **503** | the machine has no usable secret store | The service is fine. A 500 would send the operator to our logs for something they can fix |
 | **401** | missing or wrong session token | **Returned, not raised.** An `HTTPException` raised inside middleware bypasses the exception handlers and surfaces as 500 — reporting an authentication refusal as a server fault |
@@ -191,6 +230,12 @@ Caching is a correctness measure before it is a performance one. Two runs
 that disagreed would mean a verdict was shown that can no longer be
 reproduced — and since the answer now costs two passes over the file, it is
 a performance measure as well.
+
+The browse views split on the same rule. Boots and spans are cached: each
+has one answer for the life of the session. Records, a single record and an
+origin are not: each has one answer *per question asked* — a different
+offset, a different filter, a different seq — so a cache would grow with the
+questions rather than converge.
 
 ### Every route but `/health` requires the session token
 
@@ -235,3 +280,10 @@ There is no mechanical check for prose. The working rule: **a pull request
 that changes a status code, adds a field that can be null, or adds a route
 grep this file for the thing it changed.** That is discipline rather than a
 gate, and it is worth naming as such instead of pretending otherwise.
+
+And the rule has already been broken once by the person who wrote it: the
+pull request adding `/record/{seq}`, `/origin` and the record filters — three
+routes, a nullable response and two status decisions — did not touch this
+file. It was corrected in the same branch, which is the best case; the point
+of recording it here is that "discipline rather than a gate" is a real cost,
+paid in misses, and not a lighter form of the same thing.

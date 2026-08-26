@@ -322,6 +322,27 @@ export interface NamedValue {
 }
 
 /**
+ * What was running when a record was written.
+ *
+ * Every field is a **Recorded** claim: the writer declared it, and nothing
+ * in the chain proves the process was actually running that model. The
+ * digests let a reader compare against an artifact they hold; they do not
+ * establish what produced the records.
+ */
+export interface OriginModel {
+  /** The declared role, e.g. 'engine.native'. */
+  role: string;
+  /** Hex digest of the model as the writer declared it. */
+  model_digest: string;
+  /** Hex digest of the configuration as the writer declared it. */
+  config_digest: string;
+  /** The record that declared this origin. A reader can jump to it and see the declaration rather than take this on trust — the same reason every other claim here names its source. */
+  since_seq: number;
+  /** Free text the writer attached, when it attached any. */
+  detail: string | null;
+}
+
+/**
  * A window onto the records.
  *
  * Paginated because a chain has no bound: a container from a busy
@@ -334,7 +355,7 @@ export interface RecordPage {
   offset: number;
   /** Most records this window would return. */
   limit: number;
-  /** Records in the whole chain. */
+  /** Records that MATCHED THE FILTERS, not records in the file. With no filters the two are the same, which is why this field could quietly say the wrong thing once filters existed: a total counting everything would print '3 of 40000' above three rows that are the only three there are. */
   total: number;
   /** Whether records remain past this window. Stated rather than left to be inferred from len(records) == limit, which is ambiguous when a window ends exactly on the last record. */
   has_more: boolean;
