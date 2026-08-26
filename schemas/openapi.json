@@ -775,6 +775,52 @@
         "title": "NamedValue",
         "type": "object"
       },
+      "OriginModel": {
+        "description": "What was running when a record was written.\n\nEvery field is a **Recorded** claim: the writer declared it, and nothing\nin the chain proves the process was actually running that model. The\ndigests let a reader compare against an artifact they hold; they do not\nestablish what produced the records.",
+        "properties": {
+          "config_digest": {
+            "description": "Hex digest of the configuration as the writer declared it.",
+            "title": "Config Digest",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free text the writer attached, when it attached any.",
+            "title": "Detail"
+          },
+          "model_digest": {
+            "description": "Hex digest of the model as the writer declared it.",
+            "title": "Model Digest",
+            "type": "string"
+          },
+          "role": {
+            "description": "The declared role, e.g. 'engine.native'.",
+            "title": "Role",
+            "type": "string"
+          },
+          "since_seq": {
+            "description": "The record that declared this origin. A reader can jump to it and see the declaration rather than take this on trust \u2014 the same reason every other claim here names its source.",
+            "title": "Since Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "role",
+          "model_digest",
+          "config_digest",
+          "since_seq",
+          "detail"
+        ],
+        "title": "OriginModel",
+        "type": "object"
+      },
       "RecordPage": {
         "description": "A window onto the records.\n\nPaginated because a chain has no bound: a container from a busy\ndeployment can hold millions of records, and an endpoint that serialised\nall of them would fail in the situation where the tool is most needed.",
         "properties": {
@@ -801,7 +847,7 @@
             "type": "array"
           },
           "total": {
-            "description": "Records in the whole chain.",
+            "description": "Records that MATCHED THE FILTERS, not records in the file. With no filters the two are the same, which is why this field could quietly say the wrong thing once filters existed: a total counting everything would print '3 of 40000' above three rows that are the only three there are.",
             "title": "Total",
             "type": "integer"
           }
@@ -1574,9 +1620,117 @@
         "summary": "Session Boots"
       }
     },
+    "/session/{session_id}/origin": {
+      "get": {
+        "description": "What was running when a record was written, or null if unstated.\n\n**Null is an answer, not an absence.** Nothing before the first\nMODEL_LOAD has an origin, because none had been declared \u2014 and a UI\nmust render that as \"not stated in this file\" rather than as an\nempty card, which would read as \"nothing was running\".\n\n200 with a null body rather than 404 for that reason: the question\nwas answered, and the answer is that the file does not say.",
+        "operationId": "session_origin_session__session_id__origin_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The record to ask about. Required rather than defaulted: origin changes along a chain, so an unasked-for default would answer a different question than the caller meant.",
+            "in": "query",
+            "name": "seq",
+            "required": true,
+            "schema": {
+              "description": "The record to ask about. Required rather than defaulted: origin changes along a chain, so an unasked-for default would answer a different question than the caller meant.",
+              "title": "Seq",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OriginModel"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Session Origin Session  Session Id  Origin Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session Origin"
+      }
+    },
+    "/session/{session_id}/record/{seq}": {
+      "get": {
+        "description": "One record by sequence number.\n\n404 when the file holds no such record. A segment covering records\n400\u2013900 legitimately has no record 12, and saying so is different\nfrom saying the session is unknown \u2014 which the caller can tell apart\nbecause that 404 names the session instead.",
+        "operationId": "session_record_session__session_id__record__seq__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "seq",
+            "required": true,
+            "schema": {
+              "title": "Seq",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session Record"
+      }
+    },
     "/session/{session_id}/records": {
       "get": {
-        "description": "A window onto the records, as structure rather than content.",
+        "description": "A window onto the records, as structure rather than content.\n\n`total` counts the records that matched the filters, not the records\nin the file. A total that counted everything would print \"3 of 40000\"\nabove three rows that are the only three there are.",
         "operationId": "session_records_session__session_id__records_get",
         "parameters": [
           {
@@ -1613,6 +1767,60 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Keep only records of this raw type. Filtering by a type that appears nowhere yields an empty window rather than an error \u2014 that is the truthful answer to the question asked.",
+            "in": "query",
+            "name": "record_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep only records of this raw type. Filtering by a type that appears nowhere yields an empty window rather than an error \u2014 that is the truthful answer to the question asked.",
+              "title": "Record Type"
+            }
+          },
+          {
+            "description": "Keep only records from this boot.",
+            "in": "query",
+            "name": "boot_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep only records from this boot.",
+              "title": "Boot Id"
+            }
+          },
+          {
+            "description": "Keep only records carrying this span.",
+            "in": "query",
+            "name": "span_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep only records carrying this span.",
+              "title": "Span Id"
             }
           }
         ],
