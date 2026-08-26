@@ -419,17 +419,32 @@ def build_app(token: str | None = None) -> FastAPI:
                 "sidecar cannot build."
             ),
         ),
+        align: str | None = Query(
+            default=None,
+            description=(
+                "Omit for uniform buckets. 'day' makes each bucket one UTC "
+                "calendar day, which is what a date rail needs: a uniform "
+                "bucket of roughly a day straddles midnight, so a record "
+                "just after it would be labelled with the previous date. "
+                "Needs axis='wall' — sequence numbers have no calendar."
+            ),
+        ),
     ) -> Timeline:
         """Record density along one axis, with the boot breaks beside it."""
         session = _session_or_404(app, session_id)
         _assert_still_the_subject(session)
         try:
-            return Timeline(**session.timeline(axis=axis, buckets=buckets))
+            return Timeline(
+                **session.timeline(axis=axis, buckets=buckets, align=align)
+            )
         except ValueError as exc:
-            # 422 rather than a silent fall back to the seq axis. Answering
-            # on a different axis than the one asked for, and labelling it as
-            # the caller's choice, is how a recorded claim gets read as a
-            # proved one.
+            # 422 for all three of the seam's refusals — an unknown axis, an
+            # unknown alignment, and a bucket count too small for the span —
+            # because each of them has the same alternative and it is worse.
+            # Substituting a default would answer a different question than
+            # the caller asked and return it labelled as theirs: uniform
+            # buckets marked as calendar days, or a rail silently missing its
+            # last stretch, which looks exactly like a chain that ended early.
             raise HTTPException(status_code=422, detail=str(exc)) from None
 
     @app.get("/session/{session_id}/verify", response_model=VerificationResponse)
