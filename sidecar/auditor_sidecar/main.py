@@ -31,12 +31,15 @@ from .keychain import available as keychain_available
 from .keychain import write as keychain_write
 from .models import (
     AnchorProfile,
+    BootView,
     ChainSubject,
     HealthResponse,
     KeychainSeedRequest,
     KeychainStatus,
+    RecordPage,
     SessionRequest,
     SessionResponse,
+    SpanView,
     VerificationResponse,
 )
 from .pala_seam import NotAChain, UnknownAnchorKind, verifier_identity
@@ -277,6 +280,49 @@ def build_app(token: str | None = None) -> FastAPI:
             # to our logs.
             raise HTTPException(status_code=503, detail=str(exc)) from None
 
+    @app.get("/session/{session_id}/boots", response_model=list[BootView])
+    def session_boots(session_id: str) -> list[BootView]:
+        """The boots in this container, with their statistics.
+
+        Browsing is separate from verifying, and answers no question about
+        soundness. A chain that fails verification is still browsed — half
+        the job is inspecting evidence that did not pass.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        return [BootView(**boot) for boot in session.boots()]
+
+    @app.get("/session/{session_id}/spans", response_model=list[SpanView])
+    def session_spans(session_id: str) -> list[SpanView]:
+        """The spans in this container, including the ones never closed."""
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        return [SpanView(**span) for span in session.spans()]
+
+    @app.get("/session/{session_id}/records", response_model=RecordPage)
+    def session_records(
+        session_id: str,
+        offset: int = Query(
+            default=0,
+            ge=0,
+            description="First sequence number to include.",
+        ),
+        limit: int = Query(
+            default=200,
+            ge=1,
+            le=1000,
+            description=(
+                "Most records to return. Bounded at 1000 because the caller "
+                "choosing the page size must not be able to ask for a "
+                "response the sidecar cannot build."
+            ),
+        ),
+    ) -> RecordPage:
+        """A window onto the records, as structure rather than content."""
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        return RecordPage(**session.records(offset=offset, limit=limit))
+
     @app.get("/session/{session_id}/verify", response_model=VerificationResponse)
     def verify_session(
         session_id: str,
@@ -299,13 +345,7 @@ def build_app(token: str | None = None) -> FastAPI:
         verdict means — which is the one thing ADR-0001 exists to prevent.
         """
         session = _session_or_404(app, session_id)
-        try:
-            session.assert_unchanged()
-        except SubjectChanged as exc:
-            # 409, not 200-with-a-warning. The session's subject and the file
-            # on disk are no longer the same artifact, so there is no honest
-            # answer to give — only a refusal that names the reason.
-            raise HTTPException(status_code=409, detail=str(exc)) from None
+        _assert_still_the_subject(session)
 
         try:
             sources = app.state.anchors.get(profile)
@@ -340,6 +380,25 @@ def build_app(token: str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="no such session") from None
 
     return app
+
+
+def _assert_still_the_subject(session) -> None:
+    """409 when the file moved under an open session.
+
+    Not 200-with-a-warning. The session's subject and the file on disk are no
+    longer the same artifact, so there is no honest answer to give — only a
+    refusal that names the reason. A verdict about bytes that have since
+    changed is worse than none, because it looks like one.
+
+    Browsing needs this as much as verifying does, which is why it is one
+    function rather than a check copied into each route: a record list read
+    from a file that has since changed describes bytes nobody is holding any
+    more, and looks exactly like one that does not.
+    """
+    try:
+        session.assert_unchanged()
+    except SubjectChanged as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
 def _session_or_404(app: FastAPI, session_id: str):
