@@ -125,6 +125,34 @@
         "title": "AnchorAttemptModel",
         "type": "object"
       },
+      "AnchorCadenceModel": {
+        "description": "How often this boot anchored its head.\n\nThe widest gap is the useful figure: it is how long the chain went\nwithout an external witness, and therefore how wide an \"existed by\"\nbracket would be for records inside it.",
+        "properties": {
+          "count": {
+            "description": "Anchor records written during this boot.",
+            "title": "Count",
+            "type": "integer"
+          },
+          "widest_gap_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Longest interval between anchors, in nanoseconds.",
+            "title": "Widest Gap Ns"
+          }
+        },
+        "required": [
+          "count",
+          "widest_gap_ns"
+        ],
+        "title": "AnchorCadenceModel",
+        "type": "object"
+      },
       "AnchorProfile": {
         "description": "An ordered list of places to look for a trusted head.\n\nOrder is meaningful and is the user's: the first source that answers wins,\nand the ones before it are reported as tried. That is why resolution is\navailability-first \u2014 a source that errors does not stop the walk \u2014 and why\nthe provenance view has to show what was skipped rather than only what\nanswered.",
         "properties": {
@@ -244,6 +272,82 @@
           "kind"
         ],
         "title": "AnchorSourceSpec",
+        "type": "object"
+      },
+      "BootView": {
+        "description": "One boot, with the statistics the package computes for it.\n\nA boot is the unit that matters for reading time: `monotonic_ns` resets\nacross a boundary, so no duration spans one.",
+        "properties": {
+          "anchors": {
+            "$ref": "#/components/schemas/AnchorCadenceModel"
+          },
+          "boot_id": {
+            "description": "Hex boot identifier.",
+            "title": "Boot Id",
+            "type": "string"
+          },
+          "first_seq": {
+            "description": "First record in this boot.",
+            "title": "First Seq",
+            "type": "integer"
+          },
+          "last_seq": {
+            "description": "Last record in this boot.",
+            "title": "Last Seq",
+            "type": "integer"
+          },
+          "record_count": {
+            "description": "Records written during it.",
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "recovery_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where this boot recovered a truncated tail, when it did. Null is the ordinary case rather than a missing value.",
+            "title": "Recovery Seq"
+          },
+          "spans": {
+            "$ref": "#/components/schemas/SpanStatsModel"
+          },
+          "time_trust_values": {
+            "description": "Every wall-clock trust level seen inside this boot. More than one means the clock changed status mid-boot, which qualifies every wall-time claim in it \u2014 so the set is carried rather than reduced to the latest.",
+            "items": {
+              "$ref": "#/components/schemas/NamedValue"
+            },
+            "title": "Time Trust Values",
+            "type": "array"
+          },
+          "uptime_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monotonic span of this boot, computed by the package.",
+            "title": "Uptime Ns"
+          }
+        },
+        "required": [
+          "boot_id",
+          "first_seq",
+          "last_seq",
+          "record_count",
+          "time_trust_values",
+          "recovery_seq",
+          "uptime_ns",
+          "anchors",
+          "spans"
+        ],
+        "title": "BootView",
         "type": "object"
       },
       "ChainResult": {
@@ -671,6 +775,194 @@
         "title": "NamedValue",
         "type": "object"
       },
+      "RecordPage": {
+        "description": "A window onto the records.\n\nPaginated because a chain has no bound: a container from a busy\ndeployment can hold millions of records, and an endpoint that serialised\nall of them would fail in the situation where the tool is most needed.",
+        "properties": {
+          "has_more": {
+            "description": "Whether records remain past this window. Stated rather than left to be inferred from len(records) == limit, which is ambiguous when a window ends exactly on the last record.",
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "limit": {
+            "description": "Most records this window would return.",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "First sequence number this window could include.",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/RecordView"
+            },
+            "title": "Records",
+            "type": "array"
+          },
+          "total": {
+            "description": "Records in the whole chain.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "records",
+          "offset",
+          "limit",
+          "total",
+          "has_more"
+        ],
+        "title": "RecordPage",
+        "type": "object"
+      },
+      "RecordView": {
+        "description": "One record, as structure rather than as content.\n\nHeader fields and the shape of the body. What is *inside* a record is a\nseparate view with its own decisions about keys and redaction.",
+        "properties": {
+          "assurance_tier": {
+            "$ref": "#/components/schemas/NamedValue"
+          },
+          "body_len": {
+            "description": "Body length in bytes.",
+            "title": "Body Len",
+            "type": "integer"
+          },
+          "body_tlv_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "TLV types present in the body, or null when this view has none to show \u2014 a record type with no body, an encrypted body, or one this build cannot parse. Distinct from [], which would mean a decoded body containing nothing.",
+            "title": "Body Tlv Types"
+          },
+          "boot_id": {
+            "description": "Hex boot identifier.",
+            "title": "Boot Id",
+            "type": "string"
+          },
+          "key_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Encryption key identifier, or null when the body is not encrypted.",
+            "title": "Key Id"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Raw kind, for types that carry one.",
+            "title": "Kind"
+          },
+          "kind_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's name for the kind. Null where the record type has no kind at all \u2014 GENESIS, BOOT and ANCHOR do not \u2014 which is not the same as a kind this build cannot name.",
+            "title": "Kind Name"
+          },
+          "monotonic_ns": {
+            "description": "Monotonic clock. Comparable only within one boot.",
+            "title": "Monotonic Ns",
+            "type": "integer"
+          },
+          "parent_span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The enclosing span, when there is one.",
+            "title": "Parent Span Id"
+          },
+          "record_type": {
+            "description": "Raw record type.",
+            "title": "Record Type",
+            "type": "integer"
+          },
+          "seq": {
+            "description": "Sequence number.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hex span identifier, or null when the record is in no span. PALA-1 spells that as sixteen zero bytes; this field reports null rather than a span named 00000000\u2026",
+            "title": "Span Id"
+          },
+          "time_trust": {
+            "$ref": "#/components/schemas/NamedValue"
+          },
+          "type_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's name for the type, or null if unknown to this build.",
+            "title": "Type Name"
+          },
+          "wall_clock_ns": {
+            "description": "The writer's wall clock. A Recorded claim, qualified by time_trust.",
+            "title": "Wall Clock Ns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "record_type",
+          "type_name",
+          "kind",
+          "kind_name",
+          "boot_id",
+          "span_id",
+          "parent_span_id",
+          "wall_clock_ns",
+          "monotonic_ns",
+          "assurance_tier",
+          "time_trust",
+          "body_len",
+          "body_tlv_types",
+          "key_id"
+        ],
+        "title": "RecordView",
+        "type": "object"
+      },
       "SessionRequest": {
         "description": "Open a container.",
         "properties": {
@@ -713,6 +1005,122 @@
           "verifier"
         ],
         "title": "SessionResponse",
+        "type": "object"
+      },
+      "SpanStatsModel": {
+        "description": "Spans opened during this boot, and how many were left open.",
+        "properties": {
+          "closed": {
+            "description": "Spans that have an end record.",
+            "title": "Closed",
+            "type": "integer"
+          },
+          "median_duration_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Median closed-span duration, or null when none closed.",
+            "title": "Median Duration Ns"
+          },
+          "open": {
+            "description": "Spans opened and never closed. Evidence of an interrupted operation, not a defect in the log.",
+            "title": "Open",
+            "type": "integer"
+          },
+          "open_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Open spans as a fraction, or null when there were no spans.",
+            "title": "Open Rate"
+          }
+        },
+        "required": [
+          "closed",
+          "open",
+          "open_rate",
+          "median_duration_ns"
+        ],
+        "title": "SpanStatsModel",
+        "type": "object"
+      },
+      "SpanView": {
+        "description": "One span, and the records it covers.",
+        "properties": {
+          "end_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The SPAN_END record, or NULL FOR A SPAN NEVER CLOSED. Null is first-class evidence \u2014 an interrupted operation looks exactly like this \u2014 and must never be filled in with the last record seen.",
+            "title": "End Seq"
+          },
+          "parent_span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The enclosing span, or null at the top level.",
+            "title": "Parent Span Id"
+          },
+          "record_count": {
+            "description": "Records carrying this span id.",
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "record_seqs": {
+            "description": "Their sequence numbers.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Record Seqs",
+            "type": "array"
+          },
+          "span_id": {
+            "description": "Hex span identifier.",
+            "title": "Span Id",
+            "type": "string"
+          },
+          "start_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The SPAN_START record, or null when it is not in this file.",
+            "title": "Start Seq"
+          }
+        },
+        "required": [
+          "span_id",
+          "parent_span_id",
+          "start_seq",
+          "end_seq",
+          "record_count",
+          "record_seqs"
+        ],
+        "title": "SpanView",
         "type": "object"
       },
       "ValidationError": {
@@ -1120,6 +1528,161 @@
           }
         },
         "summary": "Get Session"
+      }
+    },
+    "/session/{session_id}/boots": {
+      "get": {
+        "description": "The boots in this container, with their statistics.\n\nBrowsing is separate from verifying, and answers no question about\nsoundness. A chain that fails verification is still browsed \u2014 half\nthe job is inspecting evidence that did not pass.",
+        "operationId": "session_boots_session__session_id__boots_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BootView"
+                  },
+                  "title": "Response Session Boots Session  Session Id  Boots Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session Boots"
+      }
+    },
+    "/session/{session_id}/records": {
+      "get": {
+        "description": "A window onto the records, as structure rather than content.",
+        "operationId": "session_records_session__session_id__records_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First sequence number to include.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "First sequence number to include.",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Most records to return. Bounded at 1000 because the caller choosing the page size must not be able to ask for a response the sidecar cannot build.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "description": "Most records to return. Bounded at 1000 because the caller choosing the page size must not be able to ask for a response the sidecar cannot build.",
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session Records"
+      }
+    },
+    "/session/{session_id}/spans": {
+      "get": {
+        "description": "The spans in this container, including the ones never closed.",
+        "operationId": "session_spans_session__session_id__spans_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SpanView"
+                  },
+                  "title": "Response Session Spans Session  Session Id  Spans Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session Spans"
       }
     },
     "/session/{session_id}/verify": {
