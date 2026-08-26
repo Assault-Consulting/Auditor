@@ -17,7 +17,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { advisoryGroups, advisoryLine } from "./api/advisory";
-import { listProfiles } from "./api/chain";
+import { chainTimeline, listProfiles } from "./api/chain";
+import { type Chronoscope, backwards, chronoscope, density } from "./api/chronoscope";
 import { type ChainState, chainLine, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { diagnosisCard } from "./api/diagnosis";
 import type { AnchorProfile } from "./api/generated/types";
@@ -134,7 +135,52 @@ type Choice =
   /** More than one file was dropped, and only the first was opened. */
   | { kind: "extra-dropped"; total: number };
 
-function rowsFor(probe: Probe, chain: ChainState): Row[] {
+/**
+ * The date rail for an open chain, or null until one is open.
+ *
+ * Fetched with `align: "day"` because a rail labels rows with dates, and a
+ * uniform bucket of roughly a day straddles midnight — a record just after
+ * one would be shown under the previous date.
+ *
+ * A failure here leaves the rail absent rather than blocking anything: the
+ * verdict, the records and the diagnosis are all independent of it, and a
+ * screen that refused to open a chain because its density chart failed
+ * would be trading the whole tool for one panel.
+ */
+function useRail(probe: Probe, chain: ChainState): Chronoscope | null {
+  const [rail, setRail] = useState<Chronoscope | null>(null);
+  const opened = openedOf(chain);
+
+  useEffect(() => {
+    if (probe.kind !== "ready" || opened === null) {
+      setRail(null);
+      return;
+    }
+    let cancelled = false;
+    void chainTimeline(probe.session, opened.session_id, {
+      axis: "wall",
+      align: "day",
+      // Generous: the ceiling is a refusal, not a truncation, so the number
+      // only has to be larger than any chain a desk will open. A rail that
+      // silently dropped its last week would look like a chain that ended
+      // early.
+      buckets: 2000,
+    })
+      .then((timeline) => {
+        if (!cancelled) setRail(chronoscope(timeline));
+      })
+      .catch(() => {
+        if (!cancelled) setRail(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [probe, opened]);
+
+  return rail;
+}
+
+function rowsFor(probe: Probe, chain: ChainState, rail: Chronoscope | null): Row[] {
   // This panel exists to be honest about what is wired, so it has to be
   // corrected when something becomes wired. It has gone stale twice now —
   // once claiming the typed API client was pending, once claiming provenance
@@ -170,7 +216,12 @@ function rowsFor(probe: Probe, chain: ChainState): Row[] {
         chain.kind === "verified" ? `${chain.result.advisory.count} items` : "wired",
       live: chain.kind === "verified",
     },
-    { name: "mutation fixtures", state: "B-11", live: false },
+    {
+      name: "chronoscope",
+      state: rail === null ? "wired" : `${rail.days.length} days`,
+      live: rail !== null,
+    },
+    { name: "record inspector", state: "C-06", live: false },
   ];
 
   switch (probe.kind) {
@@ -371,7 +422,8 @@ export default function App() {
   const profiles = useProfiles(probe);
   const [chosenProfile, setChosenProfile] = useState("none");
   const [chain, choice, pick, verify] = useChain(probe);
-  const rows = rowsFor(probe, chain);
+  const rail = useRail(probe, chain);
+  const rows = rowsFor(probe, chain, rail);
   const choiceNote = choiceLine(choice);
   const { panels, live } = panelsFor(chain);
   const canVerify = openedOf(chain) !== null && chain.kind !== "verifying";
@@ -388,6 +440,12 @@ export default function App() {
   // and "nobody built this" — the same ambiguity the status panel exists to
   // remove.
   const advisory = chain.kind === "verified" ? chain.result.advisory : null;
+
+  // Bar widths, computed once rather than once per row. Calling density()
+  // inside the map would rebuild the whole array for every day — unnoticeable
+  // on a three-day fixture and quadratic on a chain spanning a year, which is
+  // the same shape as the second file walk that once computed has_more.
+  const widths = rail === null ? [] : density(rail.days);
 
   // The chain as walked, including the links resolution never reached.
   // Only after a check: before one there is nothing to show, and an empty
@@ -527,6 +585,86 @@ export default function App() {
                 <li key={line}>{line}</li>
               ))}
             </ol>
+          </section>
+        )}
+
+        {rail !== null && (
+          <section className="rail" aria-labelledby="rail-title">
+            <h2 className="rail-title" id="rail-title">
+              Chronoscope
+            </h2>
+
+            {/* Permanent, not conditional on the axis toggle. Dates exist
+                only in the writer's clock, so there is no proved-order
+                version of this view to switch to. */}
+            <p className="rail-watermark">
+              {rail.basis} · {rail.watermark}
+            </p>
+
+            {/* Pinned caps, visible before any interaction (§C-03). Read
+                from their own fields rather than from the ends of the list,
+                so an empty rail still says what its range is. */}
+            <div className="rail-caps">
+              <span>{rail.first_date ?? "—"}</span>
+              <span>{rail.last_date ?? "—"}</span>
+            </div>
+
+            <ol className="rail-days">
+              {rail.days.map((day, i) => (
+                <li
+                  className="rail-day"
+                  data-empty={day.empty}
+                  data-stepped={day.stepped}
+                  key={day.date}
+                >
+                  <span className="rail-date">{day.date}</span>
+                  {/* Zero width for an empty day, deliberately. A visible
+                      minimum would make a quiet day read as a busy one. */}
+                  <span
+                    className="rail-bar"
+                    style={{ width: `${widths[i]! * 100}%` }}
+                  />
+                  {day.safety > 0 && (
+                    <span className="rail-safety" title={`${day.safety} SAFETY`}>
+                      ◆
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+
+            <ol className="rail-strip">
+              {rail.segments.map((segment) => (
+                <li
+                  className="rail-segment"
+                  data-kind={segment.kind}
+                  data-backwards={backwards(segment)}
+                  key={`${segment.kind}-${segment.from_ns}`}
+                >
+                  {segment.kind === "boot" ? (
+                    <>
+                      boot {segment.boot_id.slice(0, 8)} · records{" "}
+                      {segment.first_seq}–{segment.last_seq}
+                    </>
+                  ) : (
+                    /* No ruler inside a gap: the clock is unverifiable while
+                       the writer is down. A negative duration is shown as
+                       what it is rather than clamped, because clamping would
+                       erase the only evidence the clock went backwards. */
+                    <>
+                      no ruler · the writer was down
+                      {backwards(segment)
+                        ? " · the clock moved backwards across this boundary"
+                        : ""}
+                    </>
+                  )}
+                </li>
+              ))}
+            </ol>
+
+            {/* Always present, and at tier A always empty. An absent row
+                would read as "not implemented". */}
+            <p className="rail-pins">{rail.pins_note}</p>
           </section>
         )}
 
