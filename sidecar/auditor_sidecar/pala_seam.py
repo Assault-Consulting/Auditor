@@ -588,7 +588,16 @@ class ChainHandle:
             "key_id": None if header.key_id == 0 else header.key_id,
         }
 
-    def timeline(self, axis: str = "seq", buckets: int = 120) -> dict[str, object]:
+    #: One UTC day, in nanoseconds. The rail groups by calendar day, and a
+    #: calendar day is the one unit here that is not a free choice: a
+    #: uniform bucket of "about a day" straddles midnight, so a record near
+    #: one is attributed to whichever side the arithmetic happens to fall —
+    #: which for a SAFETY record means showing it on the wrong date.
+    _DAY_NS = 86_400_000_000_000
+
+    def timeline(
+        self, axis: str = "seq", buckets: int = 120, align: str | None = None
+    ) -> dict[str, object]:
         """Record density along one of two axes, and what breaks the ruler.
 
         **Two axes, and they are not interchangeable (L3).** `seq` is proved
@@ -616,9 +625,34 @@ class ChainHandle:
         `step_catalog`, and any bucket containing one is marked. A density
         bar drawn on wall time across a clock step is measuring two different
         clocks and saying nothing about either.
+
+        **`align="day"` is a different question, not a nicer default.**
+        Uniform buckets divide the range evenly; day-aligned buckets start at
+        UTC midnight and are exactly one day wide. A date rail needs the
+        second: a uniform bucket of roughly a day straddles midnight, so a
+        record just after it is counted in a bucket that began the previous
+        day, and the row is labelled with the wrong date. For a SAFETY record
+        that is the quiet kind of wrong this application exists to refuse.
+
+        The day is **UTC**, and that is a decision rather than a default. The
+        same container must produce the same rail on every desk: in the
+        reader's local zone, two auditors comparing screenshots would
+        disagree about which day a record fell on, and a tool whose claim is
+        reproducibility cannot afford that. A local-time view is a labelled
+        option for later, never the silent one.
+
+        Alignment applies to the wall axis only. Sequence numbers have no
+        midnight.
         """
         if axis not in ("seq", "wall"):
             raise ValueError(f"unknown axis: {axis!r}")
+        if align not in (None, "day"):
+            raise ValueError(f"unknown alignment: {align!r}")
+        if align is not None and axis != "wall":
+            raise ValueError(
+                f"alignment {align!r} needs axis='wall'; "
+                f"sequence numbers have no calendar"
+            )
 
         records = list(self._reader.records())
         if not records:
@@ -628,6 +662,10 @@ class ChainHandle:
             return {
                 "axis": axis,
                 "basis": "proved" if axis == "seq" else "recorded",
+                # Carried here too. The model requires it, so omitting it in
+                # this branch would turn an unreachable case into a 500 the
+                # first time it became reachable.
+                "align": align,
                 "buckets": [],
                 "start": None,
                 "end": None,
@@ -644,11 +682,28 @@ class ChainHandle:
         lo = min(position(r) for r in records)
         hi = max(position(r) for r in records)
 
-        # A single-point range still gets one bucket rather than a zero-width
-        # division: one record, or a whole chain written inside one clock
-        # tick, is a real chain.
-        width = max(1, (hi - lo + 1 + buckets - 1) // buckets)
-        used = min(buckets, (hi - lo) // width + 1)
+        if align == "day":
+            # Snap the origin back to the midnight at or before the first
+            # record, so every bucket is a whole calendar day and its start
+            # is a date rather than an offset into one.
+            lo = (lo // self._DAY_NS) * self._DAY_NS
+            width = self._DAY_NS
+            used = (hi - lo) // width + 1
+            # `buckets` does not apply: the number of days is a fact about
+            # the chain, not a resolution the caller picks. Refusing here
+            # rather than silently truncating — a rail missing its last week
+            # would look like a chain that ended early.
+            if used > buckets:
+                raise ValueError(
+                    f"the chain spans {used} days, more than the {buckets} "
+                    f"buckets requested; raise buckets to see all of it"
+                )
+        else:
+            # A single-point range still gets one bucket rather than a
+            # zero-width division: one record, or a whole chain written
+            # inside one clock tick, is a real chain.
+            width = max(1, (hi - lo + 1 + buckets - 1) // buckets)
+            used = min(buckets, (hi - lo) // width + 1)
 
         counted: list[dict[str, object]] = [
             {
@@ -723,6 +778,11 @@ class ChainHandle:
             # Carried rather than inferred from `axis`, so a consumer cannot
             # label a wall chart "proved" by reading the wrong field.
             "basis": "proved" if axis == "seq" else "recorded",
+            # Null for uniform buckets, "day" when they are calendar days in
+            # UTC. A consumer rendering dates has to know which it got: a
+            # date printed from a uniform bucket's start is a date the record
+            # may not have happened on.
+            "align": align,
             "buckets": counted,
             "start": lo,
             "end": hi,
