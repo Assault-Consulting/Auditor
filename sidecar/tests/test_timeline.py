@@ -85,11 +85,24 @@ def test_the_two_axes_are_different_kinds_of_quantity(
     points in an interval, so fifty buckets stay fifty and most of them hold
     nothing.
 
-    An earlier version of this test asserted that the wall counts "vary"
-    while the seq counts do not — which was true of the fixture on the day
-    it was written and not guaranteed by anything. That is the same mistake
-    as asserting a positive uptime on a coarse clock: a property of the run
-    dressed as a property of the code.
+    This test has now been wrong twice, in the same way, and the second time
+    is the more instructive.
+
+    Version one asserted that the wall counts "vary" while the seq counts do
+    not — true of the fixture on the day it was written, guaranteed by
+    nothing.
+
+    Version two asserted that **exactly** forty-two of fifty buckets are
+    empty. Pigeonhole gives *at least* forty-two: exactly forty-two requires
+    all eight records to land in eight distinct buckets, and two records
+    sharing one makes it forty-three. CI found the forty-third. The docstring
+    above it warned against asserting a property of the run — and the
+    assertion two lines below did it anyway, in a form that merely looked
+    like arithmetic.
+
+    What is actually guaranteed is stated below: at most eight of the fifty
+    buckets can be occupied, because there are eight records. That holds on
+    any clock, on any platform, for any distribution.
     """
     sid = _open(open_client, two_boot_chain)
     by_seq = open_client.get(f"/session/{sid}/timeline?buckets=50").json()["buckets"]
@@ -97,13 +110,16 @@ def test_the_two_axes_are_different_kinds_of_quantity(
         f"/session/{sid}/timeline?axis=wall&buckets=50"
     ).json()["buckets"]
 
+    # seq cannot be subdivided below one record, so fifty collapse to eight
+    # and each holds exactly one. This one IS exact: the sequence numbers are
+    # consecutive integers, which is not a fact about timing.
     assert len(by_seq) == 8
     assert all(b["count"] == 1 for b in by_seq)
 
+    # wall keeps all fifty, and at most eight of them can hold anything.
     assert len(by_wall) == 50
-    # Eight records in fifty buckets: forty-two are empty by pigeonhole, no
-    # matter how the writer's clock behaved.
-    assert sum(1 for b in by_wall if b["count"] == 0) == 42
+    assert sum(1 for b in by_wall if b["count"] > 0) <= 8
+    assert sum(b["count"] for b in by_wall) == 8
 
 
 def test_empty_buckets_are_reported_not_omitted(
