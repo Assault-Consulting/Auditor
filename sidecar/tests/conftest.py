@@ -246,3 +246,24 @@ def body_swapped_chain(tmp_path):
     at = data.index(marker)
     path.write_bytes(data[:at] + b"B" * 16 + data[at + 16 :])
     return path
+
+
+@pytest.fixture
+def spanned_chain(tmp_path):
+    """A chain with one span opened and never closed.
+
+    The unclosed case is the one worth a fixture: an interrupted operation
+    looks exactly like this, and `end_seq` must come back null rather than
+    filled in with the last record seen.
+    """
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "spanned.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.session_start("run-42")
+    w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
+    w.anchor()
+    w.close()
+    return path
