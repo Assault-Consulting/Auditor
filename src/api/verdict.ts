@@ -14,10 +14,11 @@
  *
  *   **`chain_ok` alone is not the answer to question one.**
  *
- * A container cut mid-record reports `chain_ok: true` — every record the
- * reader could read does link to its predecessor — with the truncation
- * carried in `diagnosis`. Rendering `chain_ok` on its own would put a green
- * tick on a cut file: truthful about the field, misleading about the file.
+ * True twice over. A container cut mid-record reports `chain_ok: true` —
+ * every record the reader could read does link to its predecessor — with the
+ * truncation carried in `diagnosis`. And the field covers headers only: a
+ * body swapped under an intact chain leaves it true as well, which is why
+ * the response carries a separate `container` block.
  */
 
 import type {
@@ -78,33 +79,48 @@ function isTierAOnly(subject: ChainSubject): boolean {
  * Answerable always — it needs no key and no anchor, only the bytes. Which
  * is why it is the one question that never returns `not-checked`.
  *
- * **It is a check of the header chain, and the wording says so.** The
- * interface audit of 2026-08 (finding K5) established that
- * `AuditReader.verify()` does not compare record bodies against the
- * `body_digest` their headers carry — that comparison is a separate walk,
- * done by the CLI and, from the next release, by the report builder.
+ * **Three conditions, not one.** The audit of 2026-08 (finding K5) found
+ * that `chain_ok` covers headers only: a body swapped under an intact
+ * header chain leaves it true with no diagnosis, which put a green panel on
+ * a file whose contents had changed. Still true of the reader path on 0.10,
+ * so the sidecar now reports a `container` block from the package's report
+ * builder, and question one is answered from both.
  *
- * Confirmed on a real file rather than taken from the audit: swapping
- * sixteen bytes of a record body leaves `chain_ok` true with no diagnosis
- * and no advisory item, while `pala verify` on the same bytes reports
- * `body_digest_mismatches: [3]` and exits 1.
- *
- * So an unqualified "internally consistent" would be an overclaim — the
- * kind this application spends its wording avoiding. Until the sidecar can
- * offer the body walk, the panel states what was actually checked.
+ * A mismatched body is reported before a truncation, because it is the more
+ * specific finding: a cut file is missing its end, while a body that does
+ * not match its digest is a record that is not what its own header says.
  */
 function consistency(v: VerificationResponse): Panel {
   const question = "Is what I hold internally consistent?";
-  const basis = "Proved — header chain, no key required";
+  const basis = "Proved — hash chain and body digests, no key required";
+  const mismatches = v.container.body_digest_mismatches;
 
-  // BOTH conditions. See the module docstring: chain_ok is true for a
-  // truncated container.
+  if (mismatches.length > 0) {
+    // Named first, and named as records rather than as a conclusion. The
+    // package's own wording for this is in the report's verdict; nothing
+    // here says who or why.
+    const where =
+      mismatches.length === 1
+        ? `record #${mismatches[0]}`
+        : `${mismatches.length} records (${mismatches.map((s) => `#${s}`).join(", ")})`;
+    return {
+      index: "01",
+      question,
+      standing: "answered-no",
+      answer: `The headers link, but ${where} no longer match the body digest their own header carries.`,
+      basis,
+      narrative: v.diagnosis?.narrative,
+    };
+  }
+
+  // BOTH remaining conditions. See the module docstring: chain_ok is true
+  // for a truncated container.
   if (v.chain.chain_ok && v.diagnosis === null) {
     return {
       index: "01",
       question,
       standing: "answered-yes",
-      answer: `${v.chain.count} record headers, each linked to the one before it. Record bodies are not compared against their digests by this check.`,
+      answer: `${v.chain.count} records, each linked to the one before it and matching its own body digest.`,
       basis,
     };
   }
@@ -115,8 +131,8 @@ function consistency(v: VerificationResponse): Panel {
     question,
     standing: "answered-no",
     answer: failed
-      ? `${v.chain.count} record headers read; the chain does not hold.`
-      : `${v.chain.count} record headers read and linked, but the file is not whole.`,
+      ? `${v.chain.count} records read; the chain does not hold.`
+      : `${v.chain.count} records read and linked, but the file is not whole.`,
     basis,
     narrative: v.diagnosis?.narrative,
   };
