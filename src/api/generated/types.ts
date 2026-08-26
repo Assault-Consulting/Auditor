@@ -53,6 +53,20 @@ export interface AnchorAttemptModel {
 }
 
 /**
+ * How often this boot anchored its head.
+ *
+ * The widest gap is the useful figure: it is how long the chain went
+ * without an external witness, and therefore how wide an "existed by"
+ * bracket would be for records inside it.
+ */
+export interface AnchorCadenceModel {
+  /** Anchor records written during this boot. */
+  count: number;
+  /** Longest interval between anchors, in nanoseconds. */
+  widest_gap_ns: number | null;
+}
+
+/**
  * An ordered list of places to look for a trusted head.
  *
  * Order is meaningful and is the user's: the first source that answers wins,
@@ -100,6 +114,31 @@ export interface AnchorSourceSpec {
   account?: string | null;
   /** Free text shown beside this source in the provenance view. */
   detail?: string;
+}
+
+/**
+ * One boot, with the statistics the package computes for it.
+ *
+ * A boot is the unit that matters for reading time: `monotonic_ns` resets
+ * across a boundary, so no duration spans one.
+ */
+export interface BootView {
+  /** Hex boot identifier. */
+  boot_id: string;
+  /** First record in this boot. */
+  first_seq: number;
+  /** Last record in this boot. */
+  last_seq: number;
+  /** Records written during it. */
+  record_count: number;
+  /** Every wall-clock trust level seen inside this boot. More than one means the clock changed status mid-boot, which qualifies every wall-time claim in it — so the set is carried rather than reduced to the latest. */
+  time_trust_values: Array<NamedValue>;
+  /** Where this boot recovered a truncated tail, when it did. Null is the ordinary case rather than a missing value. */
+  recovery_seq: number | null;
+  /** Monotonic span of this boot, computed by the package. */
+  uptime_ns: number | null;
+  anchors: AnchorCadenceModel;
+  spans: SpanStatsModel;
 }
 
 /**
@@ -283,6 +322,62 @@ export interface NamedValue {
 }
 
 /**
+ * A window onto the records.
+ *
+ * Paginated because a chain has no bound: a container from a busy
+ * deployment can hold millions of records, and an endpoint that serialised
+ * all of them would fail in the situation where the tool is most needed.
+ */
+export interface RecordPage {
+  records: Array<RecordView>;
+  /** First sequence number this window could include. */
+  offset: number;
+  /** Most records this window would return. */
+  limit: number;
+  /** Records in the whole chain. */
+  total: number;
+  /** Whether records remain past this window. Stated rather than left to be inferred from len(records) == limit, which is ambiguous when a window ends exactly on the last record. */
+  has_more: boolean;
+}
+
+/**
+ * One record, as structure rather than as content.
+ *
+ * Header fields and the shape of the body. What is *inside* a record is a
+ * separate view with its own decisions about keys and redaction.
+ */
+export interface RecordView {
+  /** Sequence number. */
+  seq: number;
+  /** Raw record type. */
+  record_type: number;
+  /** The package's name for the type, or null if unknown to this build. */
+  type_name: string | null;
+  /** Raw kind, for types that carry one. */
+  kind: number | null;
+  /** The package's name for the kind. Null where the record type has no kind at all — GENESIS, BOOT and ANCHOR do not — which is not the same as a kind this build cannot name. */
+  kind_name: string | null;
+  /** Hex boot identifier. */
+  boot_id: string;
+  /** Hex span identifier, or null when the record is in no span. PALA-1 spells that as sixteen zero bytes; this field reports null rather than a span named 00000000… */
+  span_id: string | null;
+  /** The enclosing span, when there is one. */
+  parent_span_id: string | null;
+  /** The writer's wall clock. A Recorded claim, qualified by time_trust. */
+  wall_clock_ns: number;
+  /** Monotonic clock. Comparable only within one boot. */
+  monotonic_ns: number;
+  assurance_tier: NamedValue;
+  time_trust: NamedValue;
+  /** Body length in bytes. */
+  body_len: number;
+  /** TLV types present in the body, or null when this view has none to show — a record type with no body, an encrypted body, or one this build cannot parse. Distinct from [], which would mean a decoded body containing nothing. */
+  body_tlv_types: Array<number> | null;
+  /** Encryption key identifier, or null when the body is not encrypted. */
+  key_id: number | null;
+}
+
+/**
  * Open a container.
  */
 export interface SessionRequest {
@@ -300,6 +395,38 @@ export interface SessionResponse {
   subject: ChainSubject;
   /** The verifier package and wire format behind this session. Carried on the session rather than fetched separately, because a result is only meaningful alongside the verifier that produced it. */
   verifier: Record<string, string>;
+}
+
+/**
+ * Spans opened during this boot, and how many were left open.
+ */
+export interface SpanStatsModel {
+  /** Spans that have an end record. */
+  closed: number;
+  /** Spans opened and never closed. Evidence of an interrupted operation, not a defect in the log. */
+  open: number;
+  /** Open spans as a fraction, or null when there were no spans. */
+  open_rate: number | null;
+  /** Median closed-span duration, or null when none closed. */
+  median_duration_ns: number | null;
+}
+
+/**
+ * One span, and the records it covers.
+ */
+export interface SpanView {
+  /** Hex span identifier. */
+  span_id: string;
+  /** The enclosing span, or null at the top level. */
+  parent_span_id: string | null;
+  /** The SPAN_START record, or null when it is not in this file. */
+  start_seq: number | null;
+  /** The SPAN_END record, or NULL FOR A SPAN NEVER CLOSED. Null is first-class evidence — an interrupted operation looks exactly like this — and must never be filled in with the last record seen. */
+  end_seq: number | null;
+  /** Records carrying this span id. */
+  record_count: number;
+  /** Their sequence numbers. */
+  record_seqs: Array<number>;
 }
 
 export interface ValidationError {
