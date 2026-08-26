@@ -27,6 +27,23 @@ def _open(client: TestClient, path) -> str:
 
 
 def test_a_boot_reports_its_range_and_uptime(open_client: TestClient, chain_path) -> None:
+    """Uptime is reported, and zero is one of the answers it can give.
+
+    This asserted `> 0` when first written and failed on the Windows leg,
+    which is the more useful result than a pass would have been.
+
+    `uptime_ns` is the monotonic span between a boot's first and last
+    record. Linux resolves `monotonic` to a nanosecond; Windows resolves it
+    to about 15.6 milliseconds. A fixture chain written in one burst takes
+    microseconds, so on Windows every record shares a single reading and the
+    span is exactly zero.
+
+    Zero is therefore a true statement about a real boot — every record
+    inside one clock tick — and the test was asserting the speed of the
+    platform's clock rather than anything this application does. Treating a
+    legitimate value as a failure is the mistake this codebase spends its
+    time refusing to make elsewhere; it is not better when a test makes it.
+    """
     sid = _open(open_client, chain_path)
     boots = open_client.get(f"/session/{sid}/boots").json()
 
@@ -35,8 +52,11 @@ def test_a_boot_reports_its_range_and_uptime(open_client: TestClient, chain_path
     assert boot["first_seq"] == 0
     assert boot["last_seq"] == 4
     assert boot["record_count"] == 5
-    # The package's figure, not a subtraction done in the seam.
-    assert boot["uptime_ns"] > 0
+    # Present, and the package's figure rather than a subtraction done in
+    # the seam. Null would mean the package could not compute one at all,
+    # which is a different answer from a boot that lasted no measurable time.
+    assert isinstance(boot["uptime_ns"], int)
+    assert boot["uptime_ns"] >= 0
 
 
 def test_time_trust_is_a_set_not_the_latest_value(
@@ -56,7 +76,13 @@ def test_anchor_cadence_reports_the_widest_gap(
     open_client: TestClient, chain_path
 ) -> None:
     """The useful figure: how long the chain went without an external
-    witness, and therefore how wide an "existed by" bracket would be."""
+    witness, and therefore how wide an "existed by" bracket would be.
+
+    Checked for presence rather than for magnitude, and deliberately: this
+    is a monotonic interval like uptime_ns, so on a platform with a coarse
+    clock it can legitimately be zero. Null would be the real absence — no
+    anchor cadence to report — and that is what this distinguishes.
+    """
     sid = _open(open_client, chain_path)
     anchors = open_client.get(f"/session/{sid}/boots").json()[0]["anchors"]
 
