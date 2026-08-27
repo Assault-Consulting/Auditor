@@ -20,15 +20,23 @@
  * its pre-verdict sentence fails the second. Every test here passed on the
  * first run, which looks identical for a test that carries weight and one
  * that carries none — so the weight was demonstrated instead.
+ *
+ * There is a third way the panel can lie that these cases cannot catch:
+ * leaving a component out. They look up rows by name, and a row nobody added
+ * has no name to look up. C-05 nearly shipped that way. The guard is a
+ * comment in `rowsFor` rather than a test, because a list of names in a test
+ * is itself a place to forget — and a check that looks like a guarantee and
+ * is not is worse than none.
  */
 
 import { describe as group, expect, it } from "vitest";
 
 import { choiceLine, footnoteFor, panelsFor, rowsFor } from "./bootScreen";
+import type { BootRow, SpanRow } from "./browse";
 import type { ChainState } from "./chainState";
 import type { Chronoscope } from "./chronoscope";
 import type { SessionResponse, VerificationResponse } from "./generated/types";
-import type { Choice, Probe } from "../state";
+import type { Choice, Listing, Probe } from "../state";
 
 const SUBJECT: SessionResponse["subject"] = {
   filename: "chain.pala",
@@ -118,6 +126,31 @@ const RAIL: Chronoscope = {
   pins_note: "No external witness in this file.",
 };
 
+/** Both lists loaded, which is the ordinary case for an open chain. */
+const BROWSED: { boots: Listing<BootRow>; spans: Listing<SpanRow> } = {
+  boots: {
+    kind: "loaded",
+    rows: [
+      {
+        boot_id: "aa",
+        first_seq: 0,
+        last_seq: 4,
+        record_count: 5,
+        clock_changed: false,
+        clocks: ["UNSYNCED"],
+        recovered_at: null,
+        notes: [],
+      },
+    ],
+  },
+  spans: { kind: "loaded", rows: [] },
+};
+
+const UNASKED: { boots: Listing<BootRow>; spans: Listing<SpanRow> } = {
+  boots: { kind: "unasked" },
+  spans: { kind: "unasked" },
+};
+
 const rowNamed = (rows: ReturnType<typeof rowsFor>, name: string) =>
   rows.find((r) => r.name === name);
 
@@ -128,7 +161,7 @@ group("the wired-status panel", () => {
     // The failure this catches, twice over: a row left saying "wired" or a
     // plan reference after the thing shipped. A status display read as
     // current and not current is worse than none at all.
-    const rows = rowsFor(READY, VERIFIED, RAIL);
+    const rows = rowsFor(READY, VERIFIED, RAIL, UNASKED);
 
     for (const name of [
       "open a chain",
@@ -141,15 +174,42 @@ group("the wired-status panel", () => {
     }
   });
 
+  it("reports the browse lists once they have loaded", () => {
+    // The row this test exists for did not exist until C-05 shipped the
+    // lists, and the panel would have gone on saying nothing about them —
+    // a lie by omission rather than by staleness, which the other cases
+    // here cannot catch because they check named rows and this one had no
+    // name to check.
+    const rows = rowsFor(READY, VERIFIED, RAIL, BROWSED);
+    const row = rowNamed(rows, "boots and spans");
+
+    expect(row?.live).toBe(true);
+    expect(row?.state).toBe("1 boots, 0 spans");
+  });
+
+  it("does not report a failed list as an empty one", () => {
+    // A count of zero would read as an answer about the container. The
+    // request never returned one.
+    const rows = rowsFor(READY, VERIFIED, RAIL, {
+      boots: { kind: "failed", detail: "no such session" },
+      spans: { kind: "loaded", rows: [] },
+    });
+    const row = rowNamed(rows, "boots and spans");
+
+    expect(row?.state).toContain("did not load");
+    expect(row?.state).not.toContain("0 boots");
+    expect(row?.live).toBe(false);
+  });
+
   it("reports the rail by its size rather than by a word", () => {
     // A count cannot go stale the way "wired" did: it is derived from the
     // thing it describes.
-    expect(rowNamed(rowsFor(READY, VERIFIED, RAIL), "chronoscope")?.state).toBe("2 days");
-    expect(rowNamed(rowsFor(READY, VERIFIED, null), "chronoscope")?.live).toBe(false);
+    expect(rowNamed(rowsFor(READY, VERIFIED, RAIL, UNASKED), "chronoscope")?.state).toBe("2 days");
+    expect(rowNamed(rowsFor(READY, VERIFIED, null, UNASKED), "chronoscope")?.live).toBe(false);
   });
 
   it("says a component is not live before anything is open", () => {
-    const rows = rowsFor(READY, { kind: "empty" }, null);
+    const rows = rowsFor(READY, { kind: "empty" }, null, UNASKED);
     expect(rowNamed(rows, "open a chain")?.live).toBe(false);
     expect(rowNamed(rows, "verdict triptych")?.state).toBe("wired");
   });
@@ -159,6 +219,7 @@ group("the wired-status panel", () => {
       { ...READY, health: { ...READY.health, authenticated: false } },
       { kind: "empty" },
       null,
+      UNASKED,
     );
     expect(rowNamed(rows, "session token")?.state).toBe("DISABLED");
     expect(rowNamed(rows, "session token")?.live).toBe(false);
@@ -167,7 +228,7 @@ group("the wired-status panel", () => {
   it("still lists the pending components when the sidecar never started", () => {
     // The panel's job is to say what is wired. A failed probe changes what
     // the top rows say, not whether the rest are reported at all.
-    const rows = rowsFor({ kind: "failed", detail: "no python" }, { kind: "empty" }, null);
+    const rows = rowsFor({ kind: "failed", detail: "no python" }, { kind: "empty" }, null, UNASKED);
     expect(rowNamed(rows, "sidecar")?.state).toBe("did not start");
     expect(rowNamed(rows, "verdict triptych")).toBeDefined();
   });

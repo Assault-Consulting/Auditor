@@ -537,6 +537,180 @@ body {
   color: var(--unchecked);
 }
 
+/* Boots and spans. Structure, like the Chronoscope — ruled, not carded, and
+   with no colour that means a verdict.
+
+   The hardest rule in this block is what it must NOT look like. §F7 says an
+   unclosed span is "first-class evidence, styled as an unclosed bracket,
+   not an error", and that a recovered tail is "the honest marker of a
+   crash-recovered chain". Both are the kind of thing an interface reaches
+   for red to show. There is no red here and there will not be. */
+.browse {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.browse-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+.boot-list,
+.span-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.boot {
+  padding: calc(var(--step) * 0.8) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.boot:last-of-type {
+  border-bottom: none;
+}
+
+.boot-head {
+  display: flex;
+  gap: var(--step);
+  align-items: baseline;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.boot-id {
+  color: var(--vellum);
+}
+
+.boot-range {
+  flex: 1;
+  color: var(--unchecked);
+}
+
+/* The clock's trust, in ochre because it qualifies every wall-time claim in
+   the boot — and brighter when it changed partway through, because then no
+   single sentence about when things happened covers all of it. */
+.boot-clock {
+  color: var(--unchecked);
+  font-size: 0.72rem;
+}
+
+.boot-clock[data-changed="true"] {
+  color: var(--recorded);
+}
+
+/* A boot that recovered a truncated tail is marked, and marked in ochre
+   rather than in anything alarming. The writer noticed and said so; that is
+   the behaviour wanted, and it is the only reason a crash can be told from
+   a deletion. */
+.boot[data-recovered="true"] {
+  border-left: 2px solid var(--recorded);
+  padding-left: var(--step);
+}
+
+.boot-note {
+  margin: 0.3em 0 0;
+  font-size: 0.84rem;
+  color: var(--vellum-dim);
+}
+
+.span {
+  padding: calc(var(--step) * 0.6) 0 calc(var(--step) * 0.6) var(--step);
+  border-left: 2px solid var(--rule);
+}
+
+.span-head {
+  display: flex;
+  gap: var(--step);
+  align-items: baseline;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.span-id {
+  color: var(--vellum);
+}
+
+.span-range {
+  color: var(--unchecked);
+}
+
+/* The four extents, and the rule carries them so they survive greyscale.
+
+   An unclosed span takes a rule open at the bottom — a bracket that has not
+   been closed, which is what it is. Not dashed-as-broken, not red: the
+   operation was interrupted and the record of it is intact. */
+.span[data-extent="closed"] {
+  border-left-color: var(--vellum-dim);
+}
+
+.span[data-extent="unclosed"] {
+  border-left-color: var(--recorded);
+  border-bottom: 2px solid transparent;
+  border-top: 2px solid var(--recorded);
+}
+
+/* Began before this file: the bracket is open at the top instead. */
+.span[data-extent="began-earlier"] {
+  border-left-color: var(--recorded);
+  border-bottom: 2px solid var(--recorded);
+}
+
+/* Neither end here — no bracket at all, because this file shows the middle
+   of something and can say nothing about either end. */
+.span[data-extent="spans-the-file"] {
+  border-left-style: dotted;
+  border-left-color: var(--unchecked);
+}
+
+.span-note {
+  margin: 0.25em 0 0;
+  font-size: 0.84rem;
+  color: var(--vellum-dim);
+}
+
+/* An orphan sits at the top level and must not read as one. The dotted rule
+   says the same thing the provenance block's "never reached" does: there is
+   nothing here to observe, rather than something observed to be absent. */
+.span[data-placement="orphan"] {
+  border-left-style: dotted;
+}
+
+.span-orphan {
+  margin: 0.25em 0 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--unchecked);
+}
+
+/* "This container has none" and "the request failed" are different facts,
+   so they take different rules — the same distinction the provenance block
+   draws between absent and error. Empty is inert slate; a failure takes the
+   ochre of a Recorded claim, because the sentence in it comes from the
+   sidecar and is quoted, not ours. Neither is red. */
+.browse-empty {
+  margin: calc(var(--step) * 1.5) 0 0;
+  font-size: 0.86rem;
+  color: var(--unchecked);
+}
+
+.browse-failed {
+  margin: calc(var(--step) * 1.5) 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
 /* The advisory lane, and it is deliberately the quietest block on the page.
    No ochre rule, no serif heading, nothing that echoes the diagnosis card.
    L5 says these items change no verdict — and a lane that looked like a

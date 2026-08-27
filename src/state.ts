@@ -17,7 +17,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { chainTimeline, listProfiles } from "./api/chain";
+import { chainBoots, chainSpans, chainTimeline, listProfiles } from "./api/chain";
+import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
 import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { type Chronoscope, chronoscope } from "./api/chronoscope";
 import type { AnchorProfile } from "./api/generated/types";
@@ -136,6 +137,74 @@ export function useRail(probe: Probe, chain: ChainState): Chronoscope | null {
   }, [probe, opened]);
 
   return rail;
+}
+
+/**
+ * A list that has been asked for, or has not, or could not be got.
+ *
+ * Three states rather than an array, because an empty array answers two
+ * different questions the same way: "this container has none" and "the
+ * request failed". That is the distinction the anchor sources keep as
+ * absent-versus-error and the verdict keeps as false-versus-null, and a
+ * browse list has no more right to collapse it than they do.
+ *
+ * The failure carries the sidecar's own sentence, so a screen can say what
+ * went wrong rather than that something did.
+ */
+export type Listing<T> =
+  | { kind: "unasked" }
+  | { kind: "loaded"; rows: T[] }
+  | { kind: "failed"; detail: string };
+
+/**
+ * The boots and spans of the open chain, or empty until one is open.
+ *
+ * Fetched together and held together because they are read together — the
+ * boot list and the span list are one screen — but requested separately so
+ * a sidecar that can answer one and not the other still answers one.
+ *
+ * A failure leaves the lists empty rather than blocking anything else, for
+ * the same reason the rail does: the verdict, the diagnosis and the records
+ * are all independent of this, and a screen that refused to open a chain
+ * because its span list failed would trade the whole tool for one panel.
+ */
+export function useBrowse(
+  probe: Probe,
+  chain: ChainState,
+): { boots: Listing<BootRow>; spans: Listing<SpanRow> } {
+  const [boots, setBoots] = useState<Listing<BootRow>>({ kind: "unasked" });
+  const [spans, setSpans] = useState<Listing<SpanRow>>({ kind: "unasked" });
+  const opened = openedOf(chain);
+
+  useEffect(() => {
+    if (probe.kind !== "ready" || opened === null) {
+      setBoots({ kind: "unasked" });
+      setSpans({ kind: "unasked" });
+      return;
+    }
+    let cancelled = false;
+    const detailOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+    void chainBoots(probe.session, opened.session_id)
+      .then((list) => {
+        if (!cancelled) setBoots({ kind: "loaded", rows: bootRows(list) });
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setBoots({ kind: "failed", detail: detailOf(e) });
+      });
+    void chainSpans(probe.session, opened.session_id)
+      .then((list) => {
+        if (!cancelled) setSpans({ kind: "loaded", rows: spanRows(list) });
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setSpans({ kind: "failed", detail: detailOf(e) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [probe, opened]);
+
+  return { boots, spans };
 }
 
 /**

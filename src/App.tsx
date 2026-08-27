@@ -27,7 +27,7 @@ import { chainLine, openedOf } from "./api/chainState";
 import { backwards, compress, compressionLine, density } from "./api/chronoscope";
 import { diagnosisCard } from "./api/diagnosis";
 import { provenance, provenanceSummary } from "./api/provenance";
-import { useChain, useProbe, useProfiles, useRail } from "./state";
+import { useBrowse, useChain, useProbe, useProfiles, useRail } from "./state";
 
 export default function App() {
   const probe = useProbe();
@@ -35,7 +35,8 @@ export default function App() {
   const [chosenProfile, setChosenProfile] = useState("none");
   const [chain, choice, pick, verify] = useChain(probe);
   const rail = useRail(probe, chain);
-  const rows = rowsFor(probe, chain, rail);
+  const { boots, spans } = useBrowse(probe, chain);
+  const rows = rowsFor(probe, chain, rail, { boots, spans });
   const choiceNote = choiceLine(choice);
   const { panels, live } = panelsFor(chain);
   const canVerify = openedOf(chain) !== null && chain.kind !== "verifying";
@@ -302,6 +303,94 @@ export default function App() {
             {/* Always present, and at tier A always empty. An absent row
                 would read as "not implemented". */}
             <p className="rail-pins">{rail.pins_note}</p>
+          </section>
+        )}
+
+        {/* Shown whenever a chain is open, not when a list happens to be
+            non-empty. Hiding the section on an empty list would make "this
+            container has no boots" and "the request failed" look identical
+            — the distinction useBrowse exists to keep. */}
+        {openedOf(chain) !== null && (
+          <section className="browse" aria-labelledby="browse-title">
+            <h2 className="browse-title" id="browse-title">
+              Boots and spans
+            </h2>
+
+            {boots.kind === "failed" && (
+              /* The sidecar's own sentence. A screen that said only "could
+                 not load" would leave a reader unable to tell a refused
+                 token from a file that moved. */
+              <p className="browse-failed">The boot list did not load: {boots.detail}</p>
+            )}
+            {boots.kind === "loaded" && boots.rows.length === 0 && (
+              <p className="browse-empty">No boots in this container.</p>
+            )}
+            {boots.kind === "loaded" && (
+              <ol className="boot-list">
+                {boots.rows.map((b) => (
+                  <li className="boot" data-recovered={b.recovered_at !== null} key={b.boot_id}>
+                    <p className="boot-head">
+                      <span className="boot-id">{b.boot_id.slice(0, 8)}</span>
+                      <span className="boot-range">
+                        records {b.first_seq}–{b.last_seq} · {b.record_count}
+                      </span>
+                      <span className="boot-clock" data-changed={b.clock_changed}>
+                        {b.clocks.join(" → ")}
+                      </span>
+                    </p>
+                    {/* Facts about what happened, never a severity. A
+                        recovered tail is the honest marker of a
+                        crash-recovered chain, and a chain that recorded its
+                        own recovery is behaving better than one that did
+                        not. */}
+                    {b.notes.map((note) => (
+                      <p className="boot-note" key={note}>
+                        {note}
+                      </p>
+                    ))}
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            {spans.kind === "failed" && (
+              <p className="browse-failed">The span list did not load: {spans.detail}</p>
+            )}
+            {spans.kind === "loaded" && spans.rows.length === 0 && (
+              <p className="browse-empty">No spans in this container.</p>
+            )}
+            {spans.kind === "loaded" && spans.rows.length > 0 && (
+              <ol className="span-list">
+                {spans.rows.map((s) => (
+                  <li
+                    className="span"
+                    data-extent={s.extent}
+                    data-placement={s.placement.kind}
+                    key={s.span_id}
+                    style={{ paddingLeft: `calc(var(--step) * ${1 + s.depth * 2})` }}
+                  >
+                    <p className="span-head">
+                      <span className="span-id">{s.span_id.slice(0, 8)}</span>
+                      <span className="span-range">
+                        {s.start_seq ?? "…"}–{s.end_seq ?? "…"} · {s.record_count} records
+                      </span>
+                    </p>
+                    {/* §F7's wording, carried rather than paraphrased. An
+                        unclosed span is an unclosed bracket, not an error. */}
+                    <p className="span-note">{s.note}</p>
+                    {s.placement.kind === "orphan" && (
+                      /* Not a root. Rendering it as one would claim this file
+                         holds the whole nesting when it holds a slice, so the
+                         absent parent is named for someone to go and find. */
+                      <p className="span-orphan">
+                        nested inside {s.placement.parent.slice(0, 8)}, which is
+                        not in this file
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
           </section>
         )}
 

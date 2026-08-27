@@ -15,7 +15,8 @@
  * and a type does not — the value was always a valid string.
  */
 
-import type { Choice, Probe } from "../state";
+import type { Choice, Listing, Probe } from "../state";
+import type { BootRow, SpanRow } from "./browse";
 import { type ChainState, openedOf } from "./chainState";
 import type { Chronoscope } from "./chronoscope";
 import { type Panel, triptych } from "./verdict";
@@ -59,7 +60,27 @@ export interface Row {
   live: boolean;
 }
 
-export function rowsFor(probe: Probe, chain: ChainState, rail: Chronoscope | null): Row[] {
+/** What a Listing contributes to the status panel, in a word or a count. */
+function listingState(listing: Listing<BootRow | SpanRow>, unit: string): string {
+  switch (listing.kind) {
+    case "unasked":
+      return "wired";
+    case "failed":
+      // "wired" would be a lie and "0" would be worse — a count of zero
+      // reads as an answer about the container rather than as a request
+      // that never returned one.
+      return "did not load";
+    case "loaded":
+      return `${listing.rows.length} ${unit}`;
+  }
+}
+
+export function rowsFor(
+  probe: Probe,
+  chain: ChainState,
+  rail: Chronoscope | null,
+  browse: { boots: Listing<BootRow>; spans: Listing<SpanRow> },
+): Row[] {
   // This panel exists to be honest about what is wired, so it has to be
   // corrected when something becomes wired. It has gone stale twice now —
   // once claiming the typed API client was pending, once claiming provenance
@@ -70,6 +91,12 @@ export function rowsFor(probe: Probe, chain: ChainState, rail: Chronoscope | nul
   // derives from state rather than from a constant; and where a row can
   // report a quantity — sources configured, advisory items, days on the rail
   // — it does, because a number cannot go stale the way a word can.
+  //
+  // Neither habit catches the third way this panel can lie: leaving a
+  // component out entirely. The tests check named rows, and a row that was
+  // never added has no name to check. That is not a gap to fix in the tests
+  // — a list of names is itself a place to forget — so it is written down
+  // here, where someone adding a feature is already reading.
   const pending: Row[] = [
     {
       name: "open a chain",
@@ -104,6 +131,11 @@ export function rowsFor(probe: Probe, chain: ChainState, rail: Chronoscope | nul
       name: "chronoscope",
       state: rail === null ? "wired" : `${rail.days.length} days`,
       live: rail !== null,
+    },
+    {
+      name: "boots and spans",
+      state: `${listingState(browse.boots, "boots")}, ${listingState(browse.spans, "spans")}`,
+      live: browse.boots.kind === "loaded" && browse.spans.kind === "loaded",
     },
     { name: "record inspector", state: "C-06", live: false },
   ];
