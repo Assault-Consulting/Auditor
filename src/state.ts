@@ -17,7 +17,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { chainTimeline, listProfiles } from "./api/chain";
+import { chainBoots, chainSpans, chainTimeline, listProfiles } from "./api/chain";
+import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
 import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { type Chronoscope, chronoscope } from "./api/chronoscope";
 import type { AnchorProfile } from "./api/generated/types";
@@ -136,6 +137,55 @@ export function useRail(probe: Probe, chain: ChainState): Chronoscope | null {
   }, [probe, opened]);
 
   return rail;
+}
+
+/**
+ * The boots and spans of the open chain, or empty until one is open.
+ *
+ * Fetched together and held together because they are read together — the
+ * boot list and the span list are one screen — but requested separately so
+ * a sidecar that can answer one and not the other still answers one.
+ *
+ * A failure leaves the lists empty rather than blocking anything else, for
+ * the same reason the rail does: the verdict, the diagnosis and the records
+ * are all independent of this, and a screen that refused to open a chain
+ * because its span list failed would trade the whole tool for one panel.
+ */
+export function useBrowse(
+  probe: Probe,
+  chain: ChainState,
+): { boots: BootRow[]; spans: SpanRow[] } {
+  const [boots, setBoots] = useState<BootRow[]>([]);
+  const [spans, setSpans] = useState<SpanRow[]>([]);
+  const opened = openedOf(chain);
+
+  useEffect(() => {
+    if (probe.kind !== "ready" || opened === null) {
+      setBoots([]);
+      setSpans([]);
+      return;
+    }
+    let cancelled = false;
+    void chainBoots(probe.session, opened.session_id)
+      .then((list) => {
+        if (!cancelled) setBoots(bootRows(list));
+      })
+      .catch(() => {
+        if (!cancelled) setBoots([]);
+      });
+    void chainSpans(probe.session, opened.session_id)
+      .then((list) => {
+        if (!cancelled) setSpans(spanRows(list));
+      })
+      .catch(() => {
+        if (!cancelled) setSpans([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [probe, opened]);
+
+  return { boots, spans };
 }
 
 /**
