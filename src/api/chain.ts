@@ -18,7 +18,9 @@
 
 import type {
   AnchorProfile,
+  BootView,
   SessionResponse,
+  SpanView,
   Timeline,
   VerificationResponse,
 } from "./generated/types";
@@ -223,6 +225,40 @@ export async function chainTimeline(
   // A 422 here is about the query, not about the file — see RefusedError.
   if (!response.ok) await raise(response, (d) => new RefusedError(d));
   return (await response.json()) as Timeline;
+}
+
+/**
+ * The boots in this container, and the spans.
+ *
+ * Two calls rather than one, because they are two questions and the sidecar
+ * answers them separately — and because a screen that could show boots would
+ * otherwise be blocked by a span list it does not need.
+ *
+ * Browsing consults no verdict. A chain that fails verification is still
+ * browsed: inspecting evidence that did not pass is half of what this tool
+ * is for, so a failed check must not close the lists.
+ */
+export async function chainBoots(
+  session: Session,
+  sessionId: string,
+): Promise<BootView[]> {
+  const response = await fetch(url(session, `/session/${sessionId}/boots`), {
+    headers: headers(session),
+  });
+  // A 422 on a browse endpoint is about the request, not about the file.
+  if (!response.ok) await raise(response, (d) => new RefusedError(d));
+  return (await response.json()) as BootView[];
+}
+
+export async function chainSpans(
+  session: Session,
+  sessionId: string,
+): Promise<SpanView[]> {
+  const response = await fetch(url(session, `/session/${sessionId}/spans`), {
+    headers: headers(session),
+  });
+  if (!response.ok) await raise(response, (d) => new RefusedError(d));
+  return (await response.json()) as SpanView[];
 }
 
 /**
