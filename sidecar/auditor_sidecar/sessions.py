@@ -69,7 +69,7 @@ class Session:
     #: same bytes or the session is refused.
     _boots: list[dict] | None = None
     _spans: list[dict] | None = None
-    _timelines: dict[tuple[str, int], dict] = field(default_factory=dict)
+    _timelines: dict[tuple[str, int, str | None], dict] = field(default_factory=dict)
 
     def verify(
         self, profile: str = "none", sources: list[dict[str, str]] | None = None
@@ -101,11 +101,22 @@ class Session:
         """One record, or None when the container holds no such sequence."""
         return self.chain.record(seq)
 
-    def timeline(self, axis: str = "seq", buckets: int = 120) -> dict:
-        """Density along an axis, computed once per (axis, buckets)."""
-        key = (axis, buckets)
+    def timeline(
+        self, axis: str = "seq", buckets: int = 120, align: str | None = None
+    ) -> dict:
+        """Density along an axis, computed once per (axis, buckets, align).
+
+        `align` is part of the key, and leaving it out would have been a
+        silent wrong answer rather than a slow one: a uniform timeline and a
+        day-aligned one over the same axis and count are different buckets
+        with different boundaries, and the second caller would have received
+        the first's answer with the wrong `align` field attached to it.
+        """
+        key = (axis, buckets, align)
         if key not in self._timelines:
-            self._timelines[key] = self.chain.timeline(axis=axis, buckets=buckets)
+            self._timelines[key] = self.chain.timeline(
+                axis=axis, buckets=buckets, align=align
+            )
         return self._timelines[key]
 
     def origin(self, seq: int) -> dict | None:

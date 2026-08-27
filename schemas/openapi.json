@@ -1244,6 +1244,18 @@
       "Timeline": {
         "description": "Record density along one axis, and what breaks the ruler.\n\n**Two axes, and they are not interchangeable (L3).** `seq` is proved\norder: the hash chain establishes it and nothing can reorder it. `wall`\nis the writer's clock \u2014 a recorded claim, qualified by `time_trust`.",
         "properties": {
+          "align": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for uniform buckets, 'day' when each bucket is one UTC calendar day. A CONSUMER RENDERING DATES MUST CHECK THIS: a date printed from a uniform bucket's start is a date the records inside it may not have happened on, because such a bucket straddles midnight.",
+            "title": "Align"
+          },
           "axis": {
             "description": "'seq' or 'wall'.",
             "title": "Axis",
@@ -1263,7 +1275,7 @@
             "type": "array"
           },
           "buckets": {
-            "description": "Uniform intervals across the range, empty ones included.",
+            "description": "Equal-width intervals covering the range, empty ones included. How many there are depends on `align`: without it the range is divided into at most the number requested; with 'day' each is one calendar day and the count is however many days the chain spans.",
             "items": {
               "$ref": "#/components/schemas/TimelineBucket"
             },
@@ -1291,7 +1303,7 @@
                 "type": "null"
               }
             ],
-            "description": "Lowest position on this axis.",
+            "description": "Where the first bucket begins. Equal to the lowest position on this axis for uniform buckets, and THE UTC MIDNIGHT AT OR BEFORE IT when align='day' \u2014 the first day is a whole day even when the chain starts in the middle of one.",
             "title": "Start"
           },
           "steps": {
@@ -1326,6 +1338,7 @@
         },
         "required": [
           "axis",
+          "align",
           "basis",
           "buckets",
           "start",
@@ -2185,6 +2198,24 @@
               "minimum": 1,
               "title": "Buckets",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Omit for uniform buckets. 'day' makes each bucket one UTC calendar day, which is what a date rail needs: a uniform bucket of roughly a day straddles midnight, so a record just after it would be labelled with the previous date. Needs axis='wall' \u2014 sequence numbers have no calendar.",
+            "in": "query",
+            "name": "align",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Omit for uniform buckets. 'day' makes each bucket one UTC calendar day, which is what a date rail needs: a uniform bucket of roughly a day straddles midnight, so a record just after it would be labelled with the previous date. Needs axis='wall' \u2014 sequence numbers have no calendar.",
+              "title": "Align"
             }
           }
         ],

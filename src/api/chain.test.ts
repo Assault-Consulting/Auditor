@@ -22,8 +22,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   NotAChainError,
   NotFoundError,
+  RefusedError,
   SidecarError,
   SubjectChangedError,
+  chainTimeline,
   closeChain,
   openChain,
   verifyChain,
@@ -89,6 +91,31 @@ describe("what the client sends", () => {
     const [called] = callArgs(fetchMock);
     expect(called).toContain("profile=desk%20%26co");
   });
+
+  it("asks for proved order unless wall time is chosen", async () => {
+    // L3 as a default rather than as a warning: the axis a caller gets
+    // without saying anything is the one the chain establishes.
+    const fetchMock = answering(200, { axis: "seq" });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await chainTimeline(SESSION, "s1");
+
+    const [called] = callArgs(fetchMock);
+    expect(called).toContain("axis=seq");
+    expect(called).not.toContain("align=");
+  });
+
+  it("sends the alignment only when one was asked for", async () => {
+    const fetchMock = answering(200, { axis: "wall" });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await chainTimeline(SESSION, "s1", { axis: "wall", align: "day", buckets: 400 });
+
+    const [called] = callArgs(fetchMock);
+    expect(called).toContain("axis=wall");
+    expect(called).toContain("align=day");
+    expect(called).toContain("buckets=400");
+  });
 });
 
 describe("status codes become named outcomes", () => {
@@ -97,6 +124,29 @@ describe("status codes become named outcomes", () => {
     await expect(openChain(SESSION, "/tmp/notes.txt")).rejects.toBeInstanceOf(
       NotAChainError,
     );
+  });
+
+  it("422 on a browse endpoint is the query, not the file", async () => {
+    // The same status carries two meanings on this surface, and they send a
+    // reader to different places. Opening a container answers 422 when the
+    // bytes are not a chain; /timeline answers 422 when the parameters were
+    // refused. Sharing one error type would make a mistyped axis report that
+    // the operator's file was unreadable — a message that sends them to
+    // inspect evidence which is perfectly fine.
+    //
+    // Both halves are asserted. The confusion this guards against is between
+    // two names, so proving the right one is raised is only half of it.
+    vi.stubGlobal("fetch", answering(422, { detail: "unknown axis: 'monotonic'" }));
+
+    const raised = await chainTimeline(SESSION, "s1", { axis: "wall" }).catch(
+      (e: unknown) => e,
+    );
+
+    expect(raised).toBeInstanceOf(RefusedError);
+    expect(raised).not.toBeInstanceOf(NotAChainError);
+    // The sidecar's own sentence survives, so the screen can say what was
+    // actually refused rather than a category name.
+    expect((raised as Error).message).toContain("monotonic");
   });
 
   it("409 is the subject having changed, and has its own type", async () => {

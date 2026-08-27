@@ -296,3 +296,56 @@ def two_boot_chain(tmp_path):
     w2.anchor()
     w2.close()
     return path
+
+
+#: One UTC day in nanoseconds, so a fixture can place records on chosen days.
+_DAY_NS = 86_400_000_000_000
+
+
+@pytest.fixture
+def multi_day_chain(tmp_path, monkeypatch):
+    """A chain spanning three UTC days, with the middle one empty.
+
+    Until this existed, every fixture in the suite was written in one burst
+    and spanned under a millisecond — so the wall axis could only ever be
+    checked arithmetically, never as the thing a person would look at. A
+    date rail cannot be tested at all against a chain that occupies a single
+    instant.
+
+    The clock is controlled by patching the one the writer reads. That is
+    not fabrication: `PalaWriter` still emits real records, real headers and
+    a real hash chain, and the reader verifies them. Only *when* it was
+    written is chosen. The monotonic clock is left alone, as a real writer's
+    would be.
+
+    Day 0 gets GENESIS, BOOT and the model load; day 1 nothing; day 2 the
+    incident candidate and the anchor. So the rail has an empty row between
+    two populated ones, which is the case a series that omitted empty buckets
+    would silently smooth over.
+
+    There are exactly as many stamps as records. An earlier version had one
+    spare, which cost nothing at runtime and made a test assert the number of
+    stamps rather than the number of records.
+    """
+    import palimpsests.audit.pala_writer as pw
+
+    base = (1_787_000_000_000_000_000 // _DAY_NS) * _DAY_NS + 10 * 3_600_000_000_000
+    stamps = [
+        base,                                   # GENESIS
+        base + 60_000_000_000,                  # BOOT
+        base + 120_000_000_000,                 # MODEL_LOAD
+        base + 2 * _DAY_NS,                     # INCIDENT_CANDIDATE
+        base + 2 * _DAY_NS + 60_000_000_000,    # ANCHOR
+    ]
+    ticks = iter(stamps)
+    monkeypatch.setattr(pw.time, "time_ns", lambda: next(ticks, stamps[-1]))
+
+    path = tmp_path / "multiday.pala"
+    w = pw.PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
+    w.incident_candidate(category=1, severity=2, detail="day two")
+    w.anchor()
+    w.close()
+    return path

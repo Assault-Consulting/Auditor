@@ -19,9 +19,30 @@
 import type {
   AnchorProfile,
   SessionResponse,
+  Timeline,
   VerificationResponse,
 } from "./generated/types";
 import type { Session } from "./session";
+
+/**
+ * The sidecar refused the request's parameters (422).
+ *
+ * Distinct from NotAChainError even though the status is the same, because
+ * the two send a reader to different places. "This file is not a PALA-1
+ * container" is about the evidence; "there is no axis called monotonic" is
+ * about the request. Collapsing them would have made a mistyped query
+ * parameter report that the operator's file was unreadable.
+ *
+ * The status shared two meanings the moment /timeline gained its refusals.
+ * Nothing failed — 422 is 422 — which is why the mapping had to be split
+ * here rather than left to be noticed by whoever saw the wrong message.
+ */
+export class RefusedError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = "RefusedError";
+  }
+}
 
 /** The path resolved and the bytes are not a PALA-1 container (422). */
 export class NotAChainError extends Error {
@@ -87,7 +108,20 @@ async function detailOf(response: Response): Promise<string> {
   }
 }
 
-async function raise(response: Response): Promise<never> {
+/**
+ * Turn a failed response into a named outcome.
+ *
+ * `unprocessable` says what a 422 means *for this call*, because the status
+ * carries two meanings on this surface: opening a container answers 422 when
+ * the bytes are not a chain, and a browse endpoint answers 422 when the
+ * parameters were refused. A caller of one must not receive the other's
+ * error type — the message it produces would send someone to inspect a file
+ * that is perfectly fine.
+ */
+async function raise(
+  response: Response,
+  unprocessable: (detail: string) => Error = (d) => new NotAChainError(d),
+): Promise<never> {
   const detail = await detailOf(response);
   switch (response.status) {
     case 404:
@@ -95,7 +129,7 @@ async function raise(response: Response): Promise<never> {
     case 409:
       throw new SubjectChangedError(detail);
     case 422:
-      throw new NotAChainError(detail);
+      throw unprocessable(detail);
     default:
       throw new SidecarError(response.status, detail);
   }
@@ -157,6 +191,38 @@ export async function verifyChain(
   );
   if (!response.ok) await raise(response);
   return (await response.json()) as VerificationResponse;
+}
+
+/**
+ * Record density along one axis.
+ *
+ * `axis` defaults to proved order because that is what the chain
+ * establishes; wall time is a claim and is opt-in (L3).
+ *
+ * `align: "day"` makes each bucket one UTC calendar day, which is what the
+ * date rail needs and what a uniform timeline cannot give it: a uniform
+ * bucket of roughly a day straddles midnight, so a record just after one
+ * would be labelled with the previous date. The sidecar refuses the
+ * combination with `axis: "seq"` rather than dropping the alignment — a
+ * sequence number has no calendar, and returning uniform buckets marked
+ * `align: "day"` would be worse than refusing.
+ */
+export async function chainTimeline(
+  session: Session,
+  sessionId: string,
+  options: { axis?: "seq" | "wall"; buckets?: number; align?: "day" } = {},
+): Promise<Timeline> {
+  const query = new URLSearchParams({ axis: options.axis ?? "seq" });
+  if (options.buckets !== undefined) query.set("buckets", String(options.buckets));
+  if (options.align !== undefined) query.set("align", options.align);
+
+  const response = await fetch(
+    url(session, `/session/${sessionId}/timeline?${query}`),
+    { headers: headers(session) },
+  );
+  // A 422 here is about the query, not about the file — see RefusedError.
+  if (!response.ok) await raise(response, (d) => new RefusedError(d));
+  return (await response.json()) as Timeline;
 }
 
 /**
