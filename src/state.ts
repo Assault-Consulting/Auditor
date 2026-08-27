@@ -140,6 +140,23 @@ export function useRail(probe: Probe, chain: ChainState): Chronoscope | null {
 }
 
 /**
+ * A list that has been asked for, or has not, or could not be got.
+ *
+ * Three states rather than an array, because an empty array answers two
+ * different questions the same way: "this container has none" and "the
+ * request failed". That is the distinction the anchor sources keep as
+ * absent-versus-error and the verdict keeps as false-versus-null, and a
+ * browse list has no more right to collapse it than they do.
+ *
+ * The failure carries the sidecar's own sentence, so a screen can say what
+ * went wrong rather than that something did.
+ */
+export type Listing<T> =
+  | { kind: "unasked" }
+  | { kind: "loaded"; rows: T[] }
+  | { kind: "failed"; detail: string };
+
+/**
  * The boots and spans of the open chain, or empty until one is open.
  *
  * Fetched together and held together because they are read together — the
@@ -154,31 +171,33 @@ export function useRail(probe: Probe, chain: ChainState): Chronoscope | null {
 export function useBrowse(
   probe: Probe,
   chain: ChainState,
-): { boots: BootRow[]; spans: SpanRow[] } {
-  const [boots, setBoots] = useState<BootRow[]>([]);
-  const [spans, setSpans] = useState<SpanRow[]>([]);
+): { boots: Listing<BootRow>; spans: Listing<SpanRow> } {
+  const [boots, setBoots] = useState<Listing<BootRow>>({ kind: "unasked" });
+  const [spans, setSpans] = useState<Listing<SpanRow>>({ kind: "unasked" });
   const opened = openedOf(chain);
 
   useEffect(() => {
     if (probe.kind !== "ready" || opened === null) {
-      setBoots([]);
-      setSpans([]);
+      setBoots({ kind: "unasked" });
+      setSpans({ kind: "unasked" });
       return;
     }
     let cancelled = false;
+    const detailOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
     void chainBoots(probe.session, opened.session_id)
       .then((list) => {
-        if (!cancelled) setBoots(bootRows(list));
+        if (!cancelled) setBoots({ kind: "loaded", rows: bootRows(list) });
       })
-      .catch(() => {
-        if (!cancelled) setBoots([]);
+      .catch((e: unknown) => {
+        if (!cancelled) setBoots({ kind: "failed", detail: detailOf(e) });
       });
     void chainSpans(probe.session, opened.session_id)
       .then((list) => {
-        if (!cancelled) setSpans(spanRows(list));
+        if (!cancelled) setSpans({ kind: "loaded", rows: spanRows(list) });
       })
-      .catch(() => {
-        if (!cancelled) setSpans([]);
+      .catch((e: unknown) => {
+        if (!cancelled) setSpans({ kind: "failed", detail: detailOf(e) });
       });
     return () => {
       cancelled = true;
