@@ -452,6 +452,37 @@ body {
   );
 }
 
+/* A compression mark. Ruled across rather than filled, so it reads as a
+   fold in the rail and not as a day with unusual content — a reader
+   scanning the dates must not have to check whether this row is one.
+
+   In the unchecked slate, not the Recorded ochre. The mark is a statement
+   about the DISPLAY — these rows were folded — and not about the writer's
+   clock. Giving it the colour of a recorded claim would make the folding
+   look like a finding about the log. */
+.rail-fold {
+  display: block;
+  padding: 0.35em 0;
+  border-top: 1px dashed var(--rule);
+  border-bottom: 1px dashed var(--rule);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  color: var(--unchecked);
+  text-align: center;
+}
+
+/* A fold the writer was down through keeps the same slate but gains the
+   dotted rule the provenance block uses for "never reached": both mean
+   there was nothing to observe, rather than something observed to be
+   absent. Still not ochre — being down is reported by the strip below,
+   where the gap has its own row and its own hatching. */
+.rail-fold[data-down="all"],
+.rail-fold[data-down="some"] {
+  border-top-style: dotted;
+  border-bottom-style: dotted;
+}
+
 .rail-safety {
   font-size: 0.7rem;
   color: var(--recorded);

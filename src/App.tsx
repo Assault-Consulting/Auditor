@@ -24,7 +24,7 @@ import { useState } from "react";
 import { advisoryGroups, advisoryLine } from "./api/advisory";
 import { choiceLine, footnoteFor, panelsFor, rowsFor } from "./api/bootScreen";
 import { chainLine, openedOf } from "./api/chainState";
-import { backwards, density } from "./api/chronoscope";
+import { backwards, compress, compressionLine, density } from "./api/chronoscope";
 import { diagnosisCard } from "./api/diagnosis";
 import { provenance, provenanceSummary } from "./api/provenance";
 import { useChain, useProbe, useProfiles, useRail } from "./state";
@@ -53,11 +53,26 @@ export default function App() {
   // remove.
   const advisory = chain.kind === "verified" ? chain.result.advisory : null;
 
-  // Bar widths, computed once rather than once per row. Calling density()
-  // inside the map would rebuild the whole array for every day — unnoticeable
-  // on a three-day fixture and quadratic on a chain spanning a year, which is
-  // the same shape as the second file walk that once computed has_more.
-  const widths = rail === null ? [] : density(rail.days);
+  // Bar widths, computed once and keyed by date.
+  //
+  // Two quadratic shapes avoided, and the second only because the first had
+  // already happened here. Calling density() inside the row map rebuilds the
+  // whole array per row; looking a day up with `days.indexOf(day)` searches
+  // per row. Once empty stretches fold, the rendered rows are no longer the
+  // days one-to-one, so a positional lookup would have had to search — and
+  // the date is the row's key anyway.
+  //
+  // The scale is computed over ALL the days rather than the surviving rows:
+  // a bar's width means "against the busiest day in this chain", and
+  // rescaling to what survived compression would make a quiet day look busy
+  // the moment its quieter neighbours were folded away.
+  const widths = new Map<string, number>(
+    rail === null ? [] : density(rail.days).map((w, i) => [rail.days[i]!.date, w]),
+  );
+
+  // Empty stretches collapse into marks that state their own extent (§C-03,
+  // "never silent compression").
+  const railRows = rail === null ? [] : compress(rail.days, rail.segments);
 
   // The chain as walked, including the links resolution never reached.
   // Only after a check: before one there is nothing to show, and an empty
@@ -222,27 +237,37 @@ export default function App() {
             </div>
 
             <ol className="rail-days">
-              {rail.days.map((day, i) => (
-                <li
-                  className="rail-day"
-                  data-empty={day.empty}
-                  data-stepped={day.stepped}
-                  key={day.date}
-                >
-                  <span className="rail-date">{day.date}</span>
-                  {/* Zero width for an empty day, deliberately. A visible
-                      minimum would make a quiet day read as a busy one. */}
-                  <span
-                    className="rail-bar"
-                    style={{ width: `${widths[i]! * 100}%` }}
-                  />
-                  {day.safety > 0 && (
-                    <span className="rail-safety" title={`${day.safety} SAFETY`}>
-                      ◆
-                    </span>
-                  )}
-                </li>
-              ))}
+              {railRows.map((row) =>
+                row.kind === "day" ? (
+                  <li
+                    className="rail-day"
+                    data-empty={row.day.empty}
+                    data-stepped={row.day.stepped}
+                    key={row.day.date}
+                  >
+                    <span className="rail-date">{row.day.date}</span>
+                    {/* Zero width for an empty day, deliberately. A visible
+                        minimum would make a quiet day read as a busy one. */}
+                    <span
+                      className="rail-bar"
+                      style={{ width: `${(widths.get(row.day.date) ?? 0) * 100}%` }}
+                    />
+                    {row.day.safety > 0 && (
+                      <span className="rail-safety" title={`${row.day.safety} SAFETY`}>
+                        ◆
+                      </span>
+                    )}
+                  </li>
+                ) : (
+                  /* The compression mark. It says how many days it stands in
+                     for and which, so a reader knows what was hidden without
+                     expanding anything — that is what makes the compression
+                     honest rather than merely reversible. */
+                  <li className="rail-fold" data-down={row.down} key={`fold-${row.from}`}>
+                    {compressionLine(row)}
+                  </li>
+                ),
+              )}
             </ol>
 
             <ol className="rail-strip">

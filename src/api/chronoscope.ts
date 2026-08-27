@@ -31,6 +31,8 @@
 
 import type { Timeline } from "./generated/types";
 
+const DAY_NS = 86_400_000_000_000;
+
 export interface DayRow {
   /** ISO date in UTC — the label, and the identity of the row. */
   date: string;
@@ -202,6 +204,106 @@ export function chronoscope(timeline: Timeline): Chronoscope {
 export function density(days: DayRow[]): number[] {
   const peak = Math.max(0, ...days.map((d) => d.count));
   return days.map((d) => (peak === 0 ? 0 : d.count / peak));
+}
+
+/** One row of the rail: a day, or a marked run of days that were collapsed. */
+export type RailRow =
+  | { kind: "day"; day: DayRow }
+  | {
+      kind: "collapsed";
+      /** How many days this mark stands in for. Never omitted. */
+      days: number;
+      /** First and last date of the run, so the mark names its own extent. */
+      from: string;
+      to: string;
+      /**
+       * How much of the run the writer was down for.
+       *
+       * An empty day is not the same fact as a day the machine was off, and
+       * a mark that said only "14 days with no records" would flatten the
+       * two. The gaps come from the sidecar rather than being guessed from
+       * the emptiness itself: emptiness is the absence of records, and being
+       * down is a statement about the machine.
+       */
+      down: "none" | "some" | "all";
+    };
+
+/**
+ * Collapse runs of empty days into marks, and never silently.
+ *
+ * §C-03's accordion, with the sentence that governs it: *"with explicit
+ * compression marks. Never silent compression."* A rail that dropped quiet
+ * days would draw a busy chain out of an idle one — the same failure as
+ * omitting empty buckets, one level up and easier to justify, because at
+ * rail scale the omission looks like tidiness.
+ *
+ * So a mark carries its own extent: how many days, which dates, and how much
+ * of the run the writer was down for. A reader can tell what was hidden
+ * without expanding anything, which is what makes the compression honest
+ * rather than merely reversible.
+ *
+ * `threshold` is the shortest run worth collapsing. Below it the mark costs
+ * as many rows as it saves, and a rail full of marks standing in for two
+ * days each is harder to read than the days themselves.
+ */
+export function compress(
+  days: DayRow[],
+  gaps: Segment[],
+  threshold = 3,
+): RailRow[] {
+  const downFrom = gaps
+    .filter((s): s is Extract<Segment, { kind: "gap" }> => s.kind === "gap")
+    .map((g) => ({ from: g.from_ns, to: g.to_ns }));
+
+  // A day counts as "down" when a gap covers any part of it. Partial rather
+  // than total on purpose: a machine that came back at noon was down that
+  // day, and calling the day up because it ended up would lose the fact.
+  const wasDown = (day: DayRow) =>
+    downFrom.some((g) => g.from < day.start_ns + DAY_NS && g.to > day.start_ns);
+
+  const rows: RailRow[] = [];
+  let run: DayRow[] = [];
+
+  const flush = () => {
+    if (run.length === 0) return;
+    if (run.length < threshold) {
+      for (const day of run) rows.push({ kind: "day", day });
+    } else {
+      const downs = run.filter(wasDown).length;
+      rows.push({
+        kind: "collapsed",
+        days: run.length,
+        from: run[0]!.date,
+        to: run[run.length - 1]!.date,
+        down: downs === 0 ? "none" : downs === run.length ? "all" : "some",
+      });
+    }
+    run = [];
+  };
+
+  for (const day of days) {
+    if (day.empty) {
+      run.push(day);
+    } else {
+      flush();
+      rows.push({ kind: "day", day });
+    }
+  }
+  flush();
+  return rows;
+}
+
+/** What a compression mark says about itself, in one line. */
+export function compressionLine(row: Extract<RailRow, { kind: "collapsed" }>): string {
+  const span = `${row.days} days with no records · ${row.from} to ${row.to}`;
+  switch (row.down) {
+    case "all":
+      return `${span} · the writer was down for all of them`;
+    case "some":
+      return `${span} · the writer was down for part of them`;
+    case "none":
+      return span;
+  }
 }
 
 /** Whether a gap is one the writer's clock cannot account for. */

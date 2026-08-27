@@ -4,19 +4,58 @@
 /**
  * The Chronoscope view model.
  *
- * Two things are under test and neither is layout: that the rail cannot
- * present a recorded claim as a proved one, and that it cannot show a
- * record on a day it may not have happened on.
+ * Three things are under test and none is layout: that the rail cannot
+ * present a recorded claim as a proved one, that it cannot show a record on
+ * a day it may not have happened on, and that folding quiet stretches never
+ * hides how much was folded.
  */
 
 import { describe as group, expect, it } from "vitest";
 
-import { backwards, chronoscope, density } from "./chronoscope";
+import {
+  backwards,
+  chronoscope,
+  compress,
+  compressionLine,
+  density,
+} from "./chronoscope";
+import type { DayRow, RailRow, Segment } from "./chronoscope";
 import type { Timeline, TimelineBucket } from "./generated/types";
 
 const DAY = 86_400_000_000_000;
 /** 2026-08-17T00:00:00Z, exactly. */
 const D0 = Math.floor(1_787_000_000_000_000_000 / DAY) * DAY;
+
+/** Day `n` of the rail, empty unless a record count is given. */
+function day(n: number, count = 0): DayRow {
+  return {
+    date: new Date((D0 + n * DAY) / 1_000_000).toISOString().slice(0, 10),
+    start_ns: D0 + n * DAY,
+    count,
+    safety: 0,
+    anchor: 0,
+    empty: count === 0,
+    stepped: false,
+  };
+}
+
+/** An outage from the start of one day to the start of another. */
+function gap(fromDay: number, toDay: number): Segment {
+  return {
+    kind: "gap",
+    after_boot_id: "aa".repeat(8),
+    before_boot_id: "bb".repeat(8),
+    from_ns: D0 + fromDay * DAY,
+    to_ns: D0 + toDay * DAY,
+    duration_ns: (toDay - fromDay) * DAY,
+    ruler: false,
+  };
+}
+
+const marks = (rows: RailRow[]) =>
+  rows.filter((r): r is Extract<RailRow, { kind: "collapsed" }> => r.kind === "collapsed");
+
+const only = (rows: RailRow[]) => marks(rows)[0]!;
 
 function bucket(start: number, over: Partial<TimelineBucket> = {}): TimelineBucket {
   return {
@@ -251,5 +290,125 @@ group("external evidence", () => {
     expect(rail.pins).toEqual([]);
     expect(rail.pins_note).toContain("No external witness");
     expect(rail.pins_note).toContain("property of the platform");
+  });
+});
+
+// --- the accordion, and the sentence that governs it ------------------------
+
+group("compressing empty stretches", () => {
+  it("never drops a populated day", () => {
+    const rows = compress([day(0, 3), day(1), day(2), day(3), day(4, 2)], []);
+    const kept = rows.filter((r) => r.kind === "day");
+    expect(kept).toHaveLength(2);
+  });
+
+  it("states its own extent rather than hiding it", () => {
+    // "Never silent compression." A mark that only shortened the rail would
+    // draw a busy chain out of an idle one — the same failure as omitting
+    // empty buckets, one level up and easier to justify because at rail
+    // scale it looks like tidiness.
+    const rows = compress([day(0, 1), day(1), day(2), day(3), day(4, 1)], []);
+    const [mark] = marks(rows);
+
+    expect(mark).toBeDefined();
+    expect(mark!.days).toBe(3);
+    expect(mark!.from).toBe(day(1).date);
+    expect(mark!.to).toBe(day(3).date);
+  });
+
+  it("leaves a short run alone", () => {
+    // Below the threshold a mark costs as many rows as it saves, and a rail
+    // full of marks standing in for two days each is harder to read than the
+    // days were.
+    const rows = compress([day(0, 1), day(1), day(2), day(3, 1)], []);
+    expect(marks(rows)).toHaveLength(0);
+    expect(rows).toHaveLength(4);
+  });
+
+  it("accounts for every day it was given", () => {
+    const days = [day(0, 2), day(1), day(2), day(3), day(4), day(5, 1)];
+    const rows = compress(days, []);
+    const counted = rows.reduce(
+      (n, r) => n + (r.kind === "day" ? 1 : r.days),
+      0,
+    );
+    expect(counted).toBe(days.length);
+  });
+
+  it("collapses a run that ends the rail", () => {
+    const rows = compress([day(0, 1), day(1), day(2), day(3)], []);
+    expect(marks(rows)).toHaveLength(1);
+    expect(marks(rows)[0]!.days).toBe(3);
+  });
+});
+
+// --- an empty day and a day the machine was off are different facts ---------
+
+group("what a mark says about why the days were empty", () => {
+  it("says nothing about being down when no gap covers the run", () => {
+    // Emptiness is the absence of records. Whether the machine was off is a
+    // different claim, and one this rail can only make from the gaps the
+    // sidecar reports.
+    const rows = compress([day(0, 1), day(1), day(2), day(3), day(4, 1)], []);
+    expect(only(rows).down).toBe("none");
+    expect(compressionLine(only(rows))).not.toContain("down");
+  });
+
+  it("says the writer was down for all of them when the gap covers the run", () => {
+    const rows = compress(
+      [day(0, 1), day(1), day(2), day(3), day(4, 1)],
+      [gap(1, 4)],
+    );
+    expect(only(rows).down).toBe("all");
+    expect(compressionLine(only(rows))).toContain("down for all of them");
+  });
+
+  it("distinguishes a partial outage from a total one", () => {
+    // Three quiet days of which the machine was off for one is not the same
+    // statement as three days it was off throughout, and a mark that said
+    // "down" for both would flatten them.
+    const rows = compress(
+      [day(0, 1), day(1), day(2), day(3), day(4, 1)],
+      [gap(1, 2)],
+    );
+    expect(only(rows).down).toBe("some");
+    expect(compressionLine(only(rows))).toContain("part of them");
+  });
+
+  it("counts a day the writer came back partway through as a day it was down", () => {
+    // A machine that returned at noon was down that day, and calling the day
+    // up because it ended up would lose the fact.
+    //
+    // This test failed on its first run and the code was right: `gap(1, 3)`
+    // ends at midnight starting day three, which means the writer was up for
+    // the whole of day three. The fixture said something other than what the
+    // comment above it meant, so the gap now ends at noon and the sentence
+    // and the arithmetic agree.
+    const noonOfDayThree: Segment = {
+      ...gap(1, 3),
+      to_ns: D0 + 3 * DAY + DAY / 2,
+    };
+    const rows = compress(
+      [day(0, 1), day(1), day(2), day(3), day(4, 1)],
+      [noonOfDayThree],
+    );
+    expect(only(rows).down).toBe("all");
+  });
+
+  it("leaves a day out of the outage when the writer was back before it began", () => {
+    // The counterpart, and the reason the one above is not a tautology: a
+    // gap ending exactly at midnight leaves that day entirely up.
+    const rows = compress(
+      [day(0, 1), day(1), day(2), day(3), day(4, 1)],
+      [gap(1, 3)],
+    );
+    expect(only(rows).down).toBe("some");
+  });
+
+  it("always names how many days and which", () => {
+    const line = compressionLine(only(compress([day(0, 1), day(1), day(2), day(3)], [])));
+    expect(line).toContain("3 days with no records");
+    expect(line).toContain(day(1).date);
+    expect(line).toContain(day(3).date);
   });
 });
