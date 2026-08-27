@@ -55,17 +55,39 @@ printf 'branch head : %s\n' "$(git -C "$REPO_ROOT" rev-parse --short "$REMOTE/$B
 # committed through a whole-file tool, where the two silently diverge. Report
 # it as information rather than an error — the working tree is legitimately
 # ahead while you are still writing — but never let it pass unmentioned.
+#
+# EVERY tracked file, not a list of extensions. The original checked five
+# source suffixes, which left the three files drift has actually happened on
+# invisible to it: schemas/openapi.json three times, styles.css once, and
+# docs/API.md once. A drift check with a filter is a drift check that reports
+# clean on whatever the filter forgot — and the forgotten file is the large
+# generated one nobody re-reads, which is exactly where hand-carrying goes
+# wrong.
+#
+# Comparison runs both ways. A file on the branch and not in the tree is the
+# ordinary case while rebasing; a file in the TREE and not on the branch is
+# the dangerous one — it means something was written locally and never
+# committed, and every check just run against it proved nothing about what
+# CI will see.
 step "working tree vs branch"
 DRIFT=0
 while IFS= read -r f; do
-  [ -f "$REPO_ROOT/$f" ] || continue
-  if ! cmp -s "$WORK/$f" "$REPO_ROOT/$f"; then
-    printf 'differs : %s\n' "$f"
+  if [ ! -f "$REPO_ROOT/$f" ]; then
+    printf 'only on branch : %s\n' "$f"
+    DRIFT=1
+  elif ! cmp -s "$WORK/$f" "$REPO_ROOT/$f"; then
+    printf 'differs        : %s\n' "$f"
     DRIFT=1
   fi
-done < <(cd "$WORK" && find . -type f \
-           \( -name '*.py' -o -name '*.ts' -o -name '*.tsx' -o -name '*.rs' -o -name '*.sh' \) \
-           | sed 's|^\./||')
+done < <(cd "$WORK" && find . -type f -not -path './.git/*' | sed 's|^\./||')
+
+while IFS= read -r f; do
+  [ -f "$WORK/$f" ] || {
+    printf 'only in tree   : %s\n' "$f"
+    DRIFT=1
+  }
+done < <(git -C "$REPO_ROOT" ls-files)
+
 [ "$DRIFT" -eq 0 ] && echo "no drift: the branch holds what you have been testing"
 
 # --- the checks, in CI's order ----------------------------------------------
