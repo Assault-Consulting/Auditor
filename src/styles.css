@@ -730,25 +730,25 @@ body {
   margin: 0 0 calc(var(--step) * 1.5);
 }
 
-/* The interim lookup. Styled like .choose rather than given its own
-   language, because it is the same kind of control — a field standing in
-   for the seq-jump button F10 (C-09) has not been built yet, not a
-   permanent fixture of this screen. */
-.record-lookup {
+/* F10's own bar — the seq-jump slice of it (C-09). Styled like .choose
+   rather than given its own language, because it is the same kind of
+   control: a field that goes and gets something, not a form with a
+   result of its own. */
+.search-bar {
   display: flex;
   align-items: baseline;
   gap: var(--step);
-  margin-bottom: calc(var(--step) * 1.5);
+  margin-bottom: calc(var(--step) * 0.75);
 }
 
-.record-lookup-hint {
+.search-hint {
   font-family: var(--mono);
   font-size: 0.74rem;
   color: var(--unchecked);
   margin-right: calc(var(--step) * 0.6);
 }
 
-.record-lookup input {
+.search-bar input {
   font-family: var(--mono);
   font-size: 0.82rem;
   color: var(--vellum);
@@ -758,7 +758,7 @@ body {
   width: 8ch;
 }
 
-.record-lookup button {
+.search-bar button {
   font-family: var(--mono);
   font-size: 0.82rem;
   color: var(--vellum);
@@ -768,8 +768,48 @@ body {
   cursor: pointer;
 }
 
-.record-lookup button:hover {
+.search-bar button:hover {
   border-color: var(--unchecked);
+}
+
+/* Named plainly rather than silently swallowed — a filter chip or free
+   text typed into this bar today is not read yet, and the bar says so
+   instead of looking like it accepted and then did nothing. Not styled
+   as a failure: nothing here failed, this slice simply is not the whole
+   of F10. */
+.search-note {
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-size: 0.82rem;
+  color: var(--unchecked);
+}
+
+.search-quick {
+  display: flex;
+  gap: var(--step);
+  margin-bottom: calc(var(--step) * 1.5);
+}
+
+.search-quick button {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--vellum-dim);
+  background: none;
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.4) calc(var(--step) * 1);
+  cursor: pointer;
+}
+
+.search-quick button:hover:not(:disabled) {
+  border-color: var(--unchecked);
+  color: var(--vellum);
+}
+
+/* Dimmed rather than hidden, the same choice .choose-button makes for
+   Verify: a button that vanishes when there is nothing to jump to leaves
+   the screen without saying what it would otherwise do. */
+.search-quick button:disabled {
+  color: var(--unchecked);
+  cursor: default;
 }
 
 .record-failed {
@@ -918,11 +958,11 @@ body {
   color: var(--vellum-dim);
 }
 
-/* The first real jump target on this screen. Underlined rather than
-   boxed — quieter than .record-lookup's button, because this is
-   navigation inside a record already open, not a new action. Brightens
-   on hover in plain vellum: neither truth-value token applies to "this
-   is clickable". */
+/* The first clickable jump target on this screen, ahead of the search bar
+   itself. Underlined rather than boxed — quieter than .search-bar's
+   button, because this is navigation inside a record already open, not
+   a new action. Brightens on hover in plain vellum: neither truth-value
+   token applies to "this is clickable". */
 .origin-jump {
   font-family: var(--mono);
   font-size: 0.78rem;
