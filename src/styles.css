@@ -711,6 +711,126 @@ body {
   color: var(--vellum-dim);
 }
 
+/* The records list — C-11. Ruled like .browse for the same reason: a page
+   of records is structure to page through, not a finding. */
+.records {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.records-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+.records-empty {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--unchecked);
+}
+
+.records-failed {
+  margin: 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.records-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A row is a button, not a link styled to look like one — it selects the
+   same record the search bar and the origin jump already select, and
+   never navigates anywhere of its own. */
+.records-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+  width: 100%;
+  padding: calc(var(--step) * 0.5) 0;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--vellum-dim);
+  text-align: left;
+  cursor: pointer;
+}
+
+.records-list li:last-child .records-row {
+  border-bottom: none;
+}
+
+.records-row:hover {
+  color: var(--vellum);
+}
+
+.records-seq {
+  color: var(--vellum);
+  min-width: 6ch;
+}
+
+.records-type,
+.records-kind {
+  color: var(--unchecked);
+}
+
+.records-boot {
+  flex: 1;
+  color: var(--unchecked);
+  text-align: right;
+}
+
+/* Ochre — a Recorded claim, the same reason the record card's own Clock
+   line is (L3). */
+.records-clock {
+  color: var(--recorded);
+}
+
+.records-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--step);
+  margin-top: calc(var(--step) * 1.5);
+}
+
+.records-nav button {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--vellum-dim);
+  background: none;
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.4) calc(var(--step) * 1);
+  cursor: pointer;
+}
+
+.records-nav button:hover:not(:disabled) {
+  border-color: var(--unchecked);
+  color: var(--vellum);
+}
+
+.records-nav button:disabled {
+  color: var(--unchecked);
+  cursor: default;
+}
+
+.records-count {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
 /* The record card — F9's first slice (C-06a). Ruled like the browse block,
    because a looked-up record is structure to inspect, not a finding: the
    diagnosis card gets the ochre left border for a reason this one does not
