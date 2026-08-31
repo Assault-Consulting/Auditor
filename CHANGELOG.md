@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `RecordView.index` and `RecordView.prev_hash` (C-06b). Both were already
+  on the reader's own objects — `DecodedRecord.index`, `Header.prev_hash` —
+  and `_record_view` simply was not copying them through. `prev_hash`
+  resolves PALA-1's thirty-two-zero-byte "no predecessor" convention to
+  `null`, the same choice `span_id` already makes for "no span," confirmed
+  against `palimpsests.audit.pala.incremental`'s own GENESIS check rather
+  than assumed. The record card shows both; `prev_hash` as a fact, not yet
+  a link — there is nothing here yet to compare it against (waits on U10).
 - The record card (C-06a): `GET /session/{id}/record/{seq}` was already
   there from C-01; this adds the client, the view-model (`api/record.ts`)
   and the UI to actually look one up. Resolves the three ambiguous-null
