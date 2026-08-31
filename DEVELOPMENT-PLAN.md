@@ -199,14 +199,20 @@ run.
 | C-06d | Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
 | C-07 | UI: SAFETY list and the r2 oversight loop — unacknowledged candidates as the loudest element. **Display only** in the MVP: recording a disposition is the Phase-5 item below, behind its own ADR | 3 | C-01 |
 | C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01, C-06a |
-| C-09 | Search bar: free text over `detail`, filter chips, time jump, seq jump, three quick buttons | 3 | C-01 |
+| C-09a | Search bar: seq jump (`#1447`), two of three quick buttons (first record, next warning). Unsupported input named plainly rather than silently ignored. | 1 | C-01, C-06a |
+| C-09b | Filter chips (`kind:`, `type:`, `span:`, `boot:`, `tier:`, date range) and the records-list view they narrow — neither exists yet; §5 below. | ? | C-01, C-09a |
+| C-09c | Time jump (nearest record to a wall-clock instant) and the anchor quick button (needs a record's own hash — U10, C-06c). | ? | C-06c, C-09b |
+| C-09d | Free text over `detail`. Blocked on `FUNCTIONALITY.md` §22.3, an open product question this plan has no authority to answer, and on there being no `detail` field on a record to search (C-06d). | ? | §22.3 decided, C-06d |
 | C-10 | Performance pass: virtualised record table, off-thread verify, 100 MB / ~1M-record target | 3 | C-03 |
 | B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra | 1 | — |
 
-**Phase 2: ~30 days plus C-06d** — 27 as planned, plus B-12 (§below), plus
-1.5 days for splitting one three-day estimate into four PRs that between them
-cost more than the original guess, for the reason the split exists: nobody
-had read what `RecordView` actually carries when C-06 was costed.
+**Phase 2: ~26 days plus C-06d, C-09b, C-09c and C-09d** — 27 as planned,
+plus B-12 (§below), minus the two days C-09's own split found it did not
+need (a 3-day guess for one thing became a 1-day C-09a plus three
+question marks). The four question marks left are not the same kind of
+unknown: C-06d is an unstarted design; C-09b is gated on a records list
+that does not exist yet; C-09c on an upstream release (U10); C-09d on a
+product decision (§22.3) this plan cannot make by itself.
 
 **Exit criterion:** a 1M-record chain opens, the timeline stays
 interactive, and "what happened at 22:41 on 6 Aug" is answerable in under
@@ -306,7 +312,7 @@ left to design here.
 inside C-06a's own PR and had already called C-06b "merged" — it was not;
 that PR was C-06a. Both are corrected here.)
 
-### C-08 is this PR — one wording gap, tracked as U11
+### C-08 is merged — one wording gap, tracked as U11
 
 Origin inspection otherwise needed no seam changes: `/session/{id}/origin`
 has answered since C-01, and the card is a straightforward reading of what
@@ -317,6 +323,38 @@ reader source directly rather than assumed (§2, U11). Until U11 lands, a
 MODEL_UNLOAD and "nothing declared yet" render the same honest sentence,
 "not stated in this file", because the data cannot currently tell a reader
 which one it is.
+
+### C-09 was one PR costed before anyone counted what F10 actually needs
+
+Three days assumed "search bar" was one thing. Reading F10 and its own
+open question against what exists today says otherwise:
+
+- **Free text is `FUNCTIONALITY.md` §22's own unresolved question** — "is
+  free-text search over `detail` MVP or fast-follow?" — not a gap this
+  plan can close by building one answer into the app. It is also
+  unbuildable regardless of that answer: no record carries a `detail`
+  field yet (C-06d).
+- **Filter chips presuppose a records list.** `kind:`, `type:`, `span:`,
+  `boot:`, `tier:` and date range all narrow *which records a list
+  shows* — and this application renders one selected record at a time,
+  never a list of them. `/records` has supported paging and three of
+  those filters since C-01; nothing client-side has called it for more
+  than a single record. This is a real gap the plan did not itemise
+  anywhere, not a deferral — there is no "C-something: the records list"
+  item for C-09b to depend on, and one is needed before filter chips mean
+  anything.
+- **Time jump** needs the record nearest a wall-clock instant, which
+  `/records`' offset (by seq, not by time) cannot answer.
+- **The anchor quick button** needs a record's own hash to know which
+  record a configured anchor names — the same U10/C-06c gap `prevHash`
+  is waiting on, not a new one.
+
+What needed neither a records list, a product decision, nor an upstream
+release: seq jump (`#1447`, F10's own syntax) and two of the three quick
+buttons. Built as C-09a. Typing anything else into the bar — a filter
+chip, free text, a time — is named plainly as not read yet rather than
+silently ignored, the same discipline `record-note` and `origin-none`
+already keep for what this build cannot show.
 
 ## 6. Phase 3 — Report
 
@@ -351,11 +389,11 @@ the original estimate made in the other direction.
 
 **MVP total: not restated either, for the same reason.** It was ~73 days on
 an estimate that no longer describes Phase 3. The honest statement is that
-Phase 0 and Phase 1 are closed, Phase 2 stands at seven of fourteen items —
-the fourteen counting C-06's split into four, C-06a and C-06b among the
-seven merged and C-08 proposed in this PR — and Phase 3 is unquantified
-until D-02 and D-07 have been looked at. If the work has to shrink, the
-cut lines are C-09 and B-05 — not the tests.
+Phase 0 and Phase 1 are closed, Phase 2 stands at eight of seventeen
+items — the seventeen counting both splits (C-06 into four, C-09 into
+four), eight merged through C-08, C-09a proposed in this PR — and Phase 3
+is unquantified until D-02 and D-07 have been looked at. If the work has
+to shrink, the cut lines are C-09b onward and B-05 — not the tests.
 
 ## 7. Phase 4 — evidence artifacts
 
