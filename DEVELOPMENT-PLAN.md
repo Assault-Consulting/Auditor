@@ -292,6 +292,19 @@ as needing only C-01 because C-01 supplies the endpoint — but an endpoint is
 not a selection mechanism, and C-08 built against C-01 alone would have had
 no record to be a card *of*. Corrected above to `C-01, C-06a`.
 
+**Status.** C-06a is merged. C-06b is this PR: `RecordView` gains `index`
+and `prev_hash` (the latter resolved through the same ZERO-convention
+`span_id` already uses, confirmed against
+`palimpsests.audit.pala.incremental`'s own GENESIS check rather than
+assumed), and the card displays both — `prevHash` as a fact, not yet a
+link, because there is still nothing on this side of the seam to compare it
+against. C-06c is next and is blocked on U10's release, not on anything
+left to design here.
+
+(That status paragraph, and the count in §6 below, were themselves written
+inside C-06a's own PR and had already called C-06b "merged" — it was not;
+that PR was C-06a. Both are corrected here.)
+
 ## 6. Phase 3 — Report
 
 **Rewritten after U6 closed upstream.** The original six items assumed
@@ -325,9 +338,11 @@ the original estimate made in the other direction.
 
 **MVP total: not restated either, for the same reason.** It was ~73 days on
 an estimate that no longer describes Phase 3. The honest statement is that
-Phase 0 and Phase 1 are closed, Phase 2 stands at five of eleven items, and
-Phase 3 is unquantified until D-02 and D-07 have been looked at. If the work
-has to shrink, the cut lines are C-09 and B-05 — not the tests.
+Phase 0 and Phase 1 are closed, Phase 2 stands at six of fourteen items —
+the fourteen counting C-06's split into four, C-06a among the six merged
+and C-06b proposed in this PR — and Phase 3 is unquantified until D-02 and
+D-07 have been looked at. If the work has to shrink, the cut lines are
+C-09 and B-05 — not the tests.
 
 ## 7. Phase 4 — evidence artifacts
 
