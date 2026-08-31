@@ -27,7 +27,7 @@ import { chainLine, openedOf } from "./api/chainState";
 import { backwards, compress, compressionLine, density } from "./api/chronoscope";
 import { diagnosisCard } from "./api/diagnosis";
 import { provenance, provenanceSummary } from "./api/provenance";
-import { useBrowse, useChain, useProbe, useProfiles, useRail, useRecord } from "./state";
+import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord } from "./state";
 
 export default function App() {
   const probe = useProbe();
@@ -38,6 +38,10 @@ export default function App() {
   const { boots, spans } = useBrowse(probe, chain);
   const { record, select } = useRecord(probe, chain);
   const [seqField, setSeqField] = useState("");
+  // Kept in lockstep with the record card rather than driven separately:
+  // origin is F9's card "on any selected record", not a second selection.
+  const originSeq = record.kind === "found" ? record.value.seq : null;
+  const origin = useOrigin(probe, chain, originSeq);
   const rows = rowsFor(probe, chain, rail, { boots, spans });
   const choiceNote = choiceLine(choice);
   const { panels, live } = panelsFor(chain);
@@ -517,6 +521,64 @@ export default function App() {
                       ? "body present, decoded, empty"
                       : `body present, decoded — TLV types ${record.value.body.tlvTypes.join(", ")}`)}
                 </p>
+
+                {/* F9 — origin, rendered for any selected record. Two
+                    different "nothing to show" facts collapse into the
+                    same null on this side of the seam (see api/origin.ts);
+                    both render the one sentence the data actually
+                    supports, and the rest is U11. */}
+                <div className="origin">
+                  <p className="origin-title">Origin</p>
+                  {origin.kind === "failed" && (
+                    <p className="origin-failed">{origin.detail}</p>
+                  )}
+                  {origin.kind === "found" && origin.value === null && (
+                    <p className="origin-none">not stated in this file</p>
+                  )}
+                  {origin.kind === "found" && origin.value !== null && (
+                    <dl className="origin-facts">
+                      <div>
+                        <dt>Role</dt>
+                        <dd>{origin.value.role}</dd>
+                      </div>
+                      <div>
+                        <dt>Model</dt>
+                        {/* Recorded — OriginModel's own docstring: every
+                            field here is the writer's claim, never a proof
+                            of what actually ran (L3). */}
+                        <dd className="record-recorded">
+                          {origin.value.modelDigest.slice(0, 12)}…
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Config</dt>
+                        <dd className="record-recorded">
+                          {origin.value.configDigest.slice(0, 12)}…
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Since</dt>
+                        <dd>
+                          {/* The first real jump target in this screen: the
+                              MODEL_LOAD that made this origin active. */}
+                          <button
+                            className="origin-jump"
+                            onClick={() => select(origin.value!.sinceSeq)}
+                            type="button"
+                          >
+                            #{origin.value.sinceSeq}
+                          </button>
+                        </dd>
+                      </div>
+                      {origin.value.detail !== null && (
+                        <div>
+                          <dt>Detail</dt>
+                          <dd>{origin.value.detail}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  )}
+                </div>
               </div>
             )}
           </section>

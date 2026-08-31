@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Origin card (C-08): the `/origin` endpoint has answered since C-01; this
+  adds the client, the view-model (`api/origin.ts`) and the UI. F9 asks
+  for two different sentences on a null origin — "not stated in this
+  file" and, after a MODEL_UNLOAD, "no model active" — and `origin_at()`
+  cannot currently tell the sidecar which one applies, confirmed by
+  reading the reader source directly. Both render the one sentence the
+  data supports until that's fixed upstream (U11). `since_seq` is the
+  first real jump target in the app: it re-selects the declaring record
+  through the same `select` the record lookup uses.
 - `RecordView.index` and `RecordView.prev_hash` (C-06b). Both were already
   on the reader's own objects — `DecodedRecord.index`, `Header.prev_hash` —
   and `_record_view` simply was not copying them through. `prev_hash`

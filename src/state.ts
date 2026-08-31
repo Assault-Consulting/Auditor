@@ -17,12 +17,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { chainBoots, chainSpans, chainTimeline, getRecord, listProfiles } from "./api/chain";
+import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, listProfiles } from "./api/chain";
 import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
 import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { type Chronoscope, chronoscope } from "./api/chronoscope";
 import type { AnchorProfile } from "./api/generated/types";
 import { onChainFilesDropped, pickChainFile } from "./api/openFile";
+import { type OriginCard, originCard } from "./api/origin";
 import { type RecordCard, recordCard } from "./api/record";
 import { type Health, NoShellError, getHealth, getSession } from "./api/session";
 
@@ -257,6 +258,50 @@ export function useRecord(
   };
 
   return { record, select };
+}
+
+/**
+ * What was declared active for the record `useRecord` currently has
+ * open — F9's origin card, "rendered … on any selected record."
+ *
+ * Keyed off the selected record's own `seq` rather than driven by a
+ * second `select` call: origin changes along the chain (the endpoint
+ * requires `seq` explicitly for exactly that reason), so this hook exists
+ * to keep the two fetches in lockstep with the same selection, not to add
+ * a second one the caller has to drive.
+ */
+export function useOrigin(
+  probe: Probe,
+  chain: ChainState,
+  seq: number | null,
+): Fetch<OriginCard | null> {
+  const [origin, setOrigin] = useState<Fetch<OriginCard | null>>({ kind: "unasked" });
+  const opened = openedOf(chain);
+
+  useEffect(() => {
+    if (probe.kind !== "ready" || opened === null || seq === null) {
+      setOrigin({ kind: "unasked" });
+      return;
+    }
+    let cancelled = false;
+    void getOrigin(probe.session, opened.session_id, seq)
+      .then((model) => {
+        if (!cancelled) setOrigin({ kind: "found", value: originCard(model) });
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setOrigin({
+            kind: "failed",
+            detail: e instanceof Error ? e.message : String(e),
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [probe, opened, seq]);
+
+  return origin;
 }
 
 /**
