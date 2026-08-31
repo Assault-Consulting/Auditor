@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Search bar, the seq-jump slice (C-09a): `#1447` syntax, replacing the
+  interim numeric-only field C-06a stood in with. Two of F10's three
+  quick buttons (first record, next warning); the third, anchor, needs a
+  record's own hash not available yet (U10, C-06c). Anything else typed
+  into the bar — a filter chip, free text, a time — is named plainly as
+  not read yet rather than silently ignored. Filter chips, free text and
+  time jump are not this PR: they presuppose a records-list view that
+  does not exist anywhere in the app yet, a fact `DEVELOPMENT-PLAN.md`
+  did not itemise until now, and free text is separately blocked on
+  `FUNCTIONALITY.md` §22's own open question about its MVP status.
 - Origin card (C-08): the `/origin` endpoint has answered since C-01; this
   adds the client, the view-model (`api/origin.ts`) and the UI. F9 asks
   for two different sentences on a null origin — "not stated in this
