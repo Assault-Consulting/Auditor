@@ -497,6 +497,14 @@ class RecordView(BaseModel):
     """
 
     seq: int = Field(description="Sequence number.")
+    index: int = Field(
+        description=(
+            "Position of this record within THIS FILE, zero-based. Distinct "
+            "from seq, which a rotated or segmented chain does not start at "
+            "zero and does not number contiguously across a gap — index "
+            "always does, because it counts what this file actually holds."
+        )
+    )
     record_type: int = Field(description="Raw record type.")
     type_name: str | None = Field(
         description="The package's name for the type, or null if unknown to this build."
@@ -518,6 +526,21 @@ class RecordView(BaseModel):
         )
     )
     parent_span_id: str | None = Field(description="The enclosing span, when there is one.")
+    prev_hash: str | None = Field(
+        description=(
+            "Hex hash of the predecessor's header, or null for a record "
+            "declaring it has none. PALA-1 spells 'no predecessor' as "
+            "thirty-two zero bytes — the GENESIS convention (§4.2: 'no "
+            "predecessor' and 'predecessor removed' must be "
+            "distinguishable, which is the entire reason GENESIS is a "
+            "type) — so this field reports null rather than a hash of "
+            "all zeros, the same choice span_id already makes for 'no "
+            "span'. This is the record's OWN CLAIM about its predecessor, "
+            "unverified here: whether it actually matches the "
+            "predecessor's hash is a chain-link fact, not a structural "
+            "one, and belongs to /verify, not to this view."
+        )
+    )
     wall_clock_ns: int = Field(
         description="The writer's wall clock. A Recorded claim, qualified by time_trust."
     )
