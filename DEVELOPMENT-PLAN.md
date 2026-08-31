@@ -82,8 +82,9 @@ schedule rather than this project's.
 | U7 | `time_trust` / `assurance_tier` constant→name tables exported, following the §10.5 pattern already used for kinds. | 0.5 | F2, F6 |
 | U9 | Ship the published vectors — core and inference-profile — in the distribution, behind one accessor. A vector set reachable only by cloning the repository is checkable only by those who least need to check it, which is the opposite of what publishing one is for. Cheap, and it unblocks the conformance half of B-10. | 1 | B-10(b) |
 | U8 | Evidence-bundle assembly as a library command (`pala bundle`): records + inclusion proofs + verification + manifest + the explicit time-claims section. By this plan's own Track-U criterion — independently useful without the shell (any CLI user or third-party tool gets it) — assembly belongs upstream; the shell invokes and presents (E-01). | 4 | E-01 |
+| U10 | A record's own hash, on `DecodedRecord`. `Header.prev_hash` and `Header.body_digest` are already there; the record's own hash is not, because nothing downstream of `decode_record` keeps the header bytes `pala.record_hash(header_bytes)` needs. Computed once during decode, from bytes the reader already has and discards, and cached on the dataclass — not re-derived by any caller. Confirmed against the installed 0.10.0 wheel by reading `palimpsests.audit.reader` directly rather than assumed. | 1 | C-06c |
 
-**Track U total: ~17.5 days** (~13.5 without U8, which blocks only
+**Track U total: ~18.5 days** (~14.5 without U8, which blocks only
 Phase 4). U7, U4 and U1 are the cheap ones and should
 land first — U7 in particular is half a day and removes a whole class of
 "the shell re-typed a constant" defects.
@@ -191,15 +192,20 @@ run.
 | C-03 | UI: Chronoscope — date rail with pinned caps, fine strip, axis toggle, wall-gap hatch with the ruler removed inside it, pins row | 5 | C-02 |
 | C-04 | UI: accordion compression for empty stretches, with explicit marks | 2 | C-03 |
 | C-05 | UI: boot and span lists; unclosed span as first-class evidence | 2 | C-01 |
-| C-06 | UI: record inspector, envelope, TLVs, opaque bodies, clickable `prev_hash`, hex view with field highlighting | 3 | C-01, U4 |
+| C-06a | UI: the record card — envelope, tier and trust badges, type/kind name resolution, body presence state (none / opaque / cleartext / undecoded). An interim `seq` lookup field stands in for the seq-jump button until C-09 exists. | 1.5 | C-01 |
+| C-06b | `prev_hash` and container `index` on `RecordView`. Both are already on the reader's own objects — `Header.prev_hash`, `DecodedRecord.index` — and are not upstream work at all, just two fields `_record_view` was not copying through. Unlocks the predecessor jump; the record's own hash still waits on U10. | 0.5 | C-06a |
+| C-06c | Clickable `prev_hash` and the record's own hash, rendered once C-06b and U10 are both there. | 1 | C-06b, U10 *released* |
+| C-06d | Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
 | C-07 | UI: SAFETY list and the r2 oversight loop — unacknowledged candidates as the loudest element. **Display only** in the MVP: recording a disposition is the Phase-5 item below, behind its own ADR | 3 | C-01 |
-| C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01 |
+| C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01, C-06a |
 | C-09 | Search bar: free text over `detail`, filter chips, time jump, seq jump, three quick buttons | 3 | C-01 |
 | C-10 | Performance pass: virtualised record table, off-thread verify, 100 MB / ~1M-record target | 3 | C-03 |
 | B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra | 1 | — |
 
-**Phase 2: ~28 days** — 27 as planned plus B-12, which belongs to Phase 1's
-subject and arrives now because upstream shipped it after Phase 1 closed.
+**Phase 2: ~30 days plus C-06d** — 27 as planned, plus B-12 (§below), plus
+1.5 days for splitting one three-day estimate into four PRs that between them
+cost more than the original guess, for the reason the split exists: nobody
+had read what `RecordView` actually carries when C-06 was costed.
 
 **Exit criterion:** a 1M-record chain opens, the timeline stays
 interactive, and "what happened at 22:41 on 6 Aug" is answerable in under
@@ -255,6 +261,36 @@ Before Phase 4 renders any pin, the sentence is verified or replaced. It is
 currently the only claim in this application that says something is
 *impossible* rather than *absent*, and it was written from an assumption
 rather than from the package.
+
+### C-06 was one PR costed before anyone had read what `RecordView` carries
+
+The three-day estimate assumed the sidecar could already answer everything
+F7 asks for. It cannot. `RecordView` has `body_tlv_types` — which TLV types
+are present, never their values — and no field at all for either hash.
+Building the clickable `prev_hash` link the estimate priced at no extra cost
+would have meant inventing the field on this side of the seam, which ADR-0001
+exists to rule out.
+
+Split into four rather than costed down, for the same reason Phase 1's B-06
+was split rather than shrunk: a security-relevant seam addition (C-06b), an
+upstream item (U10 → C-06c), and an unstarted design (C-06d) are three
+different kinds of work, and one PR covering all of them would give a
+reviewer no way to tell which kind they were approving.
+
+Two of the three gaps turned out to be free. `Header.prev_hash` and
+`DecodedRecord.index` are already on the reader's own objects — confirmed by
+reading `palimpsests.audit.reader` against the installed 0.10.0 wheel rather
+than assumed from the spec — so `_record_view` was simply not copying them
+through. The record's own hash is the real gap: nothing downstream of
+`decode_record` retains the header bytes `pala.record_hash()` needs, which is
+why it is U10 and not a fourth free field.
+
+**C-08's dependency was also wrong, the same way B-05's was.** F9 renders the
+origin card "on any selected record" (§13 of `FUNCTIONALITY.md`), and nothing
+before C-06a gave this application a record to select. The table listed C-08
+as needing only C-01 because C-01 supplies the endpoint — but an endpoint is
+not a selection mechanism, and C-08 built against C-01 alone would have had
+no record to be a card *of*. Corrected above to `C-01, C-06a`.
 
 ## 6. Phase 3 — Report
 
