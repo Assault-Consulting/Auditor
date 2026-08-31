@@ -83,8 +83,9 @@ schedule rather than this project's.
 | U9 | Ship the published vectors — core and inference-profile — in the distribution, behind one accessor. A vector set reachable only by cloning the repository is checkable only by those who least need to check it, which is the opposite of what publishing one is for. Cheap, and it unblocks the conformance half of B-10. | 1 | B-10(b) |
 | U8 | Evidence-bundle assembly as a library command (`pala bundle`): records + inclusion proofs + verification + manifest + the explicit time-claims section. By this plan's own Track-U criterion — independently useful without the shell (any CLI user or third-party tool gets it) — assembly belongs upstream; the shell invokes and presents (E-01). | 4 | E-01 |
 | U10 | A record's own hash, on `DecodedRecord`. `Header.prev_hash` and `Header.body_digest` are already there; the record's own hash is not, because nothing downstream of `decode_record` keeps the header bytes `pala.record_hash(header_bytes)` needs. Computed once during decode, from bytes the reader already has and discards, and cached on the dataclass — not re-derived by any caller. Confirmed against the installed 0.10.0 wheel by reading `palimpsests.audit.reader` directly rather than assumed. | 1 | C-06c |
+| U11 | `origin_at()` to distinguish "never declared" from "declared, then unloaded". Read directly rather than assumed: a `KIND_MODEL_UNLOAD` sets the running origin to `None`, exactly the value it starts at before any `MODEL_LOAD` — the two collapse. F9 asks for different wording for each ("not stated in this file" vs "no model active"); producing that distinction on this side of the seam would mean re-walking records for the last unload ourselves, the second-implementation mistake ADR-0001 rules out. | 1 | C-08(b) |
 
-**Track U total: ~18.5 days** (~14.5 without U8, which blocks only
+**Track U total: ~19.5 days** (~15.5 without U8, which blocks only
 Phase 4). U7, U4 and U1 are the cheap ones and should
 land first — U7 in particular is half a day and removes a whole class of
 "the shell re-typed a constant" defects.
@@ -305,6 +306,18 @@ left to design here.
 inside C-06a's own PR and had already called C-06b "merged" — it was not;
 that PR was C-06a. Both are corrected here.)
 
+### C-08 is this PR — one wording gap, tracked as U11
+
+Origin inspection otherwise needed no seam changes: `/session/{id}/origin`
+has answered since C-01, and the card is a straightforward reading of what
+it returns. The gap is narrower than C-06's and did not earn a formal
+split — one sentence F9 asks for ("no model active" after a MODEL_UNLOAD)
+that `origin_at()` cannot currently produce, confirmed by reading the
+reader source directly rather than assumed (§2, U11). Until U11 lands, a
+MODEL_UNLOAD and "nothing declared yet" render the same honest sentence,
+"not stated in this file", because the data cannot currently tell a reader
+which one it is.
+
 ## 6. Phase 3 — Report
 
 **Rewritten after U6 closed upstream.** The original six items assumed
@@ -338,11 +351,11 @@ the original estimate made in the other direction.
 
 **MVP total: not restated either, for the same reason.** It was ~73 days on
 an estimate that no longer describes Phase 3. The honest statement is that
-Phase 0 and Phase 1 are closed, Phase 2 stands at six of fourteen items —
-the fourteen counting C-06's split into four, C-06a among the six merged
-and C-06b proposed in this PR — and Phase 3 is unquantified until D-02 and
-D-07 have been looked at. If the work has to shrink, the cut lines are
-C-09 and B-05 — not the tests.
+Phase 0 and Phase 1 are closed, Phase 2 stands at seven of fourteen items —
+the fourteen counting C-06's split into four, C-06a and C-06b among the
+seven merged and C-08 proposed in this PR — and Phase 3 is unquantified
+until D-02 and D-07 have been looked at. If the work has to shrink, the
+cut lines are C-09 and B-05 — not the tests.
 
 ## 7. Phase 4 — evidence artifacts
 
