@@ -711,6 +711,151 @@ body {
   color: var(--vellum-dim);
 }
 
+/* The record card — F9's first slice (C-06a). Ruled like the browse block,
+   because a looked-up record is structure to inspect, not a finding: the
+   diagnosis card gets the ochre left border for a reason this one does not
+   share. */
+.record {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.record-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+/* The interim lookup. Styled like .choose rather than given its own
+   language, because it is the same kind of control — a field standing in
+   for the seq-jump button F10 (C-09) has not been built yet, not a
+   permanent fixture of this screen. */
+.record-lookup {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+  margin-bottom: calc(var(--step) * 1.5);
+}
+
+.record-lookup-hint {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+  margin-right: calc(var(--step) * 0.6);
+}
+
+.record-lookup input {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--vellum);
+  background: var(--ink-raised);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.5) var(--step);
+  width: 8ch;
+}
+
+.record-lookup button {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--vellum);
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.5) calc(var(--step) * 1.5);
+  cursor: pointer;
+}
+
+.record-lookup button:hover {
+  border-color: var(--unchecked);
+}
+
+.record-failed {
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.record-head {
+  display: flex;
+  gap: var(--step);
+  align-items: baseline;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+}
+
+.record-seq {
+  color: var(--vellum);
+}
+
+.record-type {
+  color: var(--unchecked);
+}
+
+.record-kind {
+  color: var(--unchecked);
+}
+
+/* F7's exact sentence for a type this build cannot name — quoted, so it
+   takes the same ochre a quoted sidecar sentence takes everywhere else on
+   this screen (.browse-failed, .provenance-error). */
+.record-note {
+  margin: 0.4em 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.84rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.record-facts {
+  margin: calc(var(--step) * 1.5) 0 0;
+  display: grid;
+  gap: calc(var(--step) * 0.5);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.record-facts > div {
+  display: flex;
+  gap: var(--step);
+}
+
+.record-facts dt {
+  color: var(--unchecked);
+  min-width: 7ch;
+}
+
+.record-facts dd {
+  margin: 0;
+  color: var(--vellum-dim);
+}
+
+/* The clock is a Recorded claim on every record, independent of that
+   record's own tier — the same ochre .boot-clock uses for the same
+   reason (L3). */
+.record-recorded {
+  color: var(--recorded);
+}
+
+.record-body {
+  margin: calc(var(--step) * 1.5) 0 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--unchecked);
+}
+
+/* Opaque is key_id's doing, not this reader declining to look — stated in
+   the same inert slate as .browse-empty, never in anything alarming. */
+.record-body[data-state="opaque"] {
+  color: var(--vellum-dim);
+}
+
 /* The advisory lane, and it is deliberately the quietest block on the page.
    No ochre rule, no serif heading, nothing that echoes the diagnosis card.
    L5 says these items change no verdict — and a lane that looked like a
