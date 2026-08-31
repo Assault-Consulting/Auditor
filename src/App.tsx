@@ -28,7 +28,11 @@ import { backwards, compress, compressionLine, density } from "./api/chronoscope
 import { diagnosisCard } from "./api/diagnosis";
 import { provenance, provenanceSummary } from "./api/provenance";
 import { nextWarning, parseSearch } from "./api/search";
-import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord } from "./state";
+import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords } from "./state";
+
+// C-11's page size. Well inside the sidecar's own 1000-record ceiling, and
+// small enough that a page reads as a page rather than a scroll.
+const RECORDS_PAGE_SIZE = 50;
 
 export default function App() {
   const probe = useProbe();
@@ -37,6 +41,8 @@ export default function App() {
   const [chain, choice, pick, verify] = useChain(probe);
   const rail = useRail(probe, chain);
   const { boots, spans } = useBrowse(probe, chain);
+  const { page: recordsPage, next: recordsNext, prev: recordsPrev, canGoBack: recordsCanGoBack } =
+    useRecords(probe, chain, RECORDS_PAGE_SIZE);
   const { record, select } = useRecord(probe, chain);
   // Kept in lockstep with the record card rather than driven separately —
   // origin is F9's card "on any selected record", and next-warning below
@@ -428,6 +434,74 @@ export default function App() {
                   </li>
                 ))}
               </ol>
+            )}
+          </section>
+        )}
+
+        {/* C-11 — the records list. Filter chips (C-09b) will narrow it
+            and C-10 will virtualise it; neither could mean anything
+            until a list existed to narrow or virtualise. Rows are
+            clickable and drive the same `select` the search bar and the
+            origin card's jump already use — one selection mechanism,
+            not a second. */}
+        {openedOf(chain) !== null && (
+          <section className="records" aria-labelledby="records-title">
+            <h2 className="records-title" id="records-title">
+              Records
+            </h2>
+
+            {recordsPage.kind === "failed" && (
+              <p className="records-failed">{recordsPage.detail}</p>
+            )}
+
+            {recordsPage.kind === "found" && recordsPage.value.rows.length === 0 && (
+              <p className="records-empty">No records match this window.</p>
+            )}
+
+            {recordsPage.kind === "found" && recordsPage.value.rows.length > 0 && (
+              <>
+                <ol className="records-list">
+                  {recordsPage.value.rows.map((r) => (
+                    <li key={r.seq}>
+                      <button
+                        className="records-row"
+                        onClick={() => select(r.seq)}
+                        type="button"
+                      >
+                        <span className="records-seq">#{r.seq}</span>
+                        <span className="records-type">
+                          {r.typeLabel.named ? r.typeLabel.name : `type ${r.recordType}`}
+                        </span>
+                        {r.kindLabel.has && (
+                          <span className="records-kind">
+                            {r.kindLabel.named ? r.kindLabel.name : `kind ${r.kindLabel.raw}`}
+                          </span>
+                        )}
+                        <span className="records-boot">{r.bootId.slice(0, 8)}</span>
+                        {/* Ochre — a Recorded claim, the same reason the
+                            record card's own Clock line is (L3). */}
+                        <span className="records-clock">{r.wallClockIso}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+
+                <div className="records-nav">
+                  <button disabled={!recordsCanGoBack} onClick={recordsPrev} type="button">
+                    ← previous
+                  </button>
+                  <span className="records-count">
+                    {recordsPage.value.rows.length} of {recordsPage.value.total}
+                  </span>
+                  <button
+                    disabled={!recordsPage.value.hasMore}
+                    onClick={recordsNext}
+                    type="button"
+                  >
+                    next →
+                  </button>
+                </div>
+              </>
             )}
           </section>
         )}
