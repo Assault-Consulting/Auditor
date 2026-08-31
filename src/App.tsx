@@ -439,6 +439,10 @@ export default function App() {
               <div className="record-card">
                 <p className="record-head">
                   <span className="record-seq">#{record.value.seq}</span>
+                  {/* Index and seq diverge on a rotated chain (C-06b) —
+                      shown side by side rather than picking one, so neither
+                      reads as the other. */}
+                  <span className="record-index">file position {record.value.index}</span>
                   <span className="record-type">
                     {record.value.typeLabel.named
                       ? record.value.typeLabel.name
@@ -471,6 +475,17 @@ export default function App() {
                       {record.value.spanId === null
                         ? "none"
                         : record.value.spanId.slice(0, 8)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Prev</dt>
+                    {/* A claim, not yet a link (C-06c waits on U10 for the
+                        record's own hash to compare it against) — shown
+                        as a fact, never styled as clickable. */}
+                    <dd>
+                      {record.value.prevHash === null
+                        ? "none — GENESIS"
+                        : record.value.prevHash.slice(0, 8)}
                     </dd>
                   </div>
                   <div>

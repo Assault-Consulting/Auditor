@@ -390,6 +390,8 @@ export interface RecordPage {
 export interface RecordView {
   /** Sequence number. */
   seq: number;
+  /** Position of this record within THIS FILE, zero-based. Distinct from seq, which a rotated or segmented chain does not start at zero and does not number contiguously across a gap — index always does, because it counts what this file actually holds. */
+  index: number;
   /** Raw record type. */
   record_type: number;
   /** The package's name for the type, or null if unknown to this build. */
@@ -404,6 +406,8 @@ export interface RecordView {
   span_id: string | null;
   /** The enclosing span, when there is one. */
   parent_span_id: string | null;
+  /** Hex hash of the predecessor's header, or null for a record declaring it has none. PALA-1 spells 'no predecessor' as thirty-two zero bytes — the GENESIS convention (§4.2: 'no predecessor' and 'predecessor removed' must be distinguishable, which is the entire reason GENESIS is a type) — so this field reports null rather than a hash of all zeros, the same choice span_id already makes for 'no span'. This is the record's OWN CLAIM about its predecessor, unverified here: whether it actually matches the predecessor's hash is a chain-link fact, not a structural one, and belongs to /verify, not to this view. */
+  prev_hash: string | null;
   /** The writer's wall clock. A Recorded claim, qualified by time_trust. */
   wall_clock_ns: number;
   /** Monotonic clock. Comparable only within one boot. */

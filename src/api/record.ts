@@ -6,14 +6,15 @@
  *
  * Deliberately not all of F7. The spec asks for the record's own hash, a
  * clickable link to its predecessor's, and a raw hex view with field
- * highlighting from the package's field map (U4). `RecordView` carries none
- * of that: it has `body_tlv_types` — which TLV types are present, never
- * their values — and no field at all for either hash. Rendering a
- * predecessor link against a field the sidecar does not return would be
- * inventing the field on this side of the seam, which is exactly what
- * ADR-0001 rules out. So this slice renders everything `RecordView` actually
- * carries, and the hex view and the hash chain wait on a `pala_seam`
- * addition — tracked in `DEVELOPMENT-PLAN.md` as the rest of C-06.
+ * highlighting from the package's field map (U4). `RecordView` now carries
+ * `prev_hash` and `index` (C-06b), but not the record's own hash — nothing
+ * downstream of the reader's decode step keeps the header bytes computing
+ * it needs, which is why that field is a Track-U item (U10) rather than a
+ * seam addition. Until it lands, `prevHash` below is shown as a fact with
+ * nothing to compare it against: this slice renders it, but the clickable
+ * jump and the equality check both wait for C-06c. Rendering a hex view
+ * against fields the sidecar does not return would be inventing them on
+ * this side of the seam, which is exactly what ADR-0001 rules out.
  */
 
 import type { NamedValue, RecordView } from "./generated/types";
@@ -83,12 +84,22 @@ function isoOf(ns: number): string {
 /** The envelope, resolved into what a card actually prints. */
 export interface RecordCard {
   seq: number;
+  /** Position within this file. See `RecordView.index`'s own docstring. */
+  index: number;
   recordType: number;
   typeLabel: TypeLabel;
   kindLabel: KindLabel;
   bootId: string;
   spanId: string | null;
   parentSpanId: string | null;
+  /**
+   * The record's OWN CLAIM about its predecessor's hash, or null for a
+   * record declaring it has none (GENESIS). Unverified: nothing here
+   * confirms it matches the predecessor's actual hash, because this view
+   * has no field for that yet (U10 → C-06c). Displayed as a fact, not as
+   * a link, until it does.
+   */
+  prevHash: string | null;
   assuranceTier: NamedValue;
   timeTrust: NamedValue;
   wallClockIso: string;
@@ -107,12 +118,14 @@ const UNRECOGNISED_NOTE = "chain-checked, not interpretable by this verifier ver
 export function recordCard(view: RecordView): RecordCard {
   return {
     seq: view.seq,
+    index: view.index,
     recordType: view.record_type,
     typeLabel: typeLabelOf(view),
     kindLabel: kindLabelOf(view),
     bootId: view.boot_id,
     spanId: view.span_id,
     parentSpanId: view.parent_span_id,
+    prevHash: view.prev_hash,
     assuranceTier: view.assurance_tier,
     timeTrust: view.time_trust,
     wallClockIso: isoOf(view.wall_clock_ns),
