@@ -17,12 +17,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { chainBoots, chainSpans, chainTimeline, listProfiles } from "./api/chain";
+import { chainBoots, chainSpans, chainTimeline, getRecord, listProfiles } from "./api/chain";
 import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
 import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { type Chronoscope, chronoscope } from "./api/chronoscope";
 import type { AnchorProfile } from "./api/generated/types";
 import { onChainFilesDropped, pickChainFile } from "./api/openFile";
+import { type RecordCard, recordCard } from "./api/record";
 import { type Health, NoShellError, getHealth, getSession } from "./api/session";
 
 /** What the shell reports, once it has answered — or why it has not. */
@@ -205,6 +206,57 @@ export function useBrowse(
   }, [probe, opened]);
 
   return { boots, spans };
+}
+
+/**
+ * One thing that was asked for, or was not, or could not be got —
+ * {@link Listing}'s three states without the array `Listing` assumes. A
+ * record card is one thing, not a list of one, and `rows: [card]` would
+ * have said otherwise to whoever read this next.
+ */
+export type Fetch<T> =
+  | { kind: "unasked" }
+  | { kind: "found"; value: T }
+  | { kind: "failed"; detail: string };
+
+/**
+ * The record last asked for by sequence number, and a way to ask for
+ * another.
+ *
+ * F9 renders the origin card "on any selected record" — this is that
+ * selection. There is no seq-jump UI yet (F10, C-09); `select` is the whole
+ * of the mechanism today, and a caller supplies the number however it has
+ * one until a search bar exists to supply it.
+ *
+ * Opening a different chain drops whatever was selected in the last one: a
+ * card left on screen after its container closed would go on naming a seq
+ * that container's replacement may not have, or worse, one it has and means
+ * something else.
+ */
+export function useRecord(
+  probe: Probe,
+  chain: ChainState,
+): { record: Fetch<RecordCard>; select: (seq: number) => void } {
+  const [record, setRecord] = useState<Fetch<RecordCard>>({ kind: "unasked" });
+  const opened = openedOf(chain);
+
+  useEffect(() => {
+    setRecord({ kind: "unasked" });
+  }, [opened?.session_id]);
+
+  const select = (seq: number) => {
+    if (probe.kind !== "ready" || opened === null) return;
+    void getRecord(probe.session, opened.session_id, seq)
+      .then((view) => setRecord({ kind: "found", value: recordCard(view) }))
+      .catch((e: unknown) => {
+        setRecord({
+          kind: "failed",
+          detail: e instanceof Error ? e.message : String(e),
+        });
+      });
+  };
+
+  return { record, select };
 }
 
 /**
