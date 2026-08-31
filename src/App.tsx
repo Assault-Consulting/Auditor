@@ -27,6 +27,7 @@ import { chainLine, openedOf } from "./api/chainState";
 import { backwards, compress, compressionLine, density } from "./api/chronoscope";
 import { diagnosisCard } from "./api/diagnosis";
 import { provenance, provenanceSummary } from "./api/provenance";
+import { nextWarning, parseSearch } from "./api/search";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord } from "./state";
 
 export default function App() {
@@ -37,11 +38,12 @@ export default function App() {
   const rail = useRail(probe, chain);
   const { boots, spans } = useBrowse(probe, chain);
   const { record, select } = useRecord(probe, chain);
-  const [seqField, setSeqField] = useState("");
-  // Kept in lockstep with the record card rather than driven separately:
-  // origin is F9's card "on any selected record", not a second selection.
-  const originSeq = record.kind === "found" ? record.value.seq : null;
-  const origin = useOrigin(probe, chain, originSeq);
+  // Kept in lockstep with the record card rather than driven separately —
+  // origin is F9's card "on any selected record", and next-warning below
+  // reads the same seq for the same reason: both are about whichever
+  // record is on screen, not a second selection of their own.
+  const selectedSeq = record.kind === "found" ? record.value.seq : null;
+  const origin = useOrigin(probe, chain, selectedSeq);
   const rows = rowsFor(probe, chain, rail, { boots, spans });
   const choiceNote = choiceLine(choice);
   const { panels, live } = panelsFor(chain);
@@ -50,14 +52,27 @@ export default function App() {
   const sourcesOf = (name: string) =>
     profiles.find((p) => p.name === name)?.sources ?? [];
 
-  // A typed field rather than F10's seq-jump button, because F10 (C-09)
-  // does not exist yet. This is the whole of record selection until it
-  // does, and it is replaced rather than kept once a search bar can drive
-  // useRecord's `select` some other way.
-  const lookUpRecord = (e: FormEvent) => {
+  // F10's own syntax, and only the slice of it this application can
+  // answer honestly today — see api/search.ts for what the rest needs
+  // and why it is not here yet.
+  const [searchField, setSearchField] = useState("");
+  const [searchNote, setSearchNote] = useState<string | null>(null);
+
+  const runSearch = (e: FormEvent) => {
     e.preventDefault();
-    const seq = Number.parseInt(seqField, 10);
-    if (Number.isInteger(seq) && seq >= 0) select(seq);
+    const outcome = parseSearch(searchField);
+    if (outcome === null) return;
+    if (outcome.kind === "seq") {
+      setSearchNote(null);
+      select(outcome.seq);
+    } else {
+      // Named plainly rather than silently ignored: typing a filter chip
+      // or free text into this bar today would otherwise look accepted
+      // and then do nothing.
+      setSearchNote(
+        "only #<seq> works here so far — free text, filter chips and time jump are not built yet (F10)",
+      );
+    }
   };
 
   // Present only when the verifier produced a diagnosis, which is only when
@@ -69,6 +84,13 @@ export default function App() {
   // and "nobody built this" — the same ambiguity the status panel exists to
   // remove.
   const advisory = chain.kind === "verified" ? chain.result.advisory : null;
+
+  // Two of F10's three quick buttons. The third, anchor, needs a record's
+  // own hash to know which record a configured anchor names — not
+  // available on this side of the seam yet (U10, C-06c) — so it is left
+  // out rather than built to point at the wrong thing.
+  const firstSeq = openedOf(chain)?.subject.first_seq ?? null;
+  const nextWarningSeq = advisory !== null ? nextWarning(advisory.items, selectedSeq) : null;
 
   // Bar widths, computed once and keyed by date.
   //
@@ -419,18 +441,36 @@ export default function App() {
               Record
             </h2>
 
-            <form className="record-lookup" onSubmit={lookUpRecord}>
+            <form className="search-bar" onSubmit={runSearch}>
               <label>
-                <span className="record-lookup-hint">open record #</span>
+                <span className="search-hint">search</span>
                 <input
-                  inputMode="numeric"
-                  onChange={(e) => setSeqField(e.target.value)}
+                  onChange={(e) => setSearchField(e.target.value)}
+                  placeholder="#1447"
                   type="text"
-                  value={seqField}
+                  value={searchField}
                 />
               </label>
-              <button type="submit">Open</button>
+              <button type="submit">Go</button>
             </form>
+            {searchNote !== null && <p className="search-note">{searchNote}</p>}
+
+            <div className="search-quick">
+              <button
+                disabled={firstSeq === null}
+                onClick={() => firstSeq !== null && select(firstSeq)}
+                type="button"
+              >
+                first record
+              </button>
+              <button
+                disabled={nextWarningSeq === null}
+                onClick={() => nextWarningSeq !== null && select(nextWarningSeq)}
+                type="button"
+              >
+                next warning
+              </button>
+            </div>
 
             {record.kind === "failed" && (
               /* The sidecar's own sentence — a 404 here means this segment
