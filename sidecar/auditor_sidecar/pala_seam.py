@@ -36,7 +36,7 @@ from palimpsests.audit.anchors import (
 )
 from palimpsests.audit.bootstats import boot_statistics
 from palimpsests.audit.names import assurance_tier_name, time_trust_name
-from palimpsests.audit.pala.codec import FORMAT_VERSION, ZERO16
+from palimpsests.audit.pala.codec import FORMAT_VERSION, ZERO16, ZERO32
 from palimpsests.audit.reader import AuditReader
 from palimpsests.audit.report import build_report
 from palimpsests.audit.timehealth import step_catalog
@@ -172,6 +172,23 @@ def _span_or_none(span_id: bytes | None) -> str | None:
     if span_id is None or span_id == ZERO16:
         return None
     return span_id.hex()
+
+
+def _hash_or_none(digest: bytes) -> str | None:
+    """A hash field, or None when the writer declared it has none.
+
+    PALA-1 spells "no predecessor" as thirty-two zero bytes for exactly one
+    record type — confirmed against ``palimpsests.audit.pala.incremental``:
+    "'no predecessor' and 'predecessor removed' must be distinguishable;
+    that is the entire reason GENESIS is a type," and GENESIS is required to
+    carry ``prev_hash = ZERO32``. The same choice ``_span_or_none`` already
+    makes for "no span" — a shell that hexed it blindly would put a
+    predecessor named all zeros on the screen for the one record that
+    truthfully has none.
+    """
+    if digest == ZERO32:
+        return None
+    return digest.hex()
 
 
 class NotAChain(Exception):
@@ -555,6 +572,7 @@ class ChainHandle:
         header = record.header
         return {
             "seq": record.seq,
+            "index": record.index,
             "record_type": record.record_type,
             "type_name": record.type_name,
             "kind": record.kind,
@@ -566,6 +584,12 @@ class ChainHandle:
             # span called 00000000… on the screen and in reports.
             "span_id": _span_or_none(header.span_id),
             "parent_span_id": _span_or_none(header.parent_span_id),
+            # The record's OWN CLAIM about its predecessor — unverified
+            # here. Whether it actually matches the predecessor's hash is
+            # what /verify establishes; this view reports the field
+            # structurally, the same distinction /verify already draws
+            # between "the chain links" and "this file's headers decode".
+            "prev_hash": _hash_or_none(header.prev_hash),
             "wall_clock_ns": header.wall_clock_ns,
             "monotonic_ns": header.monotonic_ns,
             "assurance_tier": self._named(
