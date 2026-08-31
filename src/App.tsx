@@ -19,7 +19,7 @@
  * split is what let the wording acquire tests.
  */
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 
 import { advisoryGroups, advisoryLine } from "./api/advisory";
 import { choiceLine, footnoteFor, panelsFor, rowsFor } from "./api/bootScreen";
@@ -27,7 +27,7 @@ import { chainLine, openedOf } from "./api/chainState";
 import { backwards, compress, compressionLine, density } from "./api/chronoscope";
 import { diagnosisCard } from "./api/diagnosis";
 import { provenance, provenanceSummary } from "./api/provenance";
-import { useBrowse, useChain, useProbe, useProfiles, useRail } from "./state";
+import { useBrowse, useChain, useProbe, useProfiles, useRail, useRecord } from "./state";
 
 export default function App() {
   const probe = useProbe();
@@ -36,6 +36,8 @@ export default function App() {
   const [chain, choice, pick, verify] = useChain(probe);
   const rail = useRail(probe, chain);
   const { boots, spans } = useBrowse(probe, chain);
+  const { record, select } = useRecord(probe, chain);
+  const [seqField, setSeqField] = useState("");
   const rows = rowsFor(probe, chain, rail, { boots, spans });
   const choiceNote = choiceLine(choice);
   const { panels, live } = panelsFor(chain);
@@ -43,6 +45,16 @@ export default function App() {
 
   const sourcesOf = (name: string) =>
     profiles.find((p) => p.name === name)?.sources ?? [];
+
+  // A typed field rather than F10's seq-jump button, because F10 (C-09)
+  // does not exist yet. This is the whole of record selection until it
+  // does, and it is replaced rather than kept once a search bar can drive
+  // useRecord's `select` some other way.
+  const lookUpRecord = (e: FormEvent) => {
+    e.preventDefault();
+    const seq = Number.parseInt(seqField, 10);
+    if (Number.isInteger(seq) && seq >= 0) select(seq);
+  };
 
   // Present only when the verifier produced a diagnosis, which is only when
   // something failed.
@@ -390,6 +402,107 @@ export default function App() {
                   </li>
                 ))}
               </ol>
+            )}
+          </section>
+        )}
+
+        {/* The first slice of F9's inspector (C-06). Shown whenever a chain
+            is open: looking up a record answers no question about the
+            verdict, the same reason browsing does not wait on one either. */}
+        {openedOf(chain) !== null && (
+          <section className="record" aria-labelledby="record-title">
+            <h2 className="record-title" id="record-title">
+              Record
+            </h2>
+
+            <form className="record-lookup" onSubmit={lookUpRecord}>
+              <label>
+                <span className="record-lookup-hint">open record #</span>
+                <input
+                  inputMode="numeric"
+                  onChange={(e) => setSeqField(e.target.value)}
+                  type="text"
+                  value={seqField}
+                />
+              </label>
+              <button type="submit">Open</button>
+            </form>
+
+            {record.kind === "failed" && (
+              /* The sidecar's own sentence — a 404 here means this segment
+                 holds no such seq, which is a fact about the file's range,
+                 not a broken lookup. */
+              <p className="record-failed">{record.detail}</p>
+            )}
+
+            {record.kind === "found" && (
+              <div className="record-card">
+                <p className="record-head">
+                  <span className="record-seq">#{record.value.seq}</span>
+                  <span className="record-type">
+                    {record.value.typeLabel.named
+                      ? record.value.typeLabel.name
+                      : `type ${record.value.recordType}, unknown`}
+                  </span>
+                  {record.value.kindLabel.has && (
+                    <span className="record-kind">
+                      {record.value.kindLabel.named
+                        ? record.value.kindLabel.name
+                        : `kind ${record.value.kindLabel.raw}, unknown`}
+                    </span>
+                  )}
+                </p>
+
+                {/* F7's own sentence for a type this build cannot name.
+                    Visible, never dropped — an unrecognised record is still
+                    chain-checked. */}
+                {record.value.note !== null && (
+                  <p className="record-note">{record.value.note}</p>
+                )}
+
+                <dl className="record-facts">
+                  <div>
+                    <dt>Boot</dt>
+                    <dd>{record.value.bootId.slice(0, 8)}</dd>
+                  </div>
+                  <div>
+                    <dt>Span</dt>
+                    <dd>
+                      {record.value.spanId === null
+                        ? "none"
+                        : record.value.spanId.slice(0, 8)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Tier</dt>
+                    <dd>{record.value.assuranceTier.name ?? record.value.assuranceTier.value}</dd>
+                  </div>
+                  <div>
+                    <dt>Clock</dt>
+                    {/* Ochre, not verdigris: wall time is a Recorded claim
+                        here regardless of what this record's own tier
+                        says about the chain as a whole (L3). */}
+                    <dd className="record-recorded">
+                      {record.value.timeTrust.name ?? record.value.timeTrust.value} ·{" "}
+                      {record.value.wallClockIso}
+                    </dd>
+                  </div>
+                </dl>
+
+                {/* Body state, in the four RecordView can actually support.
+                    No decoded values yet — that is the hex-view half of
+                    C-06 this slice does not build (see api/record.ts). */}
+                <p className="record-body" data-state={record.value.body.state}>
+                  {record.value.body.state === "none" && "no body"}
+                  {record.value.body.state === "opaque" && "body present, opaque — encrypted"}
+                  {record.value.body.state === "undecoded" &&
+                    "body present, not interpretable by this verifier version"}
+                  {record.value.body.state === "cleartext" &&
+                    (record.value.body.tlvTypes.length === 0
+                      ? "body present, decoded, empty"
+                      : `body present, decoded — TLV types ${record.value.body.tlvTypes.join(", ")}`)}
+                </p>
+              </div>
             )}
           </section>
         )}

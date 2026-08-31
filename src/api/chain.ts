@@ -19,6 +19,7 @@
 import type {
   AnchorProfile,
   BootView,
+  RecordView,
   SessionResponse,
   SpanView,
   Timeline,
@@ -259,6 +260,27 @@ export async function chainSpans(
   });
   if (!response.ok) await raise(response, (d) => new RefusedError(d));
   return (await response.json()) as SpanView[];
+}
+
+/**
+ * One record by sequence number.
+ *
+ * `NotFoundError` here means what it says on this endpoint specifically:
+ * this container holds no such record — a segment covering 400–900 legitimately
+ * has no record 12. That is a fact about the file's range, not about the
+ * session, and a caller must not read it as "the chain is gone" the way a
+ * 404 on `/session/{id}` itself would mean.
+ */
+export async function getRecord(
+  session: Session,
+  sessionId: string,
+  seq: number,
+): Promise<RecordView> {
+  const response = await fetch(url(session, `/session/${sessionId}/record/${seq}`), {
+    headers: headers(session),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as RecordView;
 }
 
 /**

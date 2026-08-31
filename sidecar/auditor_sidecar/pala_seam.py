@@ -494,8 +494,8 @@ class ChainHandle:
 
         Body TLVs are reported as **type and length, not content**. Bodies
         may be encrypted, and a records list is a structural view; showing
-        what is inside a record is R-01's job and needs its own decisions
-        about keys and redaction.
+        what is inside a record is C-06d's job (`DEVELOPMENT-PLAN.md`, §5)
+        and needs its own decisions about keys and redaction.
         """
         window: list[dict[str, object]] = []
         matched = 0
