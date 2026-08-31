@@ -19,6 +19,7 @@
 import type {
   AnchorProfile,
   BootView,
+  OriginModel,
   RecordView,
   SessionResponse,
   SpanView,
@@ -281,6 +282,29 @@ export async function getRecord(
   });
   if (!response.ok) await raise(response);
   return (await response.json()) as RecordView;
+}
+
+/**
+ * What was declared active when `seq` was written, or null when nothing
+ * had been declared by then.
+ *
+ * 200 with a null body rather than 404 — the sidecar's own reasoning: the
+ * question was answered, and the answer is that the file does not say.
+ * `seq` is a required query parameter rather than defaulted, because
+ * origin changes along a chain and an unasked-for default would answer a
+ * different question than the caller meant.
+ */
+export async function getOrigin(
+  session: Session,
+  sessionId: string,
+  seq: number,
+): Promise<OriginModel | null> {
+  const response = await fetch(
+    url(session, `/session/${sessionId}/origin?seq=${seq}`),
+    { headers: headers(session) },
+  );
+  if (!response.ok) await raise(response);
+  return (await response.json()) as OriginModel | null;
 }
 
 /**
