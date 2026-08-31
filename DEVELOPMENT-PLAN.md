@@ -36,6 +36,12 @@ closer to 30. That figure is stated here rather than folded into the
 estimates, because inflating each item would hide which ones are actually
 expensive.
 
+**An estimate that turns out to describe the wrong work is replaced by a
+question mark, not by a smaller number.** Phase 3 is the first case: U6
+closed upstream and the package now produces the report this plan had Auditor
+building. Substituting an invented figure would be the same overclaim in the
+other direction.
+
 ## 1. Governance — inherited, not re-decided
 
 Same discipline as Palimpsests, because a compliance tool with sloppy
@@ -85,6 +91,13 @@ land first — U7 in particular is half a day and removes a whole class of
 Note on U1–U3: these must be **advisory** output, never verdict fields.
 The existing `Advisory` channel shape is already fixed for exactly this
 kind of extension.
+
+**Status against 0.10.0 and after.** U1–U4, U6, U7 and U9 are released;
+U5 and U8 are in the wheel as `proofs` and `bundle`. Three further upstream
+items have landed since the 0.10.0 release that this plan did not ask for
+and cannot ignore: PKCS#11 anchors, writer rotation, and SCITT registration.
+Each is accounted for where it lands — the first two in §5, the third in §5
+and Phase 4.
 
 ## 3. Phase 0 — scaffold
 
@@ -183,29 +196,102 @@ run.
 | C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01 |
 | C-09 | Search bar: free text over `detail`, filter chips, time jump, seq jump, three quick buttons | 3 | C-01 |
 | C-10 | Performance pass: virtualised record table, off-thread verify, 100 MB / ~1M-record target | 3 | C-03 |
+| B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra | 1 | — |
 
-**Phase 2: ~27 days.**
+**Phase 2: ~28 days** — 27 as planned plus B-12, which belongs to Phase 1's
+subject and arrives now because upstream shipped it after Phase 1 closed.
 
 **Exit criterion:** a 1M-record chain opens, the timeline stays
 interactive, and "what happened at 22:41 on 6 Aug" is answerable in under
 five interactions.
 
+### Three upstream changes since 0.10.0 that this phase has to account for
+
+**B-12 — a fourth anchor kind exists.** ADR-0004 landed `Pkcs11Anchor` and
+`Pkcs11AnchorStore`: the head as a `CKO_DATA` object on a token the host can
+read but cannot silently rewrite. Both speak the existing `AnchorSource` /
+`AnchorStore` seams and inherit the failure semantics already rendered here —
+absent returns `None`, present-but-unreadable raises `AnchorSourceError` with
+the source identity attached — so the provenance view needs no new outcome
+and no new colour.
+
+What it needs is for `_anchor_source` to stop refusing the kind, and for two
+descriptions to stop enumerating three. `AnchorSourceSpec.kind` and
+`AnchorAttemptModel.source_kind` both read *"'manual', 'file' or
+'keychain'"*. That is the fourth time a field description in this repository
+has become narrower than its field, after `chain_ok`, `total`, and
+`buckets`/`start`.
+
+Behind the `[pkcs11]` extra, per §1.5: a plain install must not require
+`python-pkcs11`. The tier claim stays the package's — ADR-0004 calls this the
+tier-B *mechanism*, and a tier-B *claim* needs a real token. Auditor renders
+whichever tier the records carry and never upgrades one.
+
+**Rotation makes three of C-05's span states routine.** `RotationPolicy` and
+the record-boundary cut mean a long-lived chain now arrives as a sequence of
+segments by default rather than by accident.
+
+C-05 derived `began-earlier`, `spans-the-file` and the orphan placement from
+first principles: the payload has a parent field and a file has edges. They
+are now the ordinary shape of a rotated chain, which raises two things from
+hypothetical to expected — a fixture built from a genuinely rotated chain, so
+those states are exercised against bytes the writer produced rather than
+hand-made `SpanView` objects; and §C-09's and §22's "several files as one
+chain", which the drop handler currently answers by opening the first and
+saying so. That was an honest refusal while segments were hypothetical. It is
+a gap now.
+
+**The pins row's wording rests on an assumption that is now checkable.** It
+reads *"At tier A there is none to have — the absence is a property of the
+platform, not a gap in the record."*
+
+SCITT registration landed upstream — a chain head as a COSE_Sign1 Signed
+Statement, with receipts, against RFC 9943 — and `scitt.py` does not mention
+tier at all. So whether an external witness is available may not be a
+property of the tier, and that sentence may be asserting a limit the
+mechanism does not have.
+
+Before Phase 4 renders any pin, the sentence is verified or replaced. It is
+currently the only claim in this application that says something is
+*impossible* rather than *absent*, and it was written from an assumption
+rather than from the package.
+
 ## 6. Phase 3 — Report
+
+**Rewritten after U6 closed upstream.** The original six items assumed
+Auditor built the attestation document. It does not: `pala report` and
+`palimpsests.audit.report_html.render_html` produce the JSON and the HTML,
+and ADR-0001 gives the package what a report *is*. Building a second one here
+would be the body-digest mistake again — a second implementation is a second
+thing to be wrong.
+
+Checked rather than assumed: `render_html` emits one self-contained page —
+no `<script>`, no `<link>`, no `@import`, no outbound URL — so embedding it
+costs nothing against the air-gap invariant.
 
 | PR | Content | Days | Needs |
 |---|---|---|---|
-| D-01 | Report model wired to U6; `pala-verification-report/1` JSON | 2 | U6, B-03 |
-| D-02 | PDF renderer, Dossier layout, Proved/Recorded margin badges | 4 | D-01 |
-| D-03 | Wording audit: every sentence checked against L4 and the no-overclaim rule | 1 | D-02 |
-| D-04 | Determinism test: same file + same anchor → identical bytes except `checked_at` | 1 | D-01 |
-| D-05 | Report round-trip test: rebuild the JSON from a fresh reader run and compare | 1 | D-01 |
+| D-01 | Render the package's report through the seam; the JSON and the HTML, neither rebuilt | 1 | U6, B-03 |
+| D-02 | Print and PDF: whether that HTML is fit to print, and what a PDF path costs | ? | D-01 |
+| D-03 | Wording audit against L4 and the no-overclaim rule. Now audits *our* framing around the document; if the package's own wording overclaims, that is an upstream issue and is raised there | 1 | D-01 |
+| D-04 | Determinism test: same file + same anchor → identical bytes except `checked_at`. Now a check on the package's output rather than on ours | 1 | D-01 |
 | D-06 | JSONL export passthrough with range bounds and the derived-not-authoritative notice | 1 | B-01 |
+| D-07 | Export surface: where a file lands, and whether the digest travels with it | ? | D-01 |
 
-**Phase 3: ~10 days. This is the MVP boundary.**
+D-05 is dropped. The round-trip it tested — rebuild the JSON from a fresh
+reader run and compare — is upstream's own guarantee once the report has one
+schema owner, and re-checking it here would test their code with our test.
 
-**MVP total: Phase 0 + 1 + 2 + 3 + Track U(U1,U4,U6,U7) ≈ 73 days**
-of focused effort. That number is the honest one. If it has to shrink,
-the cut lines are C-04, C-09 and B-05 — in that order — not the tests.
+**Phase 3: revised downward, and the figure is deliberately not restated.**
+D-02 and D-07 carry `?` because nobody has looked at the printed page yet.
+Replacing ten days with a smaller invented number would be the same overclaim
+the original estimate made in the other direction.
+
+**MVP total: not restated either, for the same reason.** It was ~73 days on
+an estimate that no longer describes Phase 3. The honest statement is that
+Phase 0 and Phase 1 are closed, Phase 2 stands at five of eleven items, and
+Phase 3 is unquantified until D-02 and D-07 have been looked at. If the work
+has to shrink, the cut lines are C-09 and B-05 — not the tests.
 
 ## 7. Phase 4 — evidence artifacts
 
@@ -219,8 +305,11 @@ party can re-check without it.
 | E-03 | Record health: aggregation and trends over U1–U3 output; the three disciplines enforced in the UI copy | 5 | U1–U3 |
 | E-04 | Health summary into the JSON report, labelled advisory, carrying its caveats | 1 | E-03, D-01 |
 | E-05 | Local witness log: hash-chained record of checks performed, with the honest statement of what it does and does not prove | 3 | B-03 |
+| E-06 | SCITT receipts as external evidence: present a registered head and its receipt as a pin, through the seam. Registration and receipt verification are upstream's (`pala/scitt.py`); the shell displays and never mints. Gated on the pins-row sentence in §5 being verified first — a row that renders a pin while the copy says none can exist is worse than either alone. | ? | §5 pins check |
 
-**Phase 4: ~13.5 days** (plus U8's 4 days upstream — net neutral, honestly placed).
+**Phase 4: ~13.5 days plus E-06** (and U8's 4 days upstream — net neutral,
+honestly placed). E-06 carries `?` for the same reason Phase 3's two items
+do: nobody has read the receipt format against what a pin needs to show.
 
 ## 8. Phase 5 — beyond MVP
 
@@ -230,7 +319,7 @@ party can re-check without it.
 | Oversight disposition (the one write) | A human records a disposition for a candidate **from the screen** — the operational form of Art. 14 human oversight. This is the single place the reader shell touches writing, and it must never do so by producing wire bytes: the shell sends a disposition command to a live engine's sidecar API, and the *runtime's* writer emits the `OVERSIGHT_ACK` record with an operator id from the local profile. Gated on Watch mode and on a dedicated ADR (ADR-0003 candidate): the read/write boundary is crossed by a documented decision, never by drift |
 | Rekor anchor source | Network. Opens the air-gap layers for the first time — both must be demonstrably enforced before this merges |
 | TSA anchor source (RFC 3161) | Same gate |
-| Segment sequences | Several files as one logical chain; behaviour when a segment is missing |
+| Segment sequences | Several files as one logical chain; behaviour when a segment is missing. **Promoted in urgency by upstream rotation** (§5): this is now the ordinary shape of a long-lived chain rather than a possibility, and the drop handler's "only the first was opened" is a gap rather than a deferral |
 | Signed installers | macOS notarisation + Windows code signing; needs certificates, which is procurement, not engineering |
 | `uk` localisation pass | Strings are externalised from A-02; this is the translation and review pass |
 
@@ -278,6 +367,18 @@ emits the record); it lands behind a dedicated ADR; and the boundary
 statement in `FUNCTIONALITY.md` gains an explicit "the one exception"
 clause so any second exception is visibly a rule change, not a precedent.
 
+**R8 — This plan describes work upstream has already done.** New, and it
+has now happened once: Phase 3 was six items and ten days for a report the
+package produces. It was not caught by review; it was caught by reading the
+upstream log while updating the pinned version.
+
+Mitigation is a habit rather than a gate, and it is stated as one: **before
+starting a phase, read the upstream changelog and commit log since the
+pinned release**, and account for anything that touches the phase's subject.
+The failure is silent in both directions — building what exists, and
+missing a mechanism that changes what a screen may claim — so it is not
+something a green CI run will ever raise.
+
 ## 10. Definition of done, per phase
 
 A phase closes when all of the following hold:
@@ -295,3 +396,6 @@ A phase closes when all of the following hold:
 6. No invariant from `FUNCTIONALITY.md` §3 has an exception in the merged
    code — and if one was needed, it is documented as an ADR, not as a
    comment.
+7. The upstream log since the pinned release has been read, and anything
+   touching the phase's subject is accounted for in the plan before the
+   phase is called closed (R8).
