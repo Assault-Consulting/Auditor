@@ -17,7 +17,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, listProfiles } from "./api/chain";
+import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, getRecords, listProfiles } from "./api/chain";
 import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
 import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { type Chronoscope, chronoscope } from "./api/chronoscope";
@@ -25,6 +25,7 @@ import type { AnchorProfile } from "./api/generated/types";
 import { onChainFilesDropped, pickChainFile } from "./api/openFile";
 import { type OriginCard, originCard } from "./api/origin";
 import { type RecordCard, recordCard } from "./api/record";
+import { nextOffset, recordsPage, type RecordsPage } from "./api/records";
 import { type Health, NoShellError, getHealth, getSession } from "./api/session";
 
 /** What the shell reports, once it has answered — or why it has not. */
@@ -302,6 +303,74 @@ export function useOrigin(
   }, [probe, opened, seq]);
 
   return origin;
+}
+
+/**
+ * The records list, paged — C-11.
+ *
+ * "Next page" asks for one past the last row's own seq, never
+ * `offset + limit` — see `nextOffset` in `api/records.ts` for why the two
+ * are not the same number. "Previous page" has no backward equivalent to
+ * derive: the endpoint's `offset` is forward-only ("seq >= offset"), so
+ * going back means remembering where this page came from, and the history
+ * stack here is exactly that memory, nothing more.
+ */
+export function useRecords(
+  probe: Probe,
+  chain: ChainState,
+  limit: number,
+): { page: Fetch<RecordsPage>; next: () => void; prev: () => void; canGoBack: boolean } {
+  const [page, setPage] = useState<Fetch<RecordsPage>>({ kind: "unasked" });
+  const [offset, setOffset] = useState(0);
+  const [history, setHistory] = useState<number[]>([]);
+  const opened = openedOf(chain);
+
+  useEffect(() => {
+    setOffset(0);
+    setHistory([]);
+  }, [opened?.session_id]);
+
+  useEffect(() => {
+    if (probe.kind !== "ready" || opened === null) {
+      setPage({ kind: "unasked" });
+      return;
+    }
+    let cancelled = false;
+    void getRecords(probe.session, opened.session_id, { offset, limit })
+      .then((result) => {
+        if (!cancelled) setPage({ kind: "found", value: recordsPage(result) });
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setPage({
+            kind: "failed",
+            detail: e instanceof Error ? e.message : String(e),
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [probe, opened, offset, limit]);
+
+  const next = () => {
+    if (page.kind !== "found") return;
+    const at = nextOffset(page.value);
+    if (at === null) return;
+    setHistory((h) => [...h, offset]);
+    setOffset(at);
+  };
+
+  const prev = () => {
+    setHistory((h) => {
+      const previous = h.at(-1);
+      if (previous === undefined) return h;
+      setOffset(previous);
+      return h.slice(0, -1);
+    });
+  };
+
+  return { page, next, prev, canGoBack: history.length > 0 };
 }
 
 /**
