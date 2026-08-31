@@ -19,6 +19,7 @@ import type { RecordView } from "./generated/types";
 function view(over: Partial<RecordView> = {}): RecordView {
   return {
     seq: 12,
+    index: 12,
     record_type: 4,
     type_name: "EVENT",
     kind: null,
@@ -26,6 +27,7 @@ function view(over: Partial<RecordView> = {}): RecordView {
     boot_id: "b00t",
     span_id: null,
     parent_span_id: null,
+    prev_hash: "ab" + "00".repeat(31),
     wall_clock_ns: 1_700_000_000_000_000_000,
     monotonic_ns: 42,
     assurance_tier: { value: 2, name: "B" },
@@ -131,5 +133,26 @@ group("the envelope", () => {
   it("renders wall_clock_ns as an ISO instant", () => {
     const card = recordCard(view({ wall_clock_ns: 0 }));
     expect(card.wallClockIso).toBe("1970-01-01T00:00:00.000Z");
+  });
+
+  it("carries index separately from seq", () => {
+    // A rotated chain's index and seq diverge (C-06b); the card must not
+    // conflate them by carrying only one.
+    const card = recordCard(view({ seq: 900, index: 3 }));
+    expect(card.seq).toBe(900);
+    expect(card.index).toBe(3);
+  });
+
+  it("carries prev_hash through as the record's own unverified claim", () => {
+    const hash = "ab" + "00".repeat(31);
+    const card = recordCard(view({ prev_hash: hash }));
+    expect(card.prevHash).toBe(hash);
+  });
+
+  it("carries a null prev_hash through for a GENESIS-declared record", () => {
+    // The sidecar has already resolved ZERO32 to null (§_hash_or_none);
+    // the card must not reinterpret it, only pass it on.
+    const card = recordCard(view({ prev_hash: null }));
+    expect(card.prevHash).toBeNull();
   });
 });
