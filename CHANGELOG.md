@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The records list (C-11): `/records` has paged and filtered since C-01;
+  nothing client-side ever called it for more than one record until now.
+  Paginated, clickable rows drive the same `select` the search bar and
+  the origin card's jump already use. "Next page" asks for one past the
+  last row's own seq, never `offset + limit` — the endpoint's `offset` is
+  a seq threshold, not a row count, and a gap or a filter can make the
+  two disagree; `nextOffset` in `api/records.ts` covers why. Found while
+  scoping C-09's split: neither C-09b's filter chips nor C-10's
+  virtualisation could mean anything without a list to narrow or
+  virtualise, and no item had built one — `DEVELOPMENT-PLAN.md` now
+  corrects C-10's dependency the same way C-08's was corrected earlier.
 - Search bar, the seq-jump slice (C-09a): `#1447` syntax, replacing the
   interim numeric-only field C-06a stood in with. Two of F10's three
   quick buttons (first record, next warning); the third, anchor, needs a

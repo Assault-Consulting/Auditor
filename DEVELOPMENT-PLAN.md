@@ -200,19 +200,21 @@ run.
 | C-07 | UI: SAFETY list and the r2 oversight loop — unacknowledged candidates as the loudest element. **Display only** in the MVP: recording a disposition is the Phase-5 item below, behind its own ADR | 3 | C-01 |
 | C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01, C-06a |
 | C-09a | Search bar: seq jump (`#1447`), two of three quick buttons (first record, next warning). Unsupported input named plainly rather than silently ignored. | 1 | C-01, C-06a |
-| C-09b | Filter chips (`kind:`, `type:`, `span:`, `boot:`, `tier:`, date range) and the records-list view they narrow — neither exists yet; §5 below. | ? | C-01, C-09a |
+| C-09b | Filter chips: `kind:`, `type:`, `span:`, `boot:`, `tier:`, date range — wired onto C-11's list. `span:`/`boot:` need no backend change (spans and boots are already fetched in full); `type:` needs a name→int mapping investigated but not built (§5 below); `kind:`/`tier:`/date range need new `/records` query parameters that do not exist yet. | ? | C-11 |
 | C-09c | Time jump (nearest record to a wall-clock instant) and the anchor quick button (needs a record's own hash — U10, C-06c). | ? | C-06c, C-09b |
 | C-09d | Free text over `detail`. Blocked on `FUNCTIONALITY.md` §22.3, an open product question this plan has no authority to answer, and on there being no `detail` field on a record to search (C-06d). | ? | §22.3 decided, C-06d |
-| C-10 | Performance pass: virtualised record table, off-thread verify, 100 MB / ~1M-record target | 3 | C-03 |
+| C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
+| C-10 | Performance pass: virtualise C-11's list, off-thread verify, 100 MB / ~1M-record target | 3 | C-03, C-11 |
 | B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra | 1 | — |
 
-**Phase 2: ~26 days plus C-06d, C-09b, C-09c and C-09d** — 27 as planned,
-plus B-12 (§below), minus the two days C-09's own split found it did not
-need (a 3-day guess for one thing became a 1-day C-09a plus three
+**Phase 2: ~27 days plus C-06d, C-09b, C-09c and C-09d** — 27 as planned,
+plus B-12 and C-11 (§below), minus the two days C-09's own split found it
+did not need (a 3-day guess for one thing became a 1-day C-09a plus three
 question marks). The four question marks left are not the same kind of
-unknown: C-06d is an unstarted design; C-09b is gated on a records list
-that does not exist yet; C-09c on an upstream release (U10); C-09d on a
-product decision (§22.3) this plan cannot make by itself.
+unknown: C-06d is an unstarted design; C-09b is gated on C-11 landing and
+partly on the same type-name investigation C-06's split already opened;
+C-09c on an upstream release (U10); C-09d on a product decision (§22.3)
+this plan cannot make by itself.
 
 **Exit criterion:** a 1M-record chain opens, the timeline stays
 interactive, and "what happened at 22:41 on 6 Aug" is answerable in under
@@ -356,6 +358,30 @@ chip, free text, a time — is named plainly as not read yet rather than
 silently ignored, the same discipline `record-note` and `origin-none`
 already keep for what this build cannot show.
 
+### C-11 — the item nothing else's dependency had actually named
+
+C-09's split found the missing records list and stopped there, needing it
+only to explain why C-09b could not be scoped. Adding it as its own item
+surfaced a second place the plan had already made the same mistake C-08's
+dependency did: **C-10's "virtualised record table" needs a table.**
+Nothing built one. C-10 has depended on C-03 since it was written —
+correct, C-10 needs the Chronoscope's data path — but a table to
+virtualise is a second, unstated dependency, the same shape of error as
+C-08 needing C-06a and not just C-01. Corrected above to `C-03, C-11`.
+
+C-11 itself needed nothing new: `/records` has paged and filtered since
+C-01, and the view is a straightforward reading of what it returns, reusing
+`recordCard` per row rather than a second mapping. The one design decision
+worth naming is pagination itself — `offset` is documented as a **seq
+threshold** ("records with `seq >= offset`"), not a row count, so "next
+page" cannot be `offset + limit`: a gap, a segment boundary, or a filter
+can all make that number land short of or past what this page actually
+returned. The only threshold guaranteed correct is one past the last row
+the page carried, which is what `nextOffset` computes. "Previous page" has
+no backward equivalent to derive — the endpoint is forward-only by
+design — so it is answered by remembering the offsets already visited
+rather than computing a new one.
+
 ## 6. Phase 3 — Report
 
 **Rewritten after U6 closed upstream.** The original six items assumed
@@ -389,11 +415,12 @@ the original estimate made in the other direction.
 
 **MVP total: not restated either, for the same reason.** It was ~73 days on
 an estimate that no longer describes Phase 3. The honest statement is that
-Phase 0 and Phase 1 are closed, Phase 2 stands at eight of seventeen
-items — the seventeen counting both splits (C-06 into four, C-09 into
-four), eight merged through C-08, C-09a proposed in this PR — and Phase 3
-is unquantified until D-02 and D-07 have been looked at. If the work has
-to shrink, the cut lines are C-09b onward and B-05 — not the tests.
+Phase 0 and Phase 1 are closed, Phase 2 stands at nine of eighteen
+items — the eighteen counting both splits (C-06 into four, C-09 into
+four) plus C-11, nine merged through C-09a, C-11 proposed in this PR —
+and Phase 3 is unquantified until D-02 and D-07 have been looked at. If
+the work has to shrink, the cut lines are C-09b onward and B-05 — not
+the tests.
 
 ## 7. Phase 4 — evidence artifacts
 

@@ -20,6 +20,7 @@ import type {
   AnchorProfile,
   BootView,
   OriginModel,
+  RecordPage,
   RecordView,
   SessionResponse,
   SpanView,
@@ -305,6 +306,40 @@ export async function getOrigin(
   );
   if (!response.ok) await raise(response);
   return (await response.json()) as OriginModel | null;
+}
+
+/**
+ * A window onto the records, structural rather than content — the general
+ * form C-11's list pages through. `offset` is a **seq threshold**
+ * ("records with `seq >= offset`"), not a row count: the endpoint's own
+ * description says so, and treating it as one is the mistake `nextOffset`
+ * in `api/records.ts` exists to rule out.
+ */
+export async function getRecords(
+  session: Session,
+  sessionId: string,
+  options: {
+    offset?: number;
+    limit?: number;
+    recordType?: number;
+    bootId?: string;
+    spanId?: string;
+  } = {},
+): Promise<RecordPage> {
+  const query = new URLSearchParams();
+  if (options.offset !== undefined) query.set("offset", String(options.offset));
+  if (options.limit !== undefined) query.set("limit", String(options.limit));
+  if (options.recordType !== undefined) query.set("record_type", String(options.recordType));
+  if (options.bootId !== undefined) query.set("boot_id", options.bootId);
+  if (options.spanId !== undefined) query.set("span_id", options.spanId);
+
+  const response = await fetch(
+    url(session, `/session/${sessionId}/records?${query}`),
+    { headers: headers(session) },
+  );
+  // A 422 here is about the query (an out-of-range limit), not the file.
+  if (!response.ok) await raise(response, (d) => new RefusedError(d));
+  return (await response.json()) as RecordPage;
 }
 
 /**
