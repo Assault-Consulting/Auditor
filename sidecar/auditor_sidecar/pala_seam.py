@@ -833,6 +833,15 @@ class ChainHandle:
         rather than as an empty card, which would read as "nothing was
         running".
 
+        F9 also asks for a second null wording — "no model active" after an
+        explicit MODEL_UNLOAD — and this method cannot currently produce it.
+        Read directly: `AuditReader.origin_at()` sets its running state to
+        `None` on `KIND_MODEL_UNLOAD` exactly the way it starts at `None`
+        before any `MODEL_LOAD`, so both collapse to the same return value.
+        Telling them apart on this side of the seam would mean re-walking
+        records to find the last MODEL_UNLOAD ourselves — the second-
+        implementation mistake ADR-0001 exists to rule out. Tracked as U11.
+
         `since_seq` is the record that declared it, so a reader can jump to
         the declaration rather than take this on trust — the same reason
         every other claim here names its source.
