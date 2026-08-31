@@ -861,6 +861,84 @@ body {
   color: var(--vellum-dim);
 }
 
+/* F9's origin card, nested inside the record card it answers "on any
+   selected record" for. Ruled off with a dashed top border rather than
+   its own box — it is a fact about the same record, not a separate
+   structure. */
+.origin {
+  margin-top: calc(var(--step) * 1.5);
+  padding-top: calc(var(--step) * 1.5);
+  border-top: 1px dashed var(--rule);
+}
+
+.origin-title {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--unchecked);
+  margin: 0 0 calc(var(--step) * 0.75);
+}
+
+.origin-none {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--unchecked);
+}
+
+.origin-failed {
+  margin: 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.origin-facts {
+  margin: 0;
+  display: grid;
+  gap: calc(var(--step) * 0.5);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.origin-facts > div {
+  display: flex;
+  gap: var(--step);
+}
+
+.origin-facts dt {
+  color: var(--unchecked);
+  min-width: 7ch;
+}
+
+.origin-facts dd {
+  margin: 0;
+  color: var(--vellum-dim);
+}
+
+/* The first real jump target on this screen. Underlined rather than
+   boxed — quieter than .record-lookup's button, because this is
+   navigation inside a record already open, not a new action. Brightens
+   on hover in plain vellum: neither truth-value token applies to "this
+   is clickable". */
+.origin-jump {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--vellum-dim);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.origin-jump:hover {
+  color: var(--vellum);
+}
+
 /* The advisory lane, and it is deliberately the quietest block on the page.
    No ochre rule, no serif heading, nothing that echoes the diagnosis card.
    L5 says these items change no verdict — and a lane that looked like a
