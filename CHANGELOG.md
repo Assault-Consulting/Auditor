@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The record card (C-06a): `GET /session/{id}/record/{seq}` was already
+  there from C-01; this adds the client, the view-model (`api/record.ts`)
+  and the UI to actually look one up. Resolves the three ambiguous-null
+  pairs `RecordView` carries — an unnamed type versus F7's fixed sentence
+  for one, a kind that does not exist versus one this build cannot name,
+  and a body that is absent, opaque, cleartext or undecoded — rather than
+  collapsing any of them. An interim "open record #" field stands in for
+  the seq-jump button until C-09 exists.
 - Repository skeleton and the design contract the code is written against:
   `README.md`, `ARCHITECTURE.md`, `DEVELOPMENT-PLAN.md` and the governance
   set (`CONTRIBUTING.md`, `GOVERNANCE.md`, `SECURITY.md`,
