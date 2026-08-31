@@ -793,6 +793,11 @@ body {
   color: var(--vellum);
 }
 
+.record-index {
+  color: var(--unchecked);
+  font-size: 0.74rem;
+}
+
 .record-type {
   color: var(--unchecked);
 }
