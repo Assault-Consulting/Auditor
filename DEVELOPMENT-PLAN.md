@@ -84,8 +84,10 @@ schedule rather than this project's.
 | U8 | Evidence-bundle assembly as a library command (`pala bundle`): records + inclusion proofs + verification + manifest + the explicit time-claims section. By this plan's own Track-U criterion — independently useful without the shell (any CLI user or third-party tool gets it) — assembly belongs upstream; the shell invokes and presents (E-01). | 4 | E-01 |
 | U10 | A record's own hash, on `DecodedRecord`. `Header.prev_hash` and `Header.body_digest` are already there; the record's own hash is not, because nothing downstream of `decode_record` keeps the header bytes `pala.record_hash(header_bytes)` needs. Computed once during decode, from bytes the reader already has and discards, and cached on the dataclass — not re-derived by any caller. Confirmed against the installed 0.10.0 wheel by reading `palimpsests.audit.reader` directly rather than assumed. | 1 | C-06c |
 | U11 | `origin_at()` to distinguish "never declared" from "declared, then unloaded". Read directly rather than assumed: a `KIND_MODEL_UNLOAD` sets the running origin to `None`, exactly the value it starts at before any `MODEL_LOAD` — the two collapse. F9 asks for different wording for each ("not stated in this file" vs "no model active"); producing that distinction on this side of the seam would mean re-walking records for the last unload ourselves, the second-implementation mistake ADR-0001 rules out. | 1 | C-08(b) |
+| U12 | `detail` decoded from `EVT_DETAIL` onto `DecodedRecord`, the same way `origin_at()` already decodes named TLV fields into `OriginView` rather than leaving them as raw bytes. Confirmed present and readable: the reader's own `body_tlvs` already carries `(type, value)` pairs for a cleartext body, and `EVT_DETAIL = 4` is a published constant — nothing to discover, only to expose. Blocks F8's detail text and its recurrence count, and separately unblocks half of C-09d (free text still needs §22.3 decided). | 1 | C-07b, C-09d(b) |
+| U13 | r2 resolution: acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records, an `OVERSIGHT_ACK`'s `operator_id` and deadline delta, `KEY_SHRED` target resolution. Needs `EVT_REF_SEQ` / `EVT_REF_HASH` decoded from an ack's body **and** U10 — matching a candidate by `seq` alone could call one acknowledged when the ack actually named a different record, which is a wrong answer, not an incomplete one. The package already does an equivalent hash-verified match internally, to produce the `reference_unresolved` / `reference_hash_mismatch` advisory codes on a *broken* reference (§9); this is the same resolution, exposed for the ordinary case instead of only its failures. | 2 | C-07c |
 
-**Track U total: ~19.5 days** (~15.5 without U8, which blocks only
+**Track U total: ~22.5 days** (~18.5 without U8, which blocks only
 Phase 4). U7, U4 and U1 are the cheap ones and should
 land first — U7 in particular is half a day and removes a whole class of
 "the shell re-typed a constant" defects.
@@ -197,24 +199,28 @@ run.
 | C-06b | `prev_hash` and container `index` on `RecordView`. Both are already on the reader's own objects — `Header.prev_hash`, `DecodedRecord.index` — and are not upstream work at all, just two fields `_record_view` was not copying through. Unlocks the predecessor jump; the record's own hash still waits on U10. | 0.5 | C-06a |
 | C-06c | Clickable `prev_hash` and the record's own hash, rendered once C-06b and U10 are both there. | 1 | C-06b, U10 *released* |
 | C-06d | Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
-| C-07 | UI: SAFETY list and the r2 oversight loop — unacknowledged candidates as the loudest element. **Display only** in the MVP: recording a disposition is the Phase-5 item below, behind its own ADR | 3 | C-01 |
+| C-07a | UI: the SAFETY list, grouped by kind and sorted by seq — the slice buildable on what a record already resolves. No detail text, no acknowledgement state. | 1 | C-01 |
+| C-07b | Detail text and the recurrence count it enables, once `EVT_DETAIL` is decoded. | ? | U12 *released* |
+| C-07c | The r2 oversight loop: acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records, an `OVERSIGHT_ACK`'s operator and deadline, `KEY_SHRED` resolution. **Display only** in the MVP — recording a disposition is the Phase-5 item below, behind its own ADR. | ? | U10 *released*, U13 *released* |
 | C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01, C-06a |
 | C-09a | Search bar: seq jump (`#1447`), two of three quick buttons (first record, next warning). Unsupported input named plainly rather than silently ignored. | 1 | C-01, C-06a |
 | C-09b | Filter chips: `kind:`, `type:`, `span:`, `boot:`, `tier:`, date range — wired onto C-11's list. `span:`/`boot:` need no backend change (spans and boots are already fetched in full); `type:` needs a name→int mapping investigated but not built (§5 below); `kind:`/`tier:`/date range need new `/records` query parameters that do not exist yet. | ? | C-11 |
 | C-09c | Time jump (nearest record to a wall-clock instant) and the anchor quick button (needs a record's own hash — U10, C-06c). | ? | C-06c, C-09b |
-| C-09d | Free text over `detail`. Blocked on `FUNCTIONALITY.md` §22.3, an open product question this plan has no authority to answer, and on there being no `detail` field on a record to search (C-06d). | ? | §22.3 decided, C-06d |
+| C-09d | Free text over `detail`. Blocked on `FUNCTIONALITY.md` §22.3, an open product question this plan has no authority to answer, and — until U12 releases — on there being no `detail` field on a record to search at all. | ? | §22.3 decided, U12 *released* |
 | C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
 | C-10 | Performance pass: virtualise C-11's list, off-thread verify, 100 MB / ~1M-record target | 3 | C-03, C-11 |
 | B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra | 1 | — |
 
-**Phase 2: ~27 days plus C-06d, C-09b, C-09c and C-09d** — 27 as planned,
-plus B-12 and C-11 (§below), minus the two days C-09's own split found it
-did not need (a 3-day guess for one thing became a 1-day C-09a plus three
-question marks). The four question marks left are not the same kind of
-unknown: C-06d is an unstarted design; C-09b is gated on C-11 landing and
-partly on the same type-name investigation C-06's split already opened;
-C-09c on an upstream release (U10); C-09d on a product decision (§22.3)
-this plan cannot make by itself.
+**Phase 2: ~25 days plus C-06d, C-07b, C-07c, C-09b, C-09c and C-09d** —
+27 as planned, plus B-12 and C-11 (§below), minus the four days C-09's
+and C-07's own splits found they did not need (two three-day guesses
+each became a one-day `a` slice plus question marks). The six question
+marks left are not the same kind of unknown: C-06d is an unstarted
+design; C-07b and C-07c are gated on upstream work this plan has now
+scoped (U12, and U10 plus U13); C-09b is gated on C-11 landing and
+partly on the same type-name investigation C-06's split opened; C-09c on
+an upstream release (U10); C-09d on a product decision (§22.3) this plan
+cannot make by itself.
 
 **Exit criterion:** a 1M-record chain opens, the timeline stays
 interactive, and "what happened at 22:41 on 6 Aug" is answerable in under
@@ -382,6 +388,70 @@ no backward equivalent to derive — the endpoint is forward-only by
 design — so it is answered by remembering the offsets already visited
 rather than computing a new one.
 
+### C-07 was one PR costed before anyone confirmed what F8's data needs
+
+Three days assumed "SAFETY list and the r2 oversight loop" was buildable
+against what the seam already resolves. Reading the reader source
+directly, the way U10 and U11 were confirmed, found otherwise.
+
+**Grouping and counting by kind need nothing new.** `kind_name` is
+already resolved per record — `INCIDENT_CANDIDATE` (102) and
+`OVERSIGHT_ACK` (103) are recognised kind values on `SAFETY` bodies the
+same way `MODEL_LOAD`/`MODEL_UNLOAD` are on `EVENT` bodies — so a list
+sorted by seq and grouped by kind is a straightforward reading of what
+`_record_view` already returns. Built as C-07a.
+
+**Detail text is not.** F8 asks for "detail text and a recurrence count
+for identical details" on every SAFETY record. Nothing on this side of
+the seam decodes a body TLV *value* — `_record_view` reports
+`body_tlv_types`, the set of types present, and stops there by design
+(§5, C-06). `EVT_DETAIL` (TLV type 4) is a published, generically usable
+field — this is not a design question the way C-06d's hex view is, it is
+a single named field the package should expose the way `origin_at()`
+already exposes `role` and the two digests. New Track-U item: U12.
+
+**The r2 oversight loop needs two things, not one.** Resolving whether an
+`INCIDENT_CANDIDATE` has been acknowledged means decoding an
+`OVERSIGHT_ACK`'s `EVT_REF_SEQ` / `EVT_REF_HASH` and matching them
+against the candidate they name. Matching on `seq` alone would be a
+**wrong** answer on occasion, not an incomplete one: an ack whose
+`ref_hash` does not match the candidate at that seq is exactly the
+`reference_hash_mismatch` case `FUNCTIONALITY.md` §9 already names, and
+rendering it as a valid acknowledgement would be the overclaim this
+codebase spends its effort refusing to make elsewhere. Correct resolution
+needs the candidate's own hash — U10, still blocked on an upstream
+release — so U13 depends on it rather than duplicating it.
+
+The package is already doing an equivalent hash-verified match somewhere
+in its own `verify()` path: `PalaWriter.oversight_ack`'s docstring states
+plainly that "whether `candidate_seq`/`candidate_hash` name a real
+candidate is the reader's referential-integrity check, reported as an
+advisory" — which is how `reference_unresolved` and
+`reference_hash_mismatch` get produced today. What does not exist is the
+*positive* case: a candidate with a correctly matching ack produces no
+advisory at all, because nothing is wrong, and silence is not the same
+signal as "acknowledged". U13 asks for that resolution exposed directly,
+the same shape of request U10 already is — not new package behaviour,
+new package surface. Built as C-07c, behind U10 and U13 both.
+
+The `"safety": {"unacknowledged_candidates": 0, ...}` block in
+`FUNCTIONALITY.md`'s report JSON (§11) is not evidence this is already
+computed here — it is the illustrative shape of `pala-verification-
+report/1`, which Phase 3's D-01 renders from the package's own
+`build_report`, once U6's report model actually carries it. Whether it
+does is worth confirming when D-01 is scoped, not assumed now.
+
+A real bug was found and fixed while building C-07a, worth naming since
+it is the kind this codebase is built to catch: the first draft of
+`/safety` accepted a `limit` query parameter shaped like `/records`'s,
+wired nowhere — `Session.safety()` never took it, so it was silently
+ignored. The fix was not to wire it through but to remove it: `/safety`'s
+answer is cached once per session the way boots and spans are, and a
+caller-visible limit on a cache with no key for it would have let a
+second caller silently receive the first caller's limit. A test asserting
+the parameter actually narrowed the response is what caught it — asserted
+`== 2`, got back all four.
+
 ## 6. Phase 3 — Report
 
 **Rewritten after U6 closed upstream.** The original six items assumed
@@ -415,12 +485,12 @@ the original estimate made in the other direction.
 
 **MVP total: not restated either, for the same reason.** It was ~73 days on
 an estimate that no longer describes Phase 3. The honest statement is that
-Phase 0 and Phase 1 are closed, Phase 2 stands at nine of eighteen
-items — the eighteen counting both splits (C-06 into four, C-09 into
-four) plus C-11, nine merged through C-09a, C-11 proposed in this PR —
-and Phase 3 is unquantified until D-02 and D-07 have been looked at. If
-the work has to shrink, the cut lines are C-09b onward and B-05 — not
-the tests.
+Phase 0 and Phase 1 are closed, Phase 2 stands at ten of twenty
+items — the twenty counting three splits now (C-06 into four, C-09 into
+four, C-07 into three), ten merged through C-11, C-07a proposed in this
+PR — and Phase 3 is unquantified until D-02 and D-07 have been looked
+at. If the work has to shrink, the cut lines are C-09b onward and
+B-05 — not the tests.
 
 ## 7. Phase 4 — evidence artifacts
 
