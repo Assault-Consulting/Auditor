@@ -546,13 +546,32 @@ asking for only the *first* record from a fresh reader on the
 1,000,004-record file took 24 s, the same as asking for all of them,
 because the first `yield` cannot happen until the whole list exists.
 `AuditReader.verify()` pays an equivalent cost independently rather than
-reusing that decode. Three concurrent calls (`records`, `safety`,
-`timeline`) issued against one freshly opened session were also timed,
-in case the frontend's own parallel fetches on chain-open were
-compounding this — they were not: three calls together took about as
-long as one, consistent with CPython's GIL serialising the underlying
-CPU-bound work rather than tripling it, so no fix was made where none
-was shown to be needed.
+reusing that decode.
+
+Three concurrent calls (`records`, `safety`, `timeline`) issued against
+one freshly opened session were also timed, in case the frontend's own
+parallel fetches on chain-open were compounding this. **The conclusion
+drawn here at the time — that they were not, because three calls
+together took about as long as one, consistent with CPython's GIL
+serialising the underlying CPU-bound work — was wrong, caught only once
+someone tried to reproduce it rather than trust it.**
+
+`_decoded_records()` has no lock: the window between checking
+`self._decoded is None` and finishing the assignment spans the whole
+decode, and on a chain large enough for that decode to take real time,
+three requests against a *fresh* session routinely all see the cache
+unset. Measured directly against the package on a 100k-record fixture:
+`decode()` called 300,006 times for 100,002 records — exactly 3× — and
+6.8 s wall time for three concurrent calls against 1.66 s for one alone,
+worse than plain sequential (~5.0 s), not "serialized for free". The
+mechanism is an unprotected cache, not a scheduler; the test that
+reached the wrong conclusion above (`test_concurrency.py`'s
+`time.sleep(0.3)` monkeypatch) never exercised either the shared state
+or a fixture large enough for the race window to matter — it correctly
+proves a different, real property (a slow route does not queue behind
+another) and was never wrong about that. Closed on this side by a lock
+on `ChainHandle` (A1, `docs/U14-decode-performance.md` §U14-01); the
+underlying eager decode itself stays upstream, tracked below as before.
 
 None of this is buildable in `pala_seam.py`. A faster or genuinely
 incremental decode, and whatever `build_report` is doing to reach a

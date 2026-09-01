@@ -23,6 +23,7 @@ the imports move, the rest of the codebase does not notice.
 
 from __future__ import annotations
 
+import threading
 from .keychain import KeychainUnavailable
 from .keychain import read as keychain_read
 from importlib.metadata import PackageNotFoundError
@@ -242,9 +243,29 @@ class ChainHandle:
     def __init__(self, reader: AuditReader, path: Path) -> None:
         self._reader = reader
         self._path = path
+        # AuditReader documents no thread-safety guarantee, and its own
+        # decode cache (_decoded_records) has none: a fresh reader asked
+        # for records/safety/timeline together — exactly what the
+        # frontend does on chain-open — lets each request see the cache
+        # unset and independently decode the whole chain. Measured on a
+        # 100k-record fixture: decode() called 300006 times for 100002
+        # records, and wall time worse than plain sequential (6.8s vs a
+        # single decode's 1.66s), not "serialized for free" by the GIL.
+        # RLock rather than Lock: verify() calls self.container()
+        # directly (confirmed by reading, not assumed) — today that call
+        # does not itself touch self._reader (container's build_report
+        # call opens its own independent reader), so a plain Lock would
+        # not yet deadlock, but the moment container() is wired to pass
+        # reader=self._reader (the pending build_report follow-up noted
+        # in DEVELOPMENT-PLAN.md's U14 entry) that call would need this
+        # same lock from the same thread. RLock removes that footgun
+        # now rather than leaving it for whoever lands that follow-up
+        # to rediscover.
+        self._lock = threading.RLock()
 
     def close(self) -> None:
-        self._reader.close()
+        with self._lock:
+            self._reader.close()
 
     def container(self, anchor_specs: list[dict[str, str]] | None = None) -> dict[str, object]:
         """The container-level facts, including the body-digest walk.
@@ -264,6 +285,12 @@ class ChainHandle:
         (session, profile) because the result is cached alongside the
         verification, and it buys the difference between "the headers link"
         and "the file is what it says it is".
+
+        Does not touch ``self._reader`` or take this class's own lock:
+        ``build_report`` here is called without ``reader=``, so it opens
+        and decodes an entirely independent ``AuditReader`` of its own —
+        wasteful (U14, tracked upstream), but not a race, since nothing
+        about it is shared with any other call on this handle.
         """
         specs = anchor_specs or []
         data = build_report(
@@ -307,6 +334,10 @@ class ChainHandle:
         profile because the answer is cached; the alternative, keeping a
         reader per profile alive, would hold a memory map open for every
         anchor a user ever tried.
+
+        The freshly-opened per-anchor reader below is never shared with
+        anything else on this handle, so it needs no lock of its own —
+        only ``self._reader`` does.
         """
         if anchor_specs:
             reader = AuditReader.open(self._path, anchor=_anchor_source(anchor_specs))
@@ -315,7 +346,8 @@ class ChainHandle:
             finally:
                 reader.close()
         else:
-            rendered = self._render(self._reader.verify())
+            with self._lock:
+                rendered = self._render(self._reader.verify())
 
         # The body walk, from the package's own report builder. Carried in
         # its own key rather than folded into `chain`, because it answers a
@@ -415,6 +447,8 @@ class ChainHandle:
         which qualifies every wall-time claim inside it — so the set is
         carried rather than reduced.
         """
+        with self._lock:
+            stats_list = list(boot_statistics(self._reader))
         return [
             {
                 "boot_id": stats.view.boot_id.hex(),
@@ -439,7 +473,7 @@ class ChainHandle:
                     "median_duration_ns": stats.spans.median_duration_ns,
                 },
             }
-            for stats in boot_statistics(self._reader)
+            for stats in stats_list
         ]
 
     def spans(self) -> list[dict[str, object]]:
@@ -450,6 +484,8 @@ class ChainHandle:
         operation looks exactly like this, and the record of it is intact —
         so it is reported as null and never as the last record seen.
         """
+        with self._lock:
+            span_list = list(self._reader.spans())
         return [
             {
                 "span_id": span.span_id.hex(),
@@ -459,7 +495,7 @@ class ChainHandle:
                 "record_count": len(span.record_seqs),
                 "record_seqs": list(span.record_seqs),
             }
-            for span in self._reader.spans()
+            for span in span_list
         ]
 
     def record(self, seq: int) -> dict[str, object] | None:
@@ -468,8 +504,16 @@ class ChainHandle:
         None rather than an exception: asking for a record that is not in
         this file is an ordinary question with an ordinary answer, and a
         segment holding records 400–900 legitimately has no record 12.
+
+        Materialized under the lock rather than iterated directly: the
+        early ``break`` below saves nothing regardless, since
+        ``_decoded_records()`` builds its whole list before the first
+        item is ever yielded — the decode cost is already paid by the
+        time this loop starts, held under the lock or not.
         """
-        for record in self._reader.records():
+        with self._lock:
+            records = list(self._reader.records())
+        for record in records:
             if record.seq == seq:
                 return self._record_view(record)
             if record.seq > seq:
@@ -522,7 +566,14 @@ class ChainHandle:
         # pass over the file, which is the cost a paginated endpoint exists
         # to avoid — on the million-record container §C-10 targets, every
         # page would have read the whole chain twice.
-        for record in self._reader.records():
+        #
+        # Still one walk after materializing under the lock below:
+        # `self._reader.records()` is still called exactly once. Only
+        # *when* the underlying generator is drained relative to the lock
+        # moved, not how many times the file is walked.
+        with self._lock:
+            records = list(self._reader.records())
+        for record in records:
             if not self._matches(record, record_type, boot_id, span_id):
                 continue
             matched += 1
@@ -678,7 +729,8 @@ class ChainHandle:
                 f"sequence numbers have no calendar"
             )
 
-        records = list(self._reader.records())
+        with self._lock:
+            records = list(self._reader.records())
         if not records:
             # Cannot happen through open_chain, which refuses an empty
             # container — but a timeline of nothing is still an answer rather
@@ -748,6 +800,8 @@ class ChainHandle:
             elif record.type_name == "ANCHOR":
                 bucket["anchor"] = int(bucket["anchor"]) + 1
 
+        with self._lock:
+            step_data = list(step_catalog(self._reader))
         steps = [
             {
                 "seq": step.seq,
@@ -755,7 +809,7 @@ class ChainHandle:
                 "delta_ns": step.delta_ns,
                 "boot_id": step.boot_id.hex(),
             }
-            for step in step_catalog(self._reader)
+            for step in step_data
         ]
         stepped_seqs = {step["seq"] for step in steps}
         for record in records:
@@ -765,7 +819,8 @@ class ChainHandle:
         for bucket in counted:
             bucket.setdefault("stepped", False)
 
-        boots = self._reader.boots()
+        with self._lock:
+            boots = self._reader.boots()
         by_seq = {r.seq: r for r in records}
         boundaries = [
             {
@@ -846,7 +901,8 @@ class ChainHandle:
         the declaration rather than take this on trust — the same reason
         every other claim here names its source.
         """
-        view = self._reader.origin_at(seq)
+        with self._lock:
+            view = self._reader.origin_at(seq)
         if view is None:
             return None
         return {
@@ -891,7 +947,9 @@ class ChainHandle:
         """
         window: list[dict[str, object]] = []
         total = 0
-        for record in self._reader.records():
+        with self._lock:
+            records = list(self._reader.records())
+        for record in records:
             if record.record_type != RT_SAFETY:
                 continue
             total += 1
@@ -913,14 +971,17 @@ class ChainHandle:
         length is not evidence of how many records it holds — a truncated
         tail has bytes and no record.
         """
-        records = list(self._reader.records())
+        with self._lock:
+            records = list(self._reader.records())
+            boots = self._reader.boots()
+            spans = self._reader.spans()
         seqs = [r.seq for r in records]
         return {
             "records": len(records),
             "first_seq": min(seqs) if seqs else None,
             "last_seq": max(seqs) if seqs else None,
-            "boots": len(self._reader.boots()),
-            "spans": len(self._reader.spans()),
+            "boots": len(boots),
+            "spans": len(spans),
             # Every tier and time-trust value the chain carries, not just the
             # last one. A chain whose records were written under different
             # platform guarantees is a chain whose verdict wording cannot be

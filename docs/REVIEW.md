@@ -32,6 +32,17 @@ why it does not apply.
   must stay above the gate — the CI job enforces it, but the reviewer
   confirms the tests are *meaningful*, not padding.
 
+- **A test backing a `FUNCTIONALITY.md` claim names the limit of its own
+  fixture.** `test_concurrency.py` passed review, CI and a non-author
+  approval, and still supported a wrong conclusion about concurrent
+  decode cost (U14) — not from a bug in the test, but from a silent gap
+  between what it proved (a slow route does not queue behind another)
+  and what its own docstring did not say it could not prove (whether two
+  routes race over shared state). A monkeypatched delay or a small
+  fixture is often the right choice for speed and determinism; the
+  review comment is whether the docstring says what that choice cannot
+  see, not whether the choice itself was wrong.
+
 - **Denial paths are covered.** For anything touching the sidecar's
   request surface, the token gate, path handling or an anchor source: the
   refusal is tested, not only the success.
