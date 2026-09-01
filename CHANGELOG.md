@@ -14,6 +14,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- C-10a — the three claims §19 bundled as one performance line, taken
+  apart. "Verify runs off the UI thread; the window never blocks" was
+  already true (every route is a plain `def`, which Starlette threadpools;
+  the frontend already calls it via `fetch`) and now has a test proving
+  it: `test_concurrency.py` monkeypatches a 0.3 s delay onto `verify` and
+  confirms a concurrent `/health` call answers in well under it, rather
+  than queuing behind the request already in flight. The Open button
+  never read the `"opening"` state `ChainState` has carried since Phase
+  1 — `chainLine` already rendered "Opening {path}…" as the footnote, but
+  the button itself kept saying "Open a chain…" and stayed clickable,
+  so a slow open looked identical to a stuck one and a second click could
+  start a second concurrent one; fixed to match Verify's own
+  disabled-and-relabelled pattern. "Record table virtualised" is
+  documented rather than built again: C-11's ≤50-row pagination already
+  bounds render cost independent of chain size, the same property
+  virtualisation exists to provide, and a discrete page is arguably the
+  better fit for a review tool than a continuously loading one — the
+  reasoning is in `DEVELOPMENT-PLAN.md`. What's left unmet is measured,
+  not assumed: a 100k-record/22.4 MB fixture verified in 4.9 s at 460 MB
+  peak RSS (≈20.6× the file's size); a 224 MB/1,000,004-record fixture —
+  past §19's own "100 MB / ~1M-record" mark — exceeded 3.9 GB of RAM and
+  was killed by the OS mid-verify. The cause is `AuditReader.records()`'s
+  `_decoded_records()`, an eager list comprehension masquerading as a
+  generator (confirmed: fetching only the *first* record from a fresh
+  1M-record reader took as long as fetching all of them) — entirely
+  inside the package, tracked as U14 rather than worked around here.
 - The SAFETY list (C-07a): a new `GET /session/{id}/safety` endpoint and
   the client, view-model (`api/safety.ts`) and UI over it — grouped by
   kind, sorted by seq, on fields `_record_view` already resolves
