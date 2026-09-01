@@ -353,6 +353,35 @@ def build_app(token: str | None = None) -> FastAPI:
             )
         )
 
+    @app.get("/session/{session_id}/safety", response_model=RecordPage)
+    def session_safety(session_id: str) -> RecordPage:
+        """Every SAFETY record — F8's first-class list, not a filter.
+
+        No caller-adjustable `limit`, unlike `/records`. This answer is
+        cached for the life of the session the same way boots and spans
+        are — one question, one answer — and a caller-visible limit would
+        have needed a cache keyed by it, the exact class of bug the
+        `Session` docstring documents avoiding elsewhere: a second caller
+        asking with a different limit would silently receive the first
+        caller's cached answer at the first caller's limit.
+
+        `ChainHandle.safety` still bounds the response internally, purely
+        defensively, at a size no caller chooses.
+
+        The same `RecordPage` shape `/records` returns, reused rather than
+        given one of its own: `total` counts every SAFETY record that
+        exists, which can exceed the internal cap on an unusually large
+        chain, and `has_more` says so rather than leaving it to be
+        inferred from a length that matches the cap by coincidence.
+
+        `detail` text and any acknowledgement state are not on these
+        records yet — see `ChainHandle.safety`'s own docstring for why,
+        and `DEVELOPMENT-PLAN.md` U12/U13 for what closes the gap.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        return RecordPage(**session.safety())
+
     @app.get("/session/{session_id}/record/{seq}", response_model=RecordView)
     def session_record(session_id: str, seq: int) -> RecordView:
         """One record by sequence number.
