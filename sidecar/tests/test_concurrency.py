@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import threading
 import time
-
 from auditor_sidecar import sessions
 from fastapi.testclient import TestClient
 
