@@ -218,7 +218,7 @@ run.
 | C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
 | C-10a | The three claims §19 bundled as one line, taken apart. "Off-thread verify, window never blocks" — already true, confirmed with a concurrency test rather than left as an assumption. The opening screen's own state model already had an `"opening"` variant `chainLine` rendered correctly; the Open button just never read it, so a slow open looked identical to a stuck one and a second click started a second one — fixed. "Record table virtualised" — C-11's ≤50-row pagination already bounds render cost independent of chain size; a literal virtual-scroll would add nothing this screen does not already have, and reads worse for a forensic review tool than paging does (§C-10 prose below). | 0.5 | C-03, C-11 |
 | C-10b | The "100 MB / ~1M-record chain verifies in under 10 s" half of §19 — the only claim of the three actually unmet, and not fixable here (U14). | ? | U14 *merged (partial)* |
-| B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra | 1 | — |
+| B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra | 1 | `anchors_pkcs11` *released* |
 
 **Phase 2: ~22.5 days plus C-06d, C-07b, C-07c, C-09b, C-09c, C-09d and
 C-10b** — 27 as planned, plus B-12 and C-11 (§below), minus the 4.5 days
@@ -258,6 +258,13 @@ Behind the `[pkcs11]` extra, per §1.5: a plain install must not require
 `python-pkcs11`. The tier claim stays the package's — ADR-0004 calls this the
 tier-B *mechanism*, and a tier-B *claim* needs a real token. Auditor renders
 whichever tier the records carry and never upgrades one.
+
+(The table's own `—` for this item was wrong, caught only when actually
+checking rather than trusting the Track-U dependency column's absence of an
+entry: `anchors_pkcs11` is not in the installed 0.10.0 wheel at all —
+confirmed directly, `ModuleNotFoundError` — because it landed *after* that
+release, the same "since 0.10.0" this section's own heading already says.
+Corrected above to name what it actually waits on.)
 
 **Rotation makes three of C-05's span states routine.** `RotationPolicy` and
 the record-boundary cut mean a long-lived chain now arrives as a sequence of
