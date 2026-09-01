@@ -28,7 +28,8 @@ import { backwards, compress, compressionLine, density } from "./api/chronoscope
 import { diagnosisCard } from "./api/diagnosis";
 import { provenance, provenanceSummary } from "./api/provenance";
 import { nextWarning, parseSearch } from "./api/search";
-import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords } from "./state";
+import { safetyGroupKey } from "./api/safety";
+import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords, useSafety } from "./state";
 
 // C-11's page size. Well inside the sidecar's own 1000-record ceiling, and
 // small enough that a page reads as a page rather than a scroll.
@@ -41,6 +42,7 @@ export default function App() {
   const [chain, choice, pick, verify] = useChain(probe);
   const rail = useRail(probe, chain);
   const { boots, spans } = useBrowse(probe, chain);
+  const safety = useSafety(probe, chain);
   const { page: recordsPage, next: recordsNext, prev: recordsPrev, canGoBack: recordsCanGoBack } =
     useRecords(probe, chain, RECORDS_PAGE_SIZE);
   const { record, select } = useRecord(probe, chain);
@@ -257,6 +259,66 @@ export default function App() {
                 <li key={line}>{line}</li>
               ))}
             </ol>
+          </section>
+        )}
+
+        {/* F8: "SAFETY is a first-class list, not a filter — it is what
+            an auditor reads first." Placed ahead of the Chronoscope for
+            that reason, even though this slice is not yet what F8 means
+            by "loudest": acknowledgement state (the r2 oversight loop)
+            needs a candidate's own hash to resolve correctly rather than
+            guess at it (U10, U13), and detail text needs a body TLV
+            value decoded that nothing here decodes yet (U12). Grouped by
+            kind, on what a SAFETY record already resolves. */}
+        {openedOf(chain) !== null && (
+          <section className="safety" aria-labelledby="safety-title">
+            <h2 className="safety-title" id="safety-title">
+              SAFETY
+            </h2>
+
+            {safety.kind === "failed" && (
+              <p className="safety-failed">{safety.detail}</p>
+            )}
+            {safety.kind === "found" && safety.value.length === 0 && (
+              <p className="safety-empty">No SAFETY records in this container.</p>
+            )}
+            {safety.kind === "found" && safety.value.length > 0 && (
+              <>
+                <p className="safety-note">
+                  Grouped by kind. Detail text and acknowledgement state are
+                  not resolved yet — records here are named, not explained.
+                </p>
+                <ol className="safety-groups">
+                  {safety.value.map((g) => (
+                    <li className="safety-group" key={safetyGroupKey(g.kindLabel)}>
+                      <p className="safety-group-head">
+                        <span className="safety-group-kind">
+                          {g.kindLabel.has
+                            ? g.kindLabel.named
+                              ? g.kindLabel.name
+                              : `kind ${g.kindLabel.raw}, unknown`
+                            : "no kind"}
+                        </span>
+                        <span className="safety-group-count">{g.records.length}</span>
+                      </p>
+                      <ol className="safety-record-list">
+                        {g.records.map((r) => (
+                          <li key={r.seq}>
+                            <button
+                              className="safety-record"
+                              onClick={() => select(r.seq)}
+                              type="button"
+                            >
+                              #{r.seq} · {r.bootId.slice(0, 8)}
+                            </button>
+                          </li>
+                        ))}
+                      </ol>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
           </section>
         )}
 
