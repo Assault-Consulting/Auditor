@@ -140,3 +140,43 @@ sound?" in one command. To actually catch a version drift it would have to
 print **and compare** `palimpsests.__version__` against
 `importlib.metadata.version(...)` — the vector run alone is unaffected by
 that mismatch, so the claim only holds if the check is written in.
+
+---
+
+## U14 — decode performance and a docstring the code does not keep
+
+**Verified against palimpsests 0.10.0**, not the header default above.
+
+**Observed.** `AuditReader.records()`'s underlying `_decoded_records()`
+is an eager list comprehension, not the incremental generator its
+`yield from` reads as — confirmed directly: fetching only the first
+record from a fresh 1,000,004-record reader took as long as fetching
+all of them. `_walk()` itself, the header-only scan the package's own
+docstring calls lazy, still copies every header into its own `bytes`
+object and a span tuple on construction — real memory before any body
+is touched, not measured here but on the order of 300 MB at that
+record count. The same module's own docstring states `verify()` is
+header-only; it is not — `verify()` calls `_referential_advisories()`,
+which decodes every body, unconditionally, every time. `build_report()`
+reads the whole file and SHA-256s every body unconditionally too, even
+when called with an already-open `reader=`.
+
+**Why it matters.** A 224 MB / 1,000,004-record fixture — inside §19's
+own "100 MB / ~1M-record" scale, not past it — exceeded 3.9 GB of RAM
+on the machine this was measured on and was killed by the OS mid-
+`verify`, never producing a verdict. Two library entry points this
+repository calls on every open (`verify`, `build_report`) both cost
+more than their own documentation says they should, on the one path a
+verifier exists to make cheap to trust.
+
+**Full account:** `docs/U14-decode-performance.md` in this repository,
+revision -01 — the original measurements, six specific findings (one a
+directly refuted earlier conclusion about concurrent calls not
+compounding the cost — they do, measured at exactly 3× on a smaller
+fixture), and which of them this repository closed on its own side
+(a lock on `ChainHandle`, PR #54) versus which stay open here.
+
+**Not detailed here on purpose.** This entry records what was found
+and why it matters as a consumer, matching every other entry in this
+file — not a fix proposal. Scoping or building the upstream side is
+tracked separately.
