@@ -181,8 +181,20 @@ export default function App() {
         </section>
 
         <div className="choose">
-          <button className="choose-button" onClick={pick} type="button">
-            Open a chain…
+          {/* Disabled while opening — not decorative. §19 targets a
+              100 MB / ~1M-record chain, and open_chain's own correctness
+              check (confirming the file is not empty) has no cheap way
+              to answer without walking every record (measured: ~24 s of
+              wall time on a chain that size, tracked as U14). A second
+              click mid-open would start a second concurrent open rather
+              than do anything useful with the wait. */}
+          <button
+            className="choose-button"
+            disabled={chain.kind === "opening"}
+            onClick={pick}
+            type="button"
+          >
+            {chain.kind === "opening" ? "Opening…" : "Open a chain…"}
           </button>
           <button
             className="choose-button"
