@@ -14,6 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The SAFETY list (C-07a): a new `GET /session/{id}/safety` endpoint and
+  the client, view-model (`api/safety.ts`) and UI over it — grouped by
+  kind, sorted by seq, on fields `_record_view` already resolves
+  (`INCIDENT_CANDIDATE`/`OVERSIGHT_ACK` `kind_name` needed no new
+  decoding). Detail text and the r2 oversight loop's acknowledged/
+  unacknowledged state are not here: both need a body TLV *value*
+  decoded, which nothing on this side of the seam does yet, and
+  acknowledgement specifically also needs a candidate's own hash to bind
+  a reference correctly rather than match on `seq` alone — matching on
+  `seq` alone could call a candidate acknowledged when the ack actually
+  named a different one. Two new Track-U items track the gap: U12
+  (`detail`) and U13 (r2 resolution, depends on U10). A real bug was
+  caught building this: the route's first draft accepted a `limit` query
+  parameter that `Session.safety()` never used, silently ignored;
+  removed rather than wired through, since this answer is cached once
+  per session with no key for a caller-chosen limit to live in.
 - The records list (C-11): `/records` has paged and filtered since C-01;
   nothing client-side ever called it for more than one record until now.
   Paginated, clickable rows drive the same `select` the search bar and
