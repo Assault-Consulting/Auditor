@@ -17,7 +17,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, getRecords, listProfiles } from "./api/chain";
+import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, getRecords, getSafety, listProfiles } from "./api/chain";
 import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
 import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { type Chronoscope, chronoscope } from "./api/chronoscope";
@@ -26,6 +26,7 @@ import { onChainFilesDropped, pickChainFile } from "./api/openFile";
 import { type OriginCard, originCard } from "./api/origin";
 import { type RecordCard, recordCard } from "./api/record";
 import { nextOffset, recordsPage, type RecordsPage } from "./api/records";
+import { safetyGroups, type SafetyGroup } from "./api/safety";
 import { type Health, NoShellError, getHealth, getSession } from "./api/session";
 
 /** What the shell reports, once it has answered — or why it has not. */
@@ -371,6 +372,45 @@ export function useRecords(
   };
 
   return { page, next, prev, canGoBack: history.length > 0 };
+}
+
+/**
+ * The SAFETY list, grouped by kind — F8.
+ *
+ * Fetched once per session, the same reason boots and spans are: the
+ * question does not vary by caller, unlike a record window keyed by
+ * offset and limit. Grouping happens here rather than being resolved
+ * again on every render — `safetyGroups` is a pure function of what the
+ * sidecar returned, so there is nothing to recompute.
+ */
+export function useSafety(probe: Probe, chain: ChainState): Fetch<SafetyGroup[]> {
+  const [safety, setSafety] = useState<Fetch<SafetyGroup[]>>({ kind: "unasked" });
+  const opened = openedOf(chain);
+
+  useEffect(() => {
+    if (probe.kind !== "ready" || opened === null) {
+      setSafety({ kind: "unasked" });
+      return;
+    }
+    let cancelled = false;
+    void getSafety(probe.session, opened.session_id)
+      .then((page) => {
+        if (!cancelled) setSafety({ kind: "found", value: safetyGroups(page.records) });
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setSafety({
+            kind: "failed",
+            detail: e instanceof Error ? e.message : String(e),
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [probe, opened]);
+
+  return safety;
 }
 
 /**
