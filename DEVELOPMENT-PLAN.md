@@ -85,27 +85,31 @@ schedule rather than this project's.
 | U10 | A record's own hash, on `DecodedRecord`. `Header.prev_hash` and `Header.body_digest` are already there; the record's own hash is not, because nothing downstream of `decode_record` keeps the header bytes `pala.record_hash(header_bytes)` needs. Computed once during decode, from bytes the reader already has and discards, and cached on the dataclass — not re-derived by any caller. Confirmed against the installed 0.10.0 wheel by reading `palimpsests.audit.reader` directly rather than assumed. | 1 | C-06c |
 | U11 | `origin_at()` to distinguish "never declared" from "declared, then unloaded". Read directly rather than assumed: a `KIND_MODEL_UNLOAD` sets the running origin to `None`, exactly the value it starts at before any `MODEL_LOAD` — the two collapse. F9 asks for different wording for each ("not stated in this file" vs "no model active"); producing that distinction on this side of the seam would mean re-walking records for the last unload ourselves, the second-implementation mistake ADR-0001 rules out. | 1 | C-08(b) |
 | U12 | `detail` decoded from `EVT_DETAIL` onto `DecodedRecord`, the same way `origin_at()` already decodes named TLV fields into `OriginView` rather than leaving them as raw bytes. Confirmed present and readable: the reader's own `body_tlvs` already carries `(type, value)` pairs for a cleartext body, and `EVT_DETAIL = 4` is a published constant — nothing to discover, only to expose. Blocks F8's detail text and its recurrence count, and separately unblocks half of C-09d (free text still needs §22.3 decided). | 1 | C-07b, C-09d(b) |
-| U13 | r2 resolution: acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records, an `OVERSIGHT_ACK`'s `operator_id` and deadline delta, `KEY_SHRED` target resolution. Needs `EVT_REF_SEQ` / `EVT_REF_HASH` decoded from an ack's body **and** U10 — matching a candidate by `seq` alone could call one acknowledged when the ack actually named a different record, which is a wrong answer, not an incomplete one. The package already does an equivalent hash-verified match internally, to produce the `reference_unresolved` / `reference_hash_mismatch` advisory codes on a *broken* reference (§9); this is the same resolution, exposed for the ordinary case instead of only its failures. | 2 | C-07c |
-| U14 | Record-decode and verify performance at the scale §19 itself targets. `AuditReader.records()`'s underlying `_decoded_records()` is not the incremental generator its `yield from` syntax suggests — it is an eager list comprehension over every header, computed in full before the first item is yielded, cached afterward. Measured, not assumed: on a synthetic 100k-record / 22.4 MB chain, `open_chain` plus `ChainHandle.verify` (header verify plus `build_report`'s body-digest walk) together cost 4.9 s and reached a peak RSS of 460 MB — roughly 20.6× the file's own size. At 224 MB / 1,000,004 records — a chain slightly *larger* than §19's own "100 MB / ~1M-record" target — the same flow exceeded 3.9 GB of RAM and was killed by the OS before finishing. Both numbers came from running the actual package against a fixture built for this, not from reading its source and guessing. The decode and report-building path are entirely the package's; nothing here is buildable in the shell without the second-implementation mistake ADR-0001 rules out. | ? | C-10b |
+| U13 | Acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records — `AuditReader.acknowledged_candidates()`, hash-verified through the same resolution `_check_reference` already used for the *broken*-reference advisory codes. **Built and merged to Palimpsests `main`** (Assault-Consulting/Palimpsests#199), not yet released — this repository installs from PyPI, so it stays unusable here until a release is cut. The `U10` dependency in the original scoping was wrong, confirmed by actually building this: the package resolves a target's hash from the raw header bytes it already holds (`self._headers`), never from a `DecodedRecord.record_hash` field — U10 remains needed only for showing a record's own hash in Auditor's UI (C-06c), not for this resolution. | 1 | C-07c(a) |
+| U15 | The rest of the r2 oversight loop `U13`'s original scope named but did not build: an `OVERSIGHT_ACK`'s `operator_id` and deadline delta, and `KEY_SHRED` target resolution. Not investigated to the depth `U13`'s acknowledged-state half was — the writer accepts `disposition`/`operator_id` (confirmed: `PalaWriter.oversight_ack`'s signature), but whether the reader already exposes them per-record, or a further reader-side accessor is needed the way `acknowledged_candidates()` was, has not been checked against source. | ? | C-07c(b) |
+| U14 | Record-decode and verify performance at the scale §19 itself targets. `AuditReader.records()`'s underlying `_decoded_records()` is not the incremental generator its `yield from` syntax suggests — it is an eager list comprehension over every header, computed in full before the first item is yielded, cached afterward. Measured, not assumed: on a synthetic 100k-record / 22.4 MB chain, `open_chain` plus `ChainHandle.verify` (header verify plus `build_report`'s body-digest walk) together cost 4.9 s and reached a peak RSS of 460 MB — roughly 20.6× the file's own size. At 224 MB / 1,000,004 records — a chain slightly *larger* than §19's own "100 MB / ~1M-record" target — the same flow exceeded 3.9 GB of RAM and was killed by the OS before finishing. One partial mitigation is **built and merged** (Assault-Consulting/Palimpsests#198): `build_report()` now accepts an already-open reader, so a caller who already paid the decode once does not pay it a second time inside `build_report`'s own separately-opened reader — Auditor's own `ChainHandle.container()` does not call it with `reader=` yet, a small follow-up once the release lands (§5 below). The actual cause — `_decoded_records()`'s eager, eventually-shared-but-not-yet-incremental cache — has a worked design (a lock-protected generator that decodes and caches one record per index, so an early-exiting caller like `origin_at` or a single-record lookup pays only for what it reads, while a full walk still gets the same shared cache it has today) but touches six call sites including the r2/r3 advisory resolution `U13`/`U15` depend on, and introduces the first concurrency primitive this class has needed — deliberately left unbuilt rather than rushed, matching the package's own documented stance (`docs/INTEGRATION-SURFACE.md`: "a streaming reader is backlog, not promise"). | ? | C-10b |
 
-**Track U total: ~22.5 days plus U14** (~18.5 without U8, which blocks only
-Phase 4). U14 carries no number: it is not a feature to scope but a
-performance investigation with a target already stated in §19, and
-inventing a duration for work whose shape is not yet known would be the
-same overclaim C-06d's `?` already refuses to make. U7, U4 and U1 are the
-cheap ones and should land first — U7 in particular is half a day and
-removes a whole class of "the shell re-typed a constant" defects.
+**Track U total: ~21.5 days plus U14 and U15** (~17.5 without U8, which
+blocks only Phase 4). U14 and U15 carry no number: neither is a feature
+to scope but an investigation whose shape is not yet known — inventing
+a duration would be the same overclaim C-06d's `?` already refuses to
+make. U7, U4 and U1 are the cheap ones and should land first — U7 in
+particular is half a day and removes a whole class of "the shell
+re-typed a constant" defects.
 
 Note on U1–U3: these must be **advisory** output, never verdict fields.
 The existing `Advisory` channel shape is already fixed for exactly this
 kind of extension.
 
 **Status against 0.10.0 and after.** U1–U4, U6, U7 and U9 are released;
-U5 and U8 are in the wheel as `proofs` and `bundle`. Three further upstream
-items have landed since the 0.10.0 release that this plan did not ask for
-and cannot ignore: PKCS#11 anchors, writer rotation, and SCITT registration.
-Each is accounted for where it lands — the first two in §5, the third in §5
-and Phase 4.
+U5 and U8 are in the wheel as `proofs` and `bundle`. U13's acknowledged-
+state half and U14's reader-reuse mitigation are merged to Palimpsests
+`main` but not yet released — built directly, from this side, once the
+gap each closes was found (§5 below has the full account). Three further
+upstream items have landed since the 0.10.0 release that this plan did
+not ask for and cannot ignore: PKCS#11 anchors, writer rotation, and
+SCITT registration. Each is accounted for where it lands — the first two
+in §5, the third in §5 and Phase 4.
 
 ## 3. Phase 0 — scaffold
 
@@ -205,7 +209,7 @@ run.
 | C-06d | Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
 | C-07a | UI: the SAFETY list, grouped by kind and sorted by seq — the slice buildable on what a record already resolves. No detail text, no acknowledgement state. | 1 | C-01 |
 | C-07b | Detail text and the recurrence count it enables, once `EVT_DETAIL` is decoded. | ? | U12 *released* |
-| C-07c | The r2 oversight loop: acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records, an `OVERSIGHT_ACK`'s operator and deadline, `KEY_SHRED` resolution. **Display only** in the MVP — recording a disposition is the Phase-5 item below, behind its own ADR. | ? | U10 *released*, U13 *released* |
+| C-07c | The r2 oversight loop: acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records, an `OVERSIGHT_ACK`'s operator and deadline, `KEY_SHRED` resolution. **Display only** in the MVP — recording a disposition is the Phase-5 item below, behind its own ADR. `U10` dropped from the dependency: confirmed while building `U13` that resolution never needed a record's own hash exposed here, only the header bytes the package already holds internally. | ? | U13 *merged*, U15 |
 | C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01, C-06a |
 | C-09a | Search bar: seq jump (`#1447`), two of three quick buttons (first record, next warning). Unsupported input named plainly rather than silently ignored. | 1 | C-01, C-06a |
 | C-09b | Filter chips: `kind:`, `type:`, `span:`, `boot:`, `tier:`, date range — wired onto C-11's list. `span:`/`boot:` need no backend change (spans and boots are already fetched in full); `type:` needs a name→int mapping investigated but not built (§5 below); `kind:`/`tier:`/date range need new `/records` query parameters that do not exist yet. | ? | C-11 |
@@ -213,7 +217,7 @@ run.
 | C-09d | Free text over `detail`. Blocked on `FUNCTIONALITY.md` §22.3, an open product question this plan has no authority to answer, and — until U12 releases — on there being no `detail` field on a record to search at all. | ? | §22.3 decided, U12 *released* |
 | C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
 | C-10a | The three claims §19 bundled as one line, taken apart. "Off-thread verify, window never blocks" — already true, confirmed with a concurrency test rather than left as an assumption. The opening screen's own state model already had an `"opening"` variant `chainLine` rendered correctly; the Open button just never read it, so a slow open looked identical to a stuck one and a second click started a second one — fixed. "Record table virtualised" — C-11's ≤50-row pagination already bounds render cost independent of chain size; a literal virtual-scroll would add nothing this screen does not already have, and reads worse for a forensic review tool than paging does (§C-10 prose below). | 0.5 | C-03, C-11 |
-| C-10b | The "100 MB / ~1M-record chain verifies in under 10 s" half of §19 — the only claim of the three actually unmet, and not fixable here (U14). | ? | U14 *released* |
+| C-10b | The "100 MB / ~1M-record chain verifies in under 10 s" half of §19 — the only claim of the three actually unmet, and not fixable here (U14). | ? | U14 *merged (partial)* |
 | B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra | 1 | — |
 
 **Phase 2: ~22.5 days plus C-06d, C-07b, C-07c, C-09b, C-09c, C-09d and
@@ -222,7 +226,8 @@ C-09's, C-07's and C-10's own splits found they did not need (three
 guesses — two three-day, one three-day — each became a small `a` slice
 plus question marks). The seven question marks left are not the same
 kind of unknown: C-06d is an unstarted design; C-07b and C-07c are gated
-on upstream work this plan has now scoped (U12, and U10 plus U13); C-09b
+on upstream work this plan has now scoped (U12, and U13 plus U15 —
+U10 dropped from C-07c's own dependency, §5 below); C-09b
 is gated on C-11 landing and partly on the same type-name investigation
 C-06's split opened; C-09c on an upstream release (U10); C-09d on a
 product decision (§22.3) this plan cannot make by itself; C-10b on a
@@ -440,6 +445,14 @@ signal as "acknowledged". U13 asks for that resolution exposed directly,
 the same shape of request U10 already is — not new package behaviour,
 new package surface. Built as C-07c, behind U10 and U13 both.
 
+(That last dependency was wrong in a way only building U13 surfaced:
+it needed no record hash exposed on `DecodedRecord` at all, only the
+header bytes the package already holds internally — the same
+distinction that made B-05's `U7` dependency and C-08's `C-01`-only
+dependency wrong earlier in this document. U13 split and its
+acknowledged-state half is built; this section's own later subsection
+has the full account.)
+
 The `"safety": {"unacknowledged_candidates": 0, ...}` block in
 `FUNCTIONALITY.md`'s report JSON (§11) is not evidence this is already
 computed here — it is the illustrative shape of `pala-verification-
@@ -548,6 +561,61 @@ yet.
 Built as C-10a: the concurrency test, the Open-button fix, and this
 section's documented case for pagination over virtual-scroll. C-10b —
 the actual scale target — waits on U14.
+
+### U14 was investigated past the point of scoping it, into building part of it
+
+Reading U14's cause precisely — `_referential_advisories()` needing
+every record's kind, `_decoded_records()` never letting that cost be
+partial — surfaced two things worth doing upstream rather than only
+writing down. Both landed in Palimpsests directly, not filed and left
+for later.
+
+**A real correctness bug, found by reading what `_safety_section` did
+with the same hash-verified resolution `_check_reference` already had.**
+`build_report`'s `safety.unacknowledged_candidates` matched an
+`OVERSIGHT_ACK` to its candidate on `EVT_REF_SEQ` alone — no hash check.
+An ack naming the right seq with the wrong `EVT_REF_HASH` counted its
+candidate acknowledged in the report, the same file whose
+`advisory.items` was already saying that exact reference was broken
+(`reference_hash_mismatch`). Fixed upstream by extracting the hash
+check `_check_reference` already did into a shared `_hash_verified_target`,
+and exposing a new public `AuditReader.acknowledged_candidates()` built
+on it — Assault-Consulting/Palimpsests#199, merged. This is U13's
+acknowledged-state half, done rather than merely scoped, and it is
+*where* U13's original `U10` dependency turned out wrong: the hash
+check resolves against `self._headers`, bytes the reader already holds,
+never against a `DecodedRecord.record_hash` field — the thing U10 would
+have added. Corrected above; U13 no longer needs it.
+
+**`build_report`'s own duplicate decode, found while tracing why
+Auditor's verify flow paid U14's cost twice.** `ChainHandle.verify()`
+asks its own session reader to verify, then separately asks
+`build_report` for the body-digest walk — and `build_report` always
+opened a second, independent `AuditReader`, with no way to know the
+caller already had one warm. `build_report` now accepts `reader=`
+(Assault-Consulting/Palimpsests#198, merged) so a caller holding an
+open reader is not charged the decode again. This halves the redundant
+half of U14's cost; it does not touch the cost itself, and Auditor's
+own `ChainHandle.container()` does not pass `reader=` yet — a small,
+safe follow-up once a release carries the parameter, not built now
+because the parameter is not usable from an unreleased dependency.
+
+**The actual cost — `_decoded_records()`'s eager decode — was designed,
+not built.** A lock-protected generator that decodes and caches one
+record per index would let an early-exiting caller (`origin_at`, a
+single-record lookup) pay only for what it reads, while a full walk
+keeps today's shared, cache-once behaviour. Worked through in enough
+detail to be confident it is correct — including why a naive lazy
+rewrite is not enough on its own, since `origin_at`'s real usage
+pattern (repeated lookups at different seqs as a user browses) wants
+early-exit *and* a shared cache across calls, not one or the other.
+Left unbuilt on purpose: it is the first concurrency primitive this
+class would need, it touches all six of `_decoded_records()`'s current
+callers including the r2/r3 resolution `U13`/`U15` depend on, and the
+package's own `docs/INTEGRATION-SURFACE.md` already calls this "backlog,
+not promise" — a design existing is not the same as it being this
+plan's call to build without the maintainers in the room. U14 stays a
+`?` for that reason, not because the shape is unknown anymore.
 
 ## 6. Phase 3 — Report
 
