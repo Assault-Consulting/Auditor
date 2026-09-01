@@ -58,6 +58,9 @@ class Session:
     #: questions **converges**, not whether an answer is expensive.
     #:
     #: * Boots and spans: one answer each for the life of the session.
+    #: * SAFETY: one answer for the life of the session, for the same
+    #:   reason — the question ("every SAFETY record") does not vary by
+    #:   caller, unlike a record window or a single record.
     #: * Timelines: two axes and a bounded set of resolutions a UI asks for,
     #:   so the keyspace is small and stops growing.
     #: * Record windows, a single record, an origin: one answer *per question
@@ -69,6 +72,7 @@ class Session:
     #: same bytes or the session is refused.
     _boots: list[dict] | None = None
     _spans: list[dict] | None = None
+    _safety: dict | None = None
     _timelines: dict[tuple[str, int, str | None], dict] = field(default_factory=dict)
 
     def verify(
@@ -96,6 +100,12 @@ class Session:
         if self._spans is None:
             self._spans = self.chain.spans()
         return self._spans
+
+    def safety(self) -> dict:
+        """Every SAFETY record, computed at most once — F8."""
+        if self._safety is None:
+            self._safety = self.chain.safety()
+        return self._safety
 
     def record(self, seq: int) -> dict | None:
         """One record, or None when the container holds no such sequence."""
