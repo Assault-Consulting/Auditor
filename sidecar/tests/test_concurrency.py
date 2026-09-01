@@ -18,6 +18,20 @@ on how many seconds a real decode takes is a test that is slow on some
 machines and flaky on others. What is being tested is concurrency, not
 speed, so the delay only needs to be reliably longer than the concurrent
 request takes to answer.
+
+**What this first test does not cover.** ``time.sleep(0.3)`` releases
+the GIL and shares no state between the two threads, so it can prove a
+slow route does not queue behind another — a real property of the
+Starlette threadpool — but it cannot see two routes racing over shared
+state, because nothing here is shared. That gap let a wrong conclusion
+stand once: an earlier reading of three concurrent requests against a
+large chain, on the strength of a result *this* test's own shape would
+have predicted, missed that ``AuditReader``'s decode cache has no lock
+(U14; corrected in ``DEVELOPMENT-PLAN.md``'s U14 entry, and closed on
+this side in ``docs/U14-decode-performance.md``, revision -01). The
+second test below is the one that should have existed to catch it —
+and, unlike this one, it counts decode calls under real contention
+rather than only timing them.
 """
 
 from __future__ import annotations
@@ -81,3 +95,71 @@ def test_verify_does_not_block_other_requests(
     # "faster than verify finished", which a queued-behind-verify request
     # could also satisfy by coincidence on a fast enough machine.
     assert health_elapsed < 0.2
+
+
+# --- U14 / A1: the race the module docstring above names -------------------
+#
+# A tiny fixture works here specifically because the delay is injected
+# per-record via monkeypatch, not paid by decoding a genuinely large
+# chain: 5 threads against a 5-record fixture, each record taking 50ms
+# to "decode", reproduces the same race a 1,000,004-record file does at
+# real decode speed — deterministically, in about a quarter of a second,
+# the same reasoning already given above for why
+# `test_verify_does_not_block_other_requests` uses a monkeypatch instead
+# of a large real fixture.
+
+
+def test_concurrent_requests_do_not_each_redecode_the_chain(
+    open_client: TestClient, chain_path, monkeypatch
+) -> None:
+    """Five concurrent requests against records/safety/timeline, on a
+    session whose decode cache has not been warmed yet, must decode
+    each record once between them — not once per request.
+
+    Before the lock this closes: measured directly against the package
+    (not through this sidecar), three concurrent calls on a 100k-record
+    chain called `_decode` 300,006 times for 100,002 records — exactly
+    3×, and slower in total wall time than a plain sequential run, not
+    "serialized for free" by the GIL.
+    """
+    from palimpsests.audit.reader import AuditReader
+
+    real_decode = AuditReader._decode
+    decode_calls = 0
+
+    def counting_slow_decode(self, index, hb):
+        nonlocal decode_calls
+        decode_calls += 1
+        time.sleep(0.05)
+        return real_decode(self, index, hb)
+
+    monkeypatch.setattr(AuditReader, "_decode", counting_slow_decode)
+
+    sid = open_client.post(
+        "/session", json={"path": str(chain_path)}
+    ).json()["session_id"]
+
+    endpoints = ["/records", "/safety", "/timeline", "/records", "/safety"]
+    statuses: list[int] = []
+    lock = threading.Lock()
+
+    def hit(path: str) -> None:
+        r = open_client.get(f"/session/{sid}{path}")
+        with lock:
+            statuses.append(r.status_code)
+
+    threads = [threading.Thread(target=hit, args=(p,)) for p in endpoints]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert statuses == [200] * len(endpoints)
+
+    with AuditReader.open(chain_path) as probe:
+        record_count = len(probe._headers)
+
+    # The number that matters: decoded once, not once per concurrent
+    # caller. `> record_count` is exactly the failure this test exists
+    # to catch — it is what the unlocked code above measured as 3x.
+    assert decode_calls == record_count
