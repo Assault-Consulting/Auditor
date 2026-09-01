@@ -86,11 +86,15 @@ schedule rather than this project's.
 | U11 | `origin_at()` to distinguish "never declared" from "declared, then unloaded". Read directly rather than assumed: a `KIND_MODEL_UNLOAD` sets the running origin to `None`, exactly the value it starts at before any `MODEL_LOAD` — the two collapse. F9 asks for different wording for each ("not stated in this file" vs "no model active"); producing that distinction on this side of the seam would mean re-walking records for the last unload ourselves, the second-implementation mistake ADR-0001 rules out. | 1 | C-08(b) |
 | U12 | `detail` decoded from `EVT_DETAIL` onto `DecodedRecord`, the same way `origin_at()` already decodes named TLV fields into `OriginView` rather than leaving them as raw bytes. Confirmed present and readable: the reader's own `body_tlvs` already carries `(type, value)` pairs for a cleartext body, and `EVT_DETAIL = 4` is a published constant — nothing to discover, only to expose. Blocks F8's detail text and its recurrence count, and separately unblocks half of C-09d (free text still needs §22.3 decided). | 1 | C-07b, C-09d(b) |
 | U13 | r2 resolution: acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records, an `OVERSIGHT_ACK`'s `operator_id` and deadline delta, `KEY_SHRED` target resolution. Needs `EVT_REF_SEQ` / `EVT_REF_HASH` decoded from an ack's body **and** U10 — matching a candidate by `seq` alone could call one acknowledged when the ack actually named a different record, which is a wrong answer, not an incomplete one. The package already does an equivalent hash-verified match internally, to produce the `reference_unresolved` / `reference_hash_mismatch` advisory codes on a *broken* reference (§9); this is the same resolution, exposed for the ordinary case instead of only its failures. | 2 | C-07c |
+| U14 | Record-decode and verify performance at the scale §19 itself targets. `AuditReader.records()`'s underlying `_decoded_records()` is not the incremental generator its `yield from` syntax suggests — it is an eager list comprehension over every header, computed in full before the first item is yielded, cached afterward. Measured, not assumed: on a synthetic 100k-record / 22.4 MB chain, `open_chain` plus `ChainHandle.verify` (header verify plus `build_report`'s body-digest walk) together cost 4.9 s and reached a peak RSS of 460 MB — roughly 20.6× the file's own size. At 224 MB / 1,000,004 records — a chain slightly *larger* than §19's own "100 MB / ~1M-record" target — the same flow exceeded 3.9 GB of RAM and was killed by the OS before finishing. Both numbers came from running the actual package against a fixture built for this, not from reading its source and guessing. The decode and report-building path are entirely the package's; nothing here is buildable in the shell without the second-implementation mistake ADR-0001 rules out. | ? | C-10b |
 
-**Track U total: ~22.5 days** (~18.5 without U8, which blocks only
-Phase 4). U7, U4 and U1 are the cheap ones and should
-land first — U7 in particular is half a day and removes a whole class of
-"the shell re-typed a constant" defects.
+**Track U total: ~22.5 days plus U14** (~18.5 without U8, which blocks only
+Phase 4). U14 carries no number: it is not a feature to scope but a
+performance investigation with a target already stated in §19, and
+inventing a duration for work whose shape is not yet known would be the
+same overclaim C-06d's `?` already refuses to make. U7, U4 and U1 are the
+cheap ones and should land first — U7 in particular is half a day and
+removes a whole class of "the shell re-typed a constant" defects.
 
 Note on U1–U3: these must be **advisory** output, never verdict fields.
 The existing `Advisory` channel shape is already fixed for exactly this
@@ -208,19 +212,21 @@ run.
 | C-09c | Time jump (nearest record to a wall-clock instant) and the anchor quick button (needs a record's own hash — U10, C-06c). | ? | C-06c, C-09b |
 | C-09d | Free text over `detail`. Blocked on `FUNCTIONALITY.md` §22.3, an open product question this plan has no authority to answer, and — until U12 releases — on there being no `detail` field on a record to search at all. | ? | §22.3 decided, U12 *released* |
 | C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
-| C-10 | Performance pass: virtualise C-11's list, off-thread verify, 100 MB / ~1M-record target | 3 | C-03, C-11 |
+| C-10a | The three claims §19 bundled as one line, taken apart. "Off-thread verify, window never blocks" — already true, confirmed with a concurrency test rather than left as an assumption. The opening screen's own state model already had an `"opening"` variant `chainLine` rendered correctly; the Open button just never read it, so a slow open looked identical to a stuck one and a second click started a second one — fixed. "Record table virtualised" — C-11's ≤50-row pagination already bounds render cost independent of chain size; a literal virtual-scroll would add nothing this screen does not already have, and reads worse for a forensic review tool than paging does (§C-10 prose below). | 0.5 | C-03, C-11 |
+| C-10b | The "100 MB / ~1M-record chain verifies in under 10 s" half of §19 — the only claim of the three actually unmet, and not fixable here (U14). | ? | U14 *released* |
 | B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra | 1 | — |
 
-**Phase 2: ~25 days plus C-06d, C-07b, C-07c, C-09b, C-09c and C-09d** —
-27 as planned, plus B-12 and C-11 (§below), minus the four days C-09's
-and C-07's own splits found they did not need (two three-day guesses
-each became a one-day `a` slice plus question marks). The six question
-marks left are not the same kind of unknown: C-06d is an unstarted
-design; C-07b and C-07c are gated on upstream work this plan has now
-scoped (U12, and U10 plus U13); C-09b is gated on C-11 landing and
-partly on the same type-name investigation C-06's split opened; C-09c on
-an upstream release (U10); C-09d on a product decision (§22.3) this plan
-cannot make by itself.
+**Phase 2: ~22.5 days plus C-06d, C-07b, C-07c, C-09b, C-09c, C-09d and
+C-10b** — 27 as planned, plus B-12 and C-11 (§below), minus the 4.5 days
+C-09's, C-07's and C-10's own splits found they did not need (three
+guesses — two three-day, one three-day — each became a small `a` slice
+plus question marks). The seven question marks left are not the same
+kind of unknown: C-06d is an unstarted design; C-07b and C-07c are gated
+on upstream work this plan has now scoped (U12, and U10 plus U13); C-09b
+is gated on C-11 landing and partly on the same type-name investigation
+C-06's split opened; C-09c on an upstream release (U10); C-09d on a
+product decision (§22.3) this plan cannot make by itself; C-10b on a
+newly scoped upstream performance item (U14).
 
 **Exit criterion:** a 1M-record chain opens, the timeline stays
 interactive, and "what happened at 22:41 on 6 Aug" is answerable in under
@@ -452,6 +458,97 @@ second caller silently receive the first caller's limit. A test asserting
 the parameter actually narrowed the response is what caught it — asserted
 `== 2`, got back all four.
 
+### C-10 was one line bundling three separate claims, only one unmet
+
+§19's actual sentence — "the timeline stays interactive, with the
+record table virtualised. Verify runs off the UI thread; the window
+never blocks" — reads as one requirement. It is three, and they needed
+three different kinds of attention: one already true, one a small gap
+between an existing state model and the screen reading it, one a real
+performance ceiling this repository cannot move.
+
+**"Verify runs off the UI thread; the window never blocks" — already
+true, now proven rather than assumed.** Every route in `main.py` is a
+plain `def`; Starlette runs a sync path operation in a worker thread
+rather than on the event loop, and the frontend's own calls are already
+`fetch`-based, which never blocks the window's own thread waiting on a
+promise. Both were true by construction and neither had a test standing
+behind either half of that sentence. `test_concurrency.py` makes it
+one: a monkeypatched 0.3 s delay on `verify` and a concurrent `/health`
+call, issued after `verify` has started, that must answer in well under
+the delay. It does — proving the sidecar serves a second request from a
+different worker thread rather than queuing it behind the one already in
+flight, deterministically and in well under a second, with no real large
+fixture involved.
+
+**The opening screen's own gap.** `ChainState` has had an `"opening"`
+variant since Phase 1, and `chainLine` already renders it correctly —
+"Opening {path}…" — as the page's footnote. Nobody had wired the Open
+button itself to it: the button's own label never changed, and,
+unlike Verify's `disabled={!canVerify}`, nothing stopped a second click
+from starting a second concurrent open while the first was still
+running. Fixed to match Verify's own pattern: disabled and relabelled
+"Opening…" for the state that already existed and was already computing
+the right sentence one element away.
+
+**"Record table virtualised" — a judgement call, made and written down
+rather than left implicit.** C-11's list renders at most
+`RECORDS_PAGE_SIZE` (50) rows regardless of how large the chain is —
+DOM cost bounded by the page size, not the record count, which is the
+property virtualisation exists to provide. It achieves this through
+pagination rather than a continuously scrollable virtual-scroll
+component, and the two are not the same interaction, but for this
+screen specifically pagination is arguably the better fit, not merely
+an adequate substitute: a discrete page is a stable reference ("page 3,
+record #150") in a way a scroll position is not, and a continuously
+loading feed reads more like a live monitor than the careful, nothing-
+moves-until-asked review surface the rest of this application is built
+to be (`styles.css`'s own words: "a forensic tool that animates while
+you read it is a tool arguing with its own content"). Building a second,
+literal virtual-scroll list alongside it would cost real engineering for
+a DOM-size problem C-11 does not have.
+
+**"100 MB / ~1M records verifies in under 10 s" — the one claim
+actually unmet, and measured rather than guessed.** A synthetic
+100,000-record / 22.4 MB fixture, built with the package's own writer,
+timed through `open_chain` and `ChainHandle.verify` (the header walk
+plus `build_report`'s body-digest pass): 4.9 s total, peak RSS 460 MB —
+about 20.6× the file's own size. A second fixture at 224 MB /
+1,000,004 records — past §19's own "100 MB / ~1M-record" mark, not
+short of it — exceeded 3.9 GB of RAM on the machine this was run on and
+was killed by the OS mid-`verify`, never producing a verdict at all.
+
+The cause, read from the package rather than inferred: `AuditReader
+.records()` is written as `yield from self._decoded_records()`, which
+looks incremental and is not. `_decoded_records()` is a single list
+comprehension over every header, built in full — confirmed directly:
+asking for only the *first* record from a fresh reader on the
+1,000,004-record file took 24 s, the same as asking for all of them,
+because the first `yield` cannot happen until the whole list exists.
+`AuditReader.verify()` pays an equivalent cost independently rather than
+reusing that decode. Three concurrent calls (`records`, `safety`,
+`timeline`) issued against one freshly opened session were also timed,
+in case the frontend's own parallel fetches on chain-open were
+compounding this — they were not: three calls together took about as
+long as one, consistent with CPython's GIL serialising the underlying
+CPU-bound work rather than tripling it, so no fix was made where none
+was shown to be needed.
+
+None of this is buildable in `pala_seam.py`. A faster or genuinely
+incremental decode, and whatever `build_report` is doing to reach a
+20×-of-file-size memory footprint, are both entirely inside the
+package's own reading path — reimplementing either here would be
+exactly the second-implementation mistake ADR-0001 exists to rule out,
+on the single riskiest place in this codebase for it to happen
+unnoticed. Tracked as U14, with the numbers above rather than an
+estimate: what closes the gap is not yet known well enough to cost it,
+the same honesty C-06d's `?` already asks for a design nobody has done
+yet.
+
+Built as C-10a: the concurrency test, the Open-button fix, and this
+section's documented case for pagination over virtual-scroll. C-10b —
+the actual scale target — waits on U14.
+
 ## 6. Phase 3 — Report
 
 **Rewritten after U6 closed upstream.** The original six items assumed
@@ -485,12 +582,12 @@ the original estimate made in the other direction.
 
 **MVP total: not restated either, for the same reason.** It was ~73 days on
 an estimate that no longer describes Phase 3. The honest statement is that
-Phase 0 and Phase 1 are closed, Phase 2 stands at ten of twenty
-items — the twenty counting three splits now (C-06 into four, C-09 into
-four, C-07 into three), ten merged through C-11, C-07a proposed in this
-PR — and Phase 3 is unquantified until D-02 and D-07 have been looked
-at. If the work has to shrink, the cut lines are C-09b onward and
-B-05 — not the tests.
+Phase 0 and Phase 1 are closed, Phase 2 stands at eleven of twenty-one
+items — the twenty-one counting four splits now (C-06 into four, C-09
+into four, C-07 into three, C-10 into two), eleven merged through
+C-07a, C-10a proposed in this PR — and Phase 3 is unquantified until
+D-02 and D-07 have been looked at. If the work has to shrink, the cut
+lines are C-09b onward and B-05 — not the tests.
 
 ## 7. Phase 4 — evidence artifacts
 
