@@ -19,6 +19,24 @@ dependencies = [
     # here, through auditor_sidecar.pala_seam and nowhere else (ADR-0001).
     # [pala] adds cryptography for encrypted record bodies; header-only
     # verification is stdlib and needs nothing.
+    #
+    # <0.11 is not yet a real ceiling to raise — nothing past 0.10.0 has
+    # released. When something does, U10-U15's own work (record_hash,
+    # unloaded_at, detail, acknowledged_candidates, operator_id/
+    # disposition, shredded_targets — all merged upstream, none
+    # released) is reason enough on its own to bump this pin; several
+    # Phase 2 items (C-06c, C-07b, C-07c, C-09c, C-09d in
+    # DEVELOPMENT-PLAN.md) are waiting on exactly that.
+    #
+    # One thing a bump must NOT be changelogged as: "fixes U14's
+    # performance". build_report()'s reader= parameter (U14, partial —
+    # see docs/U14-decode-performance.md) sits in that same unreleased
+    # state, and even once released and actually wired into
+    # ChainHandle.container() (a separate follow-up; not wired today),
+    # build_report() still reads the whole file and SHA-256s every body
+    # unconditionally, reader= or not — finding 2 of that document. A
+    # bump described as closing U14's cost would overclaim until that
+    # finding has its own fix, wherever it ends up scoped.
     "palimpsests[pala]>=0.10,<0.11",
 ]
 
