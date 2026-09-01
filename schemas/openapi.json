@@ -1569,7 +1569,8 @@
           "after_boot_id",
           "before_boot_id",
           "from_wall_ns",
-          "to_wall_ns"
+          "to_wall_ns",
+          "duration_ns"
         ],
         "title": "WallGap",
         "type": "object"
