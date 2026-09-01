@@ -343,6 +343,23 @@ export async function getRecords(
 }
 
 /**
+ * Every SAFETY record — F8's first-class list, not a filter.
+ *
+ * No caller-adjustable limit. The sidecar caches this answer once per
+ * session, and a page-size parameter on a cached-without-a-key answer
+ * would let a second caller silently receive the first caller's limit —
+ * `session_safety`'s own docstring explains why the endpoint refuses
+ * that shape rather than offering it.
+ */
+export async function getSafety(session: Session, sessionId: string): Promise<RecordPage> {
+  const response = await fetch(url(session, `/session/${sessionId}/safety`), {
+    headers: headers(session),
+  });
+  if (!response.ok) await raise(response, (d) => new RefusedError(d));
+  return (await response.json()) as RecordPage;
+}
+
+/**
  * Release a session.
  *
  * A 404 here is swallowed on purpose: closing something already closed is

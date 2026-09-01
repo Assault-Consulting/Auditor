@@ -4,7 +4,7 @@
 """Browsing a container: boots, spans and records.
 
 Browsing answers no question about soundness, and that separation is the
-point. A chain that fails verification is still browsed — inspecting
+point. A chain that fails verification stays fully browsed — inspecting
 evidence that did not pass is half the job — so none of these endpoints
 consults a verdict and none of them refuses on one.
 
@@ -394,10 +394,127 @@ def test_origin_requires_a_sequence(open_client: TestClient, chain_path) -> None
     assert open_client.get(f"/session/{sid}/origin").status_code == 422
 
 
+# --- safety -------------------------------------------------------------
+
+
+def test_safety_lists_only_safety_records(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    """Not GENESIS, BOOT, the MODEL_LOAD event, or ANCHOR — three
+    INCIDENT_CANDIDATE and one OVERSIGHT_ACK, and nothing else."""
+    sid = _open(open_client, safety_heavy_chain)
+    page = open_client.get(f"/session/{sid}/safety").json()
+
+    assert [r["seq"] for r in page["records"]] == [3, 4, 5, 6]
+    assert {r["kind_name"] for r in page["records"]} == {
+        "INCIDENT_CANDIDATE",
+        "OVERSIGHT_ACK",
+    }
+
+
+def test_safety_reports_the_kind_names_already_resolved(
+    open_client: TestClient, chain_path
+) -> None:
+    sid = _open(open_client, chain_path)
+    page = open_client.get(f"/session/{sid}/safety").json()
+
+    assert len(page["records"]) == 1
+    assert page["records"][0]["type_name"] == "SAFETY"
+    assert page["records"][0]["kind_name"] == "INCIDENT_CANDIDATE"
+
+
+def test_safety_carries_no_detail_and_no_ack_state(
+    open_client: TestClient, chain_path
+) -> None:
+    """Structure, not content — the same discipline `/records` keeps, and
+    for the same reason: detail text needs a body TLV value decoded
+    (U12), and acknowledgement state needs that plus a candidate's own
+    hash to bind a reference correctly (U10, U13). Neither field exists
+    on this view yet, rather than existing and being wrong."""
+    sid = _open(open_client, chain_path)
+    record = open_client.get(f"/session/{sid}/safety").json()["records"][0]
+
+    assert "detail" not in record
+    assert "acknowledged" not in record
+
+
+def test_safety_total_counts_past_the_cap(safety_heavy_chain) -> None:
+    """A total that stopped at the window's edge would print "2 of 4" as
+    if 2 were the whole answer — the same distinction `/records` already
+    draws between what matched and what a caller asked to see.
+
+    Exercised on `ChainHandle` directly, at a small cap, rather than
+    through the route: `/safety` deliberately exposes no caller-facing
+    limit (see `session_safety`'s own docstring for why), so the only way
+    to observe the capping behaviour honestly is where it actually lives.
+    """
+    from auditor_sidecar.pala_seam import open_chain
+
+    handle = open_chain(safety_heavy_chain)
+    try:
+        page = handle.safety(limit=2)
+    finally:
+        handle.close()
+
+    assert len(page["records"]) == 2
+    assert page["total"] == 4
+    assert page["has_more"] is True
+
+
+def test_safety_has_more_is_false_once_the_window_covers_everything(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    sid = _open(open_client, safety_heavy_chain)
+    page = open_client.get(f"/session/{sid}/safety").json()
+
+    assert len(page["records"]) == 4
+    assert page["has_more"] is False
+
+
+def test_a_chain_with_no_safety_records_reports_an_empty_list(
+    open_client: TestClient, spanned_chain
+) -> None:
+    sid = _open(open_client, spanned_chain)
+    page = open_client.get(f"/session/{sid}/safety").json()
+
+    assert page["records"] == []
+    assert page["total"] == 0
+    assert page["has_more"] is False
+
+
+def test_an_unrecognised_limit_is_ignored_not_silently_obeyed(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    """`/safety` declares no `limit` parameter, and FastAPI's default is to
+    ignore query parameters a route never declared rather than refuse
+    them. Worth asserting directly: a caller passing `?limit=1` in the
+    style `/records` accepts must see all four records anyway, not a
+    silently-obeyed page size nobody wired through."""
+    sid = _open(open_client, safety_heavy_chain)
+    page = open_client.get(f"/session/{sid}/safety?limit=1").json()
+
+    assert len(page["records"]) == 4
+
+
+def test_safety_and_records_agree_on_the_same_record(
+    open_client: TestClient, chain_path
+) -> None:
+    """One builder — `_record_view` — so a SAFETY record cannot describe
+    itself differently depending on which endpoint asked."""
+    sid = _open(open_client, chain_path)
+    from_safety = open_client.get(f"/session/{sid}/safety").json()["records"][0]
+    from_records = next(
+        r
+        for r in open_client.get(f"/session/{sid}/records").json()["records"]
+        if r["seq"] == from_safety["seq"]
+    )
+    assert from_safety == from_records
+
+
 # --- the same refusals the rest of the surface makes ------------------------
 
 
-BROWSE_VIEWS = ["boots", "spans", "records", "record/0", "origin?seq=0"]
+BROWSE_VIEWS = ["boots", "spans", "records", "record/0", "origin?seq=0", "safety"]
 
 
 @pytest.mark.parametrize("view", BROWSE_VIEWS)
@@ -474,6 +591,13 @@ def test_boots_and_spans_are_computed_once(store, chain_path) -> None:
     s = store.open(chain_path)
     assert s.boots() is s.boots()
     assert s.spans() is s.spans()
+
+
+def test_safety_is_computed_once(store, chain_path) -> None:
+    """Same reason as boots and spans: the question does not vary by
+    caller, unlike a record window keyed by offset and limit."""
+    s = store.open(chain_path)
+    assert s.safety() is s.safety()
 
 
 def test_record_windows_are_not_cached(store, chain_path) -> None:

@@ -36,7 +36,7 @@ from palimpsests.audit.anchors import (
 )
 from palimpsests.audit.bootstats import boot_statistics
 from palimpsests.audit.names import assurance_tier_name, time_trust_name
-from palimpsests.audit.pala.codec import FORMAT_VERSION, ZERO16, ZERO32
+from palimpsests.audit.pala.codec import FORMAT_VERSION, RT_SAFETY, ZERO16, ZERO32
 from palimpsests.audit.reader import AuditReader
 from palimpsests.audit.report import build_report
 from palimpsests.audit.timehealth import step_catalog
@@ -855,6 +855,54 @@ class ChainHandle:
             "config_digest": view.config_digest.hex(),
             "since_seq": view.since_seq,
             "detail": view.detail,
+        }
+
+    def safety(self, limit: int = 500) -> dict[str, object]:
+        """Every SAFETY record, in the order F8 asks for.
+
+        `limit` is a defensive internal cap, not a caller-facing page
+        size — `/safety` exposes no query parameter for it, because this
+        answer is cached once per session the same way boots and spans
+        are, and a caller-adjustable limit on a cached-without-a-key
+        answer is exactly the class of bug the `Session` docstring is
+        careful to avoid elsewhere. F8 asks for the whole list; this
+        bounds it only against a pathologically large chain.
+
+        "Sorted by seq" is the reader's own iteration order over the
+        chain — nothing computed. "Grouped by kind_name" is left to the
+        caller: `kind_name` is already resolved per record by
+        `_record_view`, and turning a flat, ordered list into groups is
+        display logic, not a decoded fact the package owns.
+
+        `detail` text and any r2 acknowledgement state are **not**
+        here. Both need a body TLV value actually decoded — `EVT_DETAIL`
+        for the first; `EVT_REF_SEQ` / `EVT_REF_HASH` plus a candidate's
+        own hash (still U10) to bind a reference correctly rather than
+        guess at it, for the second. `_record_view` reports only what it
+        already resolves, the same discipline `records()` and `record()`
+        keep — this view is a filtered read of the same thing, not a
+        second one. Tracked as U12 (detail) and U13 (r2 resolution) in
+        `DEVELOPMENT-PLAN.md`, §2.
+
+        The response has the exact shape of `records()`'s window, reused
+        rather than given a shape of its own: `total` counts SAFETY
+        records that exist past the count returned, the same distinction
+        `records()` already draws between "matched" and "in the file".
+        """
+        window: list[dict[str, object]] = []
+        total = 0
+        for record in self._reader.records():
+            if record.record_type != RT_SAFETY:
+                continue
+            total += 1
+            if len(window) < limit:
+                window.append(self._record_view(record))
+        return {
+            "records": window,
+            "offset": 0,
+            "limit": limit,
+            "total": total,
+            "has_more": total > len(window),
         }
 
     def subject(self) -> dict[str, object]:

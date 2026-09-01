@@ -270,6 +270,35 @@ def spanned_chain(tmp_path):
 
 
 @pytest.fixture
+def safety_heavy_chain(tmp_path):
+    """A chain with more SAFETY records than a small page limit — three
+    candidates and the ack for one of them, mixed with non-SAFETY records
+    on either side.
+
+    `chain_path` has exactly one SAFETY record, which cannot exercise
+    `/safety`'s own paging: a `total` that never exceeds `limit` cannot
+    prove `has_more` is stated rather than a coincidence of the count. The
+    mix of kinds (three INCIDENT_CANDIDATE, one OVERSIGHT_ACK) also means
+    a test here cannot pass by asserting `record_type == 64` alone; it has
+    to filter on the type this view claims to filter on.
+    """
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "safetyheavy.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
+    c1 = w.incident_candidate(category=1, severity=2, detail="first")
+    w.incident_candidate(category=1, severity=1, detail="second")
+    w.incident_candidate(category=2, severity=3, detail="third")
+    w.oversight_ack(3, c1, disposition=1, operator_id=b"\x01" * 16)
+    w.anchor()
+    w.close()
+    return path
+
+
+@pytest.fixture
 def two_boot_chain(tmp_path):
     """A chain spanning two boots, so a boundary and a wall gap are real.
 
