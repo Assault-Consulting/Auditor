@@ -23,6 +23,19 @@ def _open(client: TestClient, path) -> str:
     return client.post("/session", json={"path": str(path)}).json()["session_id"]
 
 
+def _split_points(data: bytes) -> tuple[int, int]:
+    """Offsets of the second and third records, found by the container magic.
+
+    Matches ``test_mutations.py``'s own helper of the same name and same
+    exemption from the no-wire-parsing scan: a fixture needs to damage a
+    specific record, and there is no package API for "give me byte offsets
+    so I can corrupt them".
+    """
+    second = data.index(b"PALA", 4)
+    third = data.index(b"PALA", second + 4)
+    return second, third
+
+
 # --- boots ------------------------------------------------------------------
 
 
@@ -137,6 +150,78 @@ def test_a_record_reports_its_type_and_kind_names(
     assert by_seq[0]["type_name"] == "GENESIS"
     assert by_seq[3]["type_name"] == "SAFETY"
     assert by_seq[3]["kind_name"] == "INCIDENT_CANDIDATE"
+
+
+# --- a record's own hash and prev_seq (C-06c, U10 released 0.11.0) ---------
+#
+# prev_seq is the seq to jump to for the predecessor prev_hash names — and
+# it is NOT seq - 1. Confirmed by reading IncrementalVerifier.step()
+# directly: the hash-link check compares a record against whatever was
+# immediately before it IN THE FILE, and a seq gap is a wholly separate,
+# independent check. Rotation and segments (also 0.11.0) mean a real seq
+# gap with an intact hash chain is an ordinary case, not a hypothetical
+# one — these tests exist because the naive "seq - 1" answer would be
+# silently wrong in exactly that case, sending a reader to a record that
+# either does not exist or is not the one prev_hash actually names.
+
+
+def test_record_hash_is_present_and_looks_like_a_hash(
+    open_client: TestClient, chain_path
+) -> None:
+    sid = _open(open_client, chain_path)
+    records = open_client.get(f"/session/{sid}/records").json()["records"]
+    for record in records:
+        assert len(record["record_hash"]) == 64
+        bytes.fromhex(record["record_hash"])  # raises if not hex
+
+
+def test_genesis_has_no_prev_seq(open_client: TestClient, chain_path) -> None:
+    """Index 0: nothing in this file to jump to, GENESIS's own declared
+    zero predecessor or not."""
+    sid = _open(open_client, chain_path)
+    records = open_client.get(f"/session/{sid}/records").json()["records"]
+    genesis = next(r for r in records if r["type_name"] == "GENESIS")
+    assert genesis["index"] == 0
+    assert genesis["prev_seq"] is None
+
+
+def test_an_ordinary_record_s_prev_seq_is_its_file_predecessor(
+    open_client: TestClient, chain_path
+) -> None:
+    """The unremarkable case, where index and seq happen to agree —
+    checked so the remarkable case below is a contrast, not the only
+    evidence this field works at all."""
+    sid = _open(open_client, chain_path)
+    records = open_client.get(f"/session/{sid}/records").json()["records"]
+    by_seq = {r["seq"]: r for r in records}
+    assert by_seq[2]["prev_seq"] == by_seq[1]["seq"]
+
+
+def test_prev_seq_resolves_by_file_position_not_by_seq_minus_one(
+    open_client: TestClient, chain_path
+) -> None:
+    """Drop the second record (index 1, seq 1) entirely: every record
+    after it keeps its original seq (a real gap at 1), but each one's
+    file position shifts down by one.
+
+    The record that was seq 2 is now at index 1 in this file — file-
+    adjacent to the untouched seq-0 record, not to anything at "seq 1",
+    which no longer exists. `prev_seq - 1` would give 1 here: wrong,
+    and not even a seq present in the file to send a reader to. The
+    correct answer, read by file position, is 0.
+    """
+    data = chain_path.read_bytes()
+    second, third = _split_points(data)
+    chain_path.write_bytes(data[:second] + data[third:])
+
+    sid = _open(open_client, chain_path)
+    records = open_client.get(f"/session/{sid}/records").json()["records"]
+    by_seq = {r["seq"]: r for r in records}
+
+    assert 1 not in by_seq  # confirms the gap actually exists
+    now_at_index_one = by_seq[2]
+    assert now_at_index_one["index"] == 1
+    assert now_at_index_one["prev_seq"] == 0
 
 
 def test_a_record_type_with_no_kind_reports_null(
