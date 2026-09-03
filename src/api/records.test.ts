@@ -18,6 +18,8 @@ function view(over: Partial<RecordView> = {}): RecordView {
     span_id: null,
     parent_span_id: null,
     prev_hash: null,
+    record_hash: "cd" + "00".repeat(31),
+    prev_seq: null,
     wall_clock_ns: 0,
     monotonic_ns: 42,
     assurance_tier: { value: 2, name: "B" },
