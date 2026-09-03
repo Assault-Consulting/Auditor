@@ -526,7 +526,7 @@ class ChainHandle:
             records = list(self._reader.records())
         for record in records:
             if record.seq == seq:
-                return self._record_view(record)
+                return self._record_view(record, records)
             if record.seq > seq:
                 break
         return None
@@ -592,7 +592,7 @@ class ChainHandle:
                 continue
             matched_at_or_past_offset += 1
             if len(window) < limit:
-                window.append(self._record_view(record))
+                window.append(self._record_view(record, records))
 
         return {
             "records": window,
@@ -624,12 +624,16 @@ class ChainHandle:
             return False
         return True
 
-    def _record_view(self, record) -> dict[str, object]:
+    def _record_view(self, record, records: list) -> dict[str, object]:
         """One record's header fields, as plain data.
 
         Shared by the window and the single-record view so the two cannot
         describe the same record differently — which they would, eventually,
         if each built its own dict.
+
+        ``records`` is the full decoded list this record came from — needed
+        to resolve ``prev_seq`` (below), not to re-derive anything about
+        this record itself.
         """
         header = record.header
         return {
@@ -652,6 +656,22 @@ class ChainHandle:
             # structurally, the same distinction /verify already draws
             # between "the chain links" and "this file's headers decode".
             "prev_hash": _hash_or_none(header.prev_hash),
+            # This record's own hash (U10, released 0.11.0) — always
+            # present, computed by the package over the header bytes
+            # regardless of whether the header itself decoded.
+            "record_hash": record.record_hash.hex(),
+            # The seq to jump to for "the predecessor prev_hash names" —
+            # NOT seq - 1. Confirmed by reading IncrementalVerifier.step()
+            # directly: the hash-link check compares against the record
+            # immediately before this one IN THE FILE (index - 1), and a
+            # seq gap is a wholly separate check ("a gap in seq is a
+            # break, whether or not the hashes link") — the two are
+            # independent, and rotation/segments (0.11.0) mean a seq gap
+            # with an intact hash chain is a real, not hypothetical, case.
+            # Null at index 0: nothing in this file to jump to, whether
+            # that is GENESIS's own zero prev_hash or a segment's first
+            # record naming a predecessor outside this container.
+            "prev_seq": records[record.index - 1].seq if record.index > 0 else None,
             "wall_clock_ns": header.wall_clock_ns,
             "monotonic_ns": header.monotonic_ns,
             "assurance_tier": self._named(
@@ -965,7 +985,7 @@ class ChainHandle:
                 continue
             total += 1
             if len(window) < limit:
-                window.append(self._record_view(record))
+                window.append(self._record_view(record, records))
         return {
             "records": window,
             "offset": 0,
