@@ -226,6 +226,82 @@ def test_verify_requires_the_token(gated_client: TestClient, auth, chain_path) -
     assert gated_client.get(f"/session/{sid}/verify", headers=auth).status_code == 200
 
 
+# --- container()'s reader= wiring (U14, 0.11.0) -----------------------------
+#
+# With no anchor override, container() now reuses the session's own reader
+# via build_report's reader= (released in 0.11.0) instead of opening an
+# independent one. With an override, it cannot: build_report's own
+# docstring says anchor_source is ignored when reader is given, and
+# self._reader carries no anchor at all — passing both would silently
+# check against nothing while a specific anchor was asked for.
+
+
+def test_container_reuses_the_session_reader_with_no_anchor(
+    open_client: TestClient, chain_path, monkeypatch
+) -> None:
+    from palimpsests.audit.reader import AuditReader
+
+    real_open = AuditReader.open
+    open_calls = 0
+
+    def counting_open(*args, **kwargs):
+        nonlocal open_calls
+        open_calls += 1
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(AuditReader, "open", counting_open)
+
+    sid = open_client.post(
+        "/session", json={"path": str(chain_path)}
+    ).json()["session_id"]
+    open_calls_after_session = open_calls  # open_chain's own call, at POST time
+
+    r = open_client.get(f"/session/{sid}/verify")
+    assert r.status_code == 200
+    assert r.json()["container"]["well_formed"] is True
+
+    # No second AuditReader.open() for the container walk: build_report
+    # reused the session's own reader instead of opening its own.
+    assert open_calls == open_calls_after_session
+
+
+def test_container_still_opens_its_own_reader_with_an_anchor_override(
+    open_client: TestClient, chain_path, head_hex, monkeypatch
+) -> None:
+    from palimpsests.audit.reader import AuditReader
+
+    real_open = AuditReader.open
+    open_calls = 0
+
+    def counting_open(*args, **kwargs):
+        nonlocal open_calls
+        open_calls += 1
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(AuditReader, "open", counting_open)
+
+    open_client.put(
+        "/anchors/profiles/desk",
+        json={"name": "desk", "sources": [{"kind": "manual", "head": head_hex}]},
+    )
+    sid = open_client.post(
+        "/session", json={"path": str(chain_path)}
+    ).json()["session_id"]
+    open_calls_after_session = open_calls
+
+    r = open_client.get(f"/session/{sid}/verify?profile=desk")
+    assert r.status_code == 200
+    body = r.json()
+    # The anchor was actually applied — not silently dropped in favor of
+    # self._reader's own (nonexistent) one.
+    assert body["completeness"]["complete_to_anchor"] is True
+
+    # Two independent opens beyond the session's own: one for verify()'s
+    # own per-anchor reader, one inside container()'s build_report call —
+    # confirming the anchor-override path did NOT reuse self._reader.
+    assert open_calls == open_calls_after_session + 2
+
+
 # --- helpers ----------------------------------------------------------------
 
 

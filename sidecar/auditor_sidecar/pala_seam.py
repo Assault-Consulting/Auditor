@@ -252,15 +252,16 @@ class ChainHandle:
         # records, and wall time worse than plain sequential (6.8s vs a
         # single decode's 1.66s), not "serialized for free" by the GIL.
         # RLock rather than Lock: verify() calls self.container()
-        # directly (confirmed by reading, not assumed) — today that call
-        # does not itself touch self._reader (container's build_report
-        # call opens its own independent reader), so a plain Lock would
-        # not yet deadlock, but the moment container() is wired to pass
-        # reader=self._reader (the pending build_report follow-up noted
-        # in DEVELOPMENT-PLAN.md's U14 entry) that call would need this
-        # same lock from the same thread. RLock removes that footgun
-        # now rather than leaving it for whoever lands that follow-up
-        # to rediscover.
+        # directly. That follow-up landed (0.11.0 released container()'s
+        # own reader= wiring) — but verify()'s own `with self._lock:`
+        # block wraps only its direct call to self._reader.verify(),
+        # exiting before container() is ever reached, so this specific
+        # path never actually nests one acquisition inside the other.
+        # RLock stays regardless: the one guarantee worth keeping is
+        # that a future refactor moving container()'s call inside that
+        # same `with` block — an easy, easy-to-miss change — degrades
+        # to a slightly wider lock, not a deadlock a plain Lock would
+        # produce silently.
         self._lock = threading.RLock()
 
     def close(self) -> None:
@@ -281,23 +282,33 @@ class ChainHandle:
         package owns what a body digest means, and a second implementation
         would be a second thing to be wrong.
 
-        The cost is a second full pass over the file. It is paid once per
-        (session, profile) because the result is cached alongside the
-        verification, and it buys the difference between "the headers link"
-        and "the file is what it says it is".
-
-        Does not touch ``self._reader`` or take this class's own lock:
-        ``build_report`` here is called without ``reader=``, so it opens
-        and decodes an entirely independent ``AuditReader`` of its own —
-        wasteful (U14, tracked upstream), but not a race, since nothing
-        about it is shared with any other call on this handle.
+        Two paths, not one, and they must stay separate. With no anchor
+        override, this reuses ``self._reader`` via ``build_report``'s own
+        ``reader=`` (released in 0.11.0) — no second decode, held under
+        this class's lock the same as every other touch to ``self._reader``.
+        With an anchor override, ``self._reader`` cannot be used at all:
+        ``build_report``'s own docstring is explicit that ``anchor_source``
+        is *ignored* when ``reader`` is given, since a shared reader
+        answers with its own anchor — and ``self._reader`` was opened with
+        none. Passing both here would silently check the file against no
+        anchor while the caller asked for a specific one. So that path
+        keeps paying the second full pass (U14, tracked upstream) rather
+        than risk answering the wrong question quickly.
         """
         specs = anchor_specs or []
-        data = build_report(
-            self._path,
-            anchor_source=_anchor_source(specs) if specs else None,
-            tool="palimpsests-auditor-sidecar",
-        ).data["container"]
+        if specs:
+            data = build_report(
+                self._path,
+                anchor_source=_anchor_source(specs),
+                tool="palimpsests-auditor-sidecar",
+            ).data["container"]
+        else:
+            with self._lock:
+                data = build_report(
+                    self._path,
+                    reader=self._reader,
+                    tool="palimpsests-auditor-sidecar",
+                ).data["container"]
         return {
             "well_formed": data["well_formed"],
             "malformed": data["malformed"],
