@@ -65,7 +65,14 @@ PATTERNS=(
   'int\.from_bytes'                   # int/bytes reinterpretation
   'b["'\'']PALA'                      # the wire magic as a byte literal
   '\bMAGIC\b'                         # ... or imported by name
-  '\brecord_hash\b'                   # re-deriving a record identity
+  # Target the CALL, not the identifier. A bare \brecord_hash\b also
+  # matched every legitimate field carrying the value the seam already
+  # resolved (RecordView.record_hash, RecordCard.recordHash, their test
+  # fixtures) — the same mistake the sha256 pattern below documents
+  # having made once already, here reached before anyone shipped it: a
+  # field/property NAME is a read of an already-resolved fact, never a
+  # re-derivation, and the paren is what tells the two apart.
+  '\brecord_hash\('                   # re-deriving a record identity
   # Target the hashing PRIMITIVE, not any identifier containing "sha256".
   # `sha256\(` also matched call sites of a named helper — code that hashes
   # nothing itself — and a guard that fires on the caller teaches people to

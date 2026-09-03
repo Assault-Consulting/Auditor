@@ -408,6 +408,10 @@ export interface RecordView {
   parent_span_id: string | null;
   /** Hex hash of the predecessor's header, or null for a record declaring it has none. PALA-1 spells 'no predecessor' as thirty-two zero bytes — the GENESIS convention (§4.2: 'no predecessor' and 'predecessor removed' must be distinguishable, which is the entire reason GENESIS is a type) — so this field reports null rather than a hash of all zeros, the same choice span_id already makes for 'no span'. This is the record's OWN CLAIM about its predecessor, unverified here: whether it actually matches the predecessor's hash is a chain-link fact, not a structural one, and belongs to /verify, not to this view. */
   prev_hash: string | null;
+  /** This record's own hex hash (U10, palimpsests 0.11.0) — the SHA-256 the package computes over the header bytes. Always present, even for a record whose header did not otherwise decode: the hash is over the raw bytes, which the chain check hashes regardless of whether this view could read their fields. */
+  record_hash: string;
+  /** The seq of the record prev_hash names, or null when there is none in this file. NOT seq - 1: the hash chain links by position in this container (the record immediately before this one), never by seq value, and a seq gap is a wholly independent fact — a rotated or segmented chain can have both at once. Null at the first record in this file, whether that is GENESIS's own declared zero predecessor or a segment's first record naming a predecessor outside this container: either way, nothing here to jump to. */
+  prev_seq: number | null;
   /** The writer's wall clock. A Recorded claim, qualified by time_trust. */
   wall_clock_ns: number;
   /** Monotonic clock. Comparable only within one boot. */

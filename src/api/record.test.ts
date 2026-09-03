@@ -28,6 +28,8 @@ function view(over: Partial<RecordView> = {}): RecordView {
     span_id: null,
     parent_span_id: null,
     prev_hash: "ab" + "00".repeat(31),
+    record_hash: "cd" + "00".repeat(31),
+    prev_seq: 11,
     wall_clock_ns: 1_700_000_000_000_000_000,
     monotonic_ns: 42,
     assurance_tier: { value: 2, name: "B" },
@@ -154,5 +156,24 @@ group("the envelope", () => {
     // the card must not reinterpret it, only pass it on.
     const card = recordCard(view({ prev_hash: null }));
     expect(card.prevHash).toBeNull();
+  });
+
+  it("carries the record's own hash through (C-06c, U10)", () => {
+    const hash = "ef" + "11".repeat(31);
+    const card = recordCard(view({ record_hash: hash }));
+    expect(card.recordHash).toBe(hash);
+  });
+
+  it("carries prev_seq through as the seq to jump to, not seq - 1", () => {
+    // The sidecar has already resolved the predecessor by file position
+    // (see this module's own docstring); the card must not reinterpret
+    // it, only pass it on — least of all by recomputing seq - 1 itself.
+    const card = recordCard(view({ seq: 900, prev_seq: 3 }));
+    expect(card.prevSeq).toBe(3);
+  });
+
+  it("carries a null prev_seq through when there is nowhere to jump", () => {
+    const card = recordCard(view({ prev_seq: null }));
+    expect(card.prevSeq).toBeNull();
   });
 });

@@ -4,17 +4,23 @@
 /**
  * One record, read rather than judged — the first slice of F9's inspector.
  *
- * Deliberately not all of F7. The spec asks for the record's own hash, a
- * clickable link to its predecessor's, and a raw hex view with field
- * highlighting from the package's field map (U4). `RecordView` now carries
- * `prev_hash` and `index` (C-06b), but not the record's own hash — nothing
- * downstream of the reader's decode step keeps the header bytes computing
- * it needs, which is why that field is a Track-U item (U10) rather than a
- * seam addition. Until it lands, `prevHash` below is shown as a fact with
- * nothing to compare it against: this slice renders it, but the clickable
- * jump and the equality check both wait for C-06c. Rendering a hex view
- * against fields the sidecar does not return would be inventing them on
- * this side of the seam, which is exactly what ADR-0001 rules out.
+ * Deliberately not all of F7. `RecordView` now carries the record's own
+ * hash and the seq to jump to for its predecessor (C-06c, U10 released
+ * 0.11.0) — this slice renders both. What is still missing is the raw
+ * hex view with field highlighting from the package's field map (U4),
+ * C-06d's own unstarted design. Rendering one against fields the sidecar
+ * does not return would be inventing them on this side of the seam,
+ * which is exactly what ADR-0001 rules out.
+ *
+ * `prevSeq` is a seq, not an index, precisely so the jump reuses the same
+ * `select(seq)` every other jump in this app already uses — the search
+ * bar, the origin card's `since_seq`, a records-list row. Confirmed by
+ * reading the package's own link check (`IncrementalVerifier.step`)
+ * before trusting it: prev_hash names the record immediately before this
+ * one IN THE FILE, not the one at seq - 1 — a seq gap (rotation, a
+ * segment boundary) is a wholly separate, independent fact from the hash
+ * link. `prevSeq` is already resolved on that basis by the sidecar; nothing
+ * here re-derives it.
  */
 
 import type { NamedValue, RecordView } from "./generated/types";
@@ -94,12 +100,26 @@ export interface RecordCard {
   parentSpanId: string | null;
   /**
    * The record's OWN CLAIM about its predecessor's hash, or null for a
-   * record declaring it has none (GENESIS). Unverified: nothing here
-   * confirms it matches the predecessor's actual hash, because this view
-   * has no field for that yet (U10 → C-06c). Displayed as a fact, not as
-   * a link, until it does.
+   * record declaring it has none (GENESIS). Unverified here: whether it
+   * actually matches the predecessor's own hash is what `prevSeq` lets a
+   * reader check for themselves — jump there and compare `recordHash`
+   * against this value — rather than something this view asserts.
    */
   prevHash: string | null;
+  /**
+   * This record's own hash — always present (U10). The value a reader
+   * jumping here via another record's `prevSeq` would compare against.
+   */
+  recordHash: string;
+  /**
+   * The seq to jump to for the record `prevHash` names, or null when
+   * there is none in this file — GENESIS's own declared zero predecessor,
+   * or a segment's first record naming a predecessor outside this
+   * container. Never seq - 1; see this module's own docstring for why.
+   * Null is exactly when `prevHash` should render as a fact rather than
+   * a link: there is nowhere here to send a reader who clicks it.
+   */
+  prevSeq: number | null;
   assuranceTier: NamedValue;
   timeTrust: NamedValue;
   wallClockIso: string;
@@ -126,6 +146,8 @@ export function recordCard(view: RecordView): RecordCard {
     spanId: view.span_id,
     parentSpanId: view.parent_span_id,
     prevHash: view.prev_hash,
+    recordHash: view.record_hash,
+    prevSeq: view.prev_seq,
     assuranceTier: view.assurance_tier,
     timeTrust: view.time_trust,
     wallClockIso: isoOf(view.wall_clock_ns),

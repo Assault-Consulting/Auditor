@@ -1179,12 +1179,14 @@ body {
   color: var(--vellum-dim);
 }
 
-/* The first clickable jump target on this screen, ahead of the search bar
-   itself. Underlined rather than boxed — quieter than .search-bar's
-   button, because this is navigation inside a record already open, not
-   a new action. Brightens on hover in plain vellum: neither truth-value
-   token applies to "this is clickable". */
-.origin-jump {
+/* One record's fields pointing at another: the record card's own prev-hash
+   link (C-06c) and the origin card's since_seq (both share this class, so
+   the two jumps read as the same kind of action rather than two styles
+   that happen to look alike). Underlined rather than boxed — quieter than
+   .search-bar's button, because this is navigation inside a record already
+   open, not a new action. Brightens on hover in plain vellum: neither
+   truth-value token applies to "this is clickable". */
+.record-jump-link {
   font-family: var(--mono);
   font-size: 0.78rem;
   color: var(--vellum-dim);
@@ -1196,7 +1198,7 @@ body {
   cursor: pointer;
 }
 
-.origin-jump:hover {
+.record-jump-link:hover {
   color: var(--vellum);
 }
 

@@ -541,6 +541,29 @@ class RecordView(BaseModel):
             "one, and belongs to /verify, not to this view."
         )
     )
+    record_hash: str = Field(
+        description=(
+            "This record's own hex hash (U10, palimpsests 0.11.0) — the "
+            "SHA-256 the package computes over the header bytes. Always "
+            "present, even for a record whose header did not otherwise "
+            "decode: the hash is over the raw bytes, which the chain "
+            "check hashes regardless of whether this view could read "
+            "their fields."
+        )
+    )
+    prev_seq: int | None = Field(
+        description=(
+            "The seq of the record prev_hash names, or null when there "
+            "is none in this file. NOT seq - 1: the hash chain links by "
+            "position in this container (the record immediately before "
+            "this one), never by seq value, and a seq gap is a wholly "
+            "independent fact — a rotated or segmented chain can have "
+            "both at once. Null at the first record in this file, "
+            "whether that is GENESIS's own declared zero predecessor or "
+            "a segment's first record naming a predecessor outside this "
+            "container: either way, nothing here to jump to."
+        )
+    )
     wall_clock_ns: int = Field(
         description="The writer's wall clock. A Recorded claim, qualified by time_trust."
     )

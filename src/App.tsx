@@ -670,14 +670,38 @@ export default function App() {
                     </dd>
                   </div>
                   <div>
+                    <dt>Hash</dt>
+                    {/* This record's own hash (C-06c, U10) — what a
+                        reader jumping in via another record's prevSeq
+                        link would compare against. */}
+                    <dd>{record.value.recordHash.slice(0, 8)}</dd>
+                  </div>
+                  <div>
                     <dt>Prev</dt>
-                    {/* A claim, not yet a link (C-06c waits on U10 for the
-                        record's own hash to compare it against) — shown
-                        as a fact, never styled as clickable. */}
+                    {/* Three states, not two. null prevHash: GENESIS's
+                        own declared zero predecessor. A hash with a null
+                        prevSeq: real, but naming something outside this
+                        file (a segment boundary) — nothing here to jump
+                        to, so still a fact. Both present: prevSeq is
+                        already resolved by file position, not seq - 1
+                        (see api/record.ts's own module docstring), so
+                        the jump reuses the same select(seq) every other
+                        jump in this app already uses. */}
                     <dd>
-                      {record.value.prevHash === null
-                        ? "none — GENESIS"
-                        : record.value.prevHash.slice(0, 8)}
+                      {(() => {
+                        const { prevHash, prevSeq } = record.value;
+                        if (prevHash === null) return "none — GENESIS";
+                        if (prevSeq === null) return prevHash.slice(0, 8);
+                        return (
+                          <button
+                            type="button"
+                            className="record-jump-link"
+                            onClick={() => select(prevSeq)}
+                          >
+                            {prevHash.slice(0, 8)} → #{prevSeq}
+                          </button>
+                        );
+                      })()}
                     </dd>
                   </div>
                   <div>
@@ -747,10 +771,12 @@ export default function App() {
                       <div>
                         <dt>Since</dt>
                         <dd>
-                          {/* The first real jump target in this screen: the
-                              MODEL_LOAD that made this origin active. */}
+                          {/* The MODEL_LOAD that made this origin active —
+                              the same record-jump-link the record card's
+                              own prev-hash link uses (C-06c), so the two
+                              read as one kind of action. */}
                           <button
-                            className="origin-jump"
+                            className="record-jump-link"
                             onClick={() => select(origin.value!.sinceSeq)}
                             type="button"
                           >
