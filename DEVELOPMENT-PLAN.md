@@ -206,7 +206,7 @@ run.
 | C-05 | UI: boot and span lists; unclosed span as first-class evidence | 2 | C-01 |
 | C-06a | UI: the record card — envelope, tier and trust badges, type/kind name resolution, body presence state (none / opaque / cleartext / undecoded). An interim `seq` lookup field stands in for the seq-jump button until C-09 exists. | 1.5 | C-01 |
 | C-06b | `prev_hash` and container `index` on `RecordView`. Both are already on the reader's own objects — `Header.prev_hash`, `DecodedRecord.index` — and are not upstream work at all, just two fields `_record_view` was not copying through. Unlocks the predecessor jump; the record's own hash still waits on U10. | 0.5 | C-06a |
-| C-06c | Clickable `prev_hash` and the record's own hash, rendered once C-06b and U10 are both there. | 1 | C-06b, U10 *released* |
+| C-06c | Clickable `prev_hash` and the record's own hash. | 1 | **merged** |
 | C-06d | Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
 | C-07a | UI: the SAFETY list, grouped by kind and sorted by seq — the slice buildable on what a record already resolves. No detail text, no acknowledgement state. | 1 | C-01 |
 | C-07b | Detail text and the recurrence count it enables, once `EVT_DETAIL` is decoded. | ? | U12 *released* |
@@ -326,14 +326,15 @@ as needing only C-01 because C-01 supplies the endpoint — but an endpoint is
 not a selection mechanism, and C-08 built against C-01 alone would have had
 no record to be a card *of*. Corrected above to `C-01, C-06a`.
 
-**Status.** C-06a is merged. C-06b is this PR: `RecordView` gains `index`
-and `prev_hash` (the latter resolved through the same ZERO-convention
-`span_id` already uses, confirmed against
-`palimpsests.audit.pala.incremental`'s own GENESIS check rather than
-assumed), and the card displays both — `prevHash` as a fact, not yet a
-link, because there is still nothing on this side of the seam to compare it
-against. C-06c is next and is blocked on U10's release, not on anything
-left to design here.
+**Status.** C-06a and C-06b are merged. C-06c is merged too
+(Assault-Consulting/Auditor#58): `record_hash` and `prev_seq` on
+`RecordView`, `prevHash` now a clickable jump when there is somewhere
+to jump to. One finding worth keeping: `prev_hash` chains by *file
+position* (`index`), never by `seq` — confirmed by reading
+`IncrementalVerifier.step()` directly, and empirically, before
+trusting it — so `prev_seq` is resolved via `records[index - 1].seq`,
+never `seq - 1`, which a rotated or segmented chain would get wrong.
+Only C-06d — the raw hex view — remains, still an unstarted design.
 
 (That status paragraph, and the count in §6 below, were themselves written
 inside C-06a's own PR and had already called C-06b "merged" — it was not;
@@ -451,7 +452,8 @@ advisory" — which is how `reference_unresolved` and
 advisory at all, because nothing is wrong, and silence is not the same
 signal as "acknowledged". U13 asks for that resolution exposed directly,
 the same shape of request U10 already is — not new package behaviour,
-new package surface. Built as C-07c, behind U10 and U13 both.
+new package surface. Scoped as C-07c, behind U10 and U13 both — not
+built at the time this was written; C-07c itself remains open (§ above).
 
 (That last dependency was wrong in a way only building U13 surfaced:
 it needed no record hash exposed on `DecodedRecord` at all, only the
@@ -677,12 +679,18 @@ the original estimate made in the other direction.
 
 **MVP total: not restated either, for the same reason.** It was ~73 days on
 an estimate that no longer describes Phase 3. The honest statement is that
-Phase 0 and Phase 1 are closed, Phase 2 stands at eleven of twenty-one
-items — the twenty-one counting four splits now (C-06 into four, C-09
-into four, C-07 into three, C-10 into two), eleven merged through
-C-07a, C-10a proposed in this PR — and Phase 3 is unquantified until
-D-02 and D-07 have been looked at. If the work has to shrink, the cut
-lines are C-09b onward and B-05 — not the tests.
+Phase 0 and Phase 1 are closed, and Phase 2 stands at thirteen of
+twenty-one items merged — C-01 through C-05, C-06a, C-06b, C-06c, C-07a,
+C-08, C-09a, C-10a and C-11 — up from the eleven this section counted at
+C-10a's own PR, corrected here rather than left stale: C-06b and C-06c
+both landed since. The twenty-one still counts the four splits (C-06 into
+four, C-09 into four, C-07 into three, C-10 into two). Eight remain:
+C-06d (unstarted design), C-07b and C-07c (dependency now satisfied —
+U12, U13, U15 all released — not yet built), C-09b/C-09c/C-09d, C-10b
+(blocked on U14's still-unfixed core), and B-12 (dependency satisfied,
+not yet built). Phase 3 stays unquantified until D-02 and D-07 have been
+looked at. If the work has to shrink, the cut lines are C-09b onward and
+B-05 — not the tests.
 
 ## 7. Phase 4 — evidence artifacts
 
