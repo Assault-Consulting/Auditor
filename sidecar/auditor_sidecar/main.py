@@ -374,9 +374,12 @@ def build_app(token: str | None = None) -> FastAPI:
         chain, and `has_more` says so rather than leaving it to be
         inferred from a length that matches the cap by coincidence.
 
-        `detail` text and any acknowledgement state are not on these
-        records yet — see `ChainHandle.safety`'s own docstring for why,
-        and `DEVELOPMENT-PLAN.md` U12/U13 for what closes the gap.
+        `detail` text is not on these records yet — see
+        `ChainHandle.safety`'s own docstring for why, and
+        `DEVELOPMENT-PLAN.md` C-07b for what closes the gap. Acknowledged
+        state and shred resolution are (C-07c, partial) — membership
+        only; which ack, and its own operator or disposition, needs a
+        richer upstream shape not yet released.
         """
         session = _session_or_404(app, session_id)
         _assert_still_the_subject(session)
