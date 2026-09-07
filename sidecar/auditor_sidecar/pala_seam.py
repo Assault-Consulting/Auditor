@@ -38,6 +38,7 @@ from palimpsests.audit.anchors import (
 from palimpsests.audit.bootstats import boot_statistics
 from palimpsests.audit.names import assurance_tier_name, time_trust_name
 from palimpsests.audit.pala.codec import FORMAT_VERSION, RT_SAFETY, ZERO16, ZERO32
+from palimpsests.audit.pala_writer import KIND_INCIDENT_CANDIDATE
 from palimpsests.audit.reader import AuditReader
 from palimpsests.audit.report import build_report
 from palimpsests.audit.timehealth import step_catalog
@@ -524,9 +525,11 @@ class ChainHandle:
         """
         with self._lock:
             records = list(self._reader.records())
+            acknowledged = self._reader.acknowledged_candidates()
+            shredded = self._reader.shredded_targets()
         for record in records:
             if record.seq == seq:
-                return self._record_view(record, records)
+                return self._record_view(record, records, acknowledged, shredded)
             if record.seq > seq:
                 break
         return None
@@ -584,6 +587,8 @@ class ChainHandle:
         # moved, not how many times the file is walked.
         with self._lock:
             records = list(self._reader.records())
+            acknowledged = self._reader.acknowledged_candidates()
+            shredded = self._reader.shredded_targets()
         for record in records:
             if not self._matches(record, record_type, boot_id, span_id):
                 continue
@@ -592,7 +597,7 @@ class ChainHandle:
                 continue
             matched_at_or_past_offset += 1
             if len(window) < limit:
-                window.append(self._record_view(record, records))
+                window.append(self._record_view(record, records, acknowledged, shredded))
 
         return {
             "records": window,
@@ -624,7 +629,9 @@ class ChainHandle:
             return False
         return True
 
-    def _record_view(self, record, records: list) -> dict[str, object]:
+    def _record_view(
+        self, record, records: list, acknowledged, shredded: dict[int, int]
+    ) -> dict[str, object]:
         """One record's header fields, as plain data.
 
         Shared by the window and the single-record view so the two cannot
@@ -633,7 +640,9 @@ class ChainHandle:
 
         ``records`` is the full decoded list this record came from — needed
         to resolve ``prev_seq`` (below), not to re-derive anything about
-        this record itself.
+        this record itself. ``acknowledged`` and ``shredded`` are the
+        package's own resolutions (U13, U15 — released 0.11.0), computed
+        once per caller and passed in rather than recomputed per record.
         """
         header = record.header
         return {
@@ -692,6 +701,24 @@ class ChainHandle:
             # An integer, and zero means "not encrypted under a named key"
             # rather than "key number zero".
             "key_id": None if header.key_id == 0 else header.key_id,
+            # Only meaningful for an INCIDENT_CANDIDATE; None for every
+            # other kind — "not acknowledged" and "not the kind of record
+            # that gets acknowledged" are different facts, and collapsing
+            # them to False would say something about a GENESIS record
+            # that GENESIS never claimed. `in` reads correctly against
+            # acknowledged_candidates()'s current set[int] and its
+            # future dict[int, int] alike (0.11.0; richer shape pending
+            # an upstream release, Assault-Consulting/Palimpsests#236) —
+            # membership, not the value, is all this field needs.
+            "acknowledged": (record.seq in acknowledged)
+            if record.kind == KIND_INCIDENT_CANDIDATE
+            else None,
+            # The seq of the KEY_SHRED that shredded this record, or None
+            # if it was not (or is not itself shreddable — a KEY_SHRED's
+            # own target_seqs can name any record, so no kind is excluded
+            # structurally; None here just means "not currently shredded
+            # by any resolving KEY_SHRED in this file").
+            "shredded_by": shredded.get(record.seq),
         }
 
     #: One UTC day, in nanoseconds. The rail groups by calendar day, and a
@@ -961,15 +988,23 @@ class ChainHandle:
         `_record_view`, and turning a flat, ordered list into groups is
         display logic, not a decoded fact the package owns.
 
-        `detail` text and any r2 acknowledgement state are **not**
-        here. Both need a body TLV value actually decoded — `EVT_DETAIL`
-        for the first; `EVT_REF_SEQ` / `EVT_REF_HASH` plus a candidate's
-        own hash (still U10) to bind a reference correctly rather than
-        guess at it, for the second. `_record_view` reports only what it
-        already resolves, the same discipline `records()` and `record()`
-        keep — this view is a filtered read of the same thing, not a
-        second one. Tracked as U12 (detail) and U13 (r2 resolution) in
-        `DEVELOPMENT-PLAN.md`, §2.
+        Acknowledged state (an `INCIDENT_CANDIDATE`'s `acknowledged`)
+        and shred resolution (any record's `shredded_by`) are on
+        `_record_view` now (U13, U15, both released 0.11.0) — the same
+        discipline `records()` and `record()` keep, since this view is
+        a filtered read of the same thing, not a second one.
+
+        `detail` text is still not here: it needs `EVT_DETAIL` decoded
+        (U12, released — but not yet wired anywhere on this side).
+        Tracked in `DEVELOPMENT-PLAN.md`, §2, C-07b.
+
+        **What `acknowledged` does not yet carry: which ack, or its own
+        operator and disposition.** `acknowledged_candidates()` as
+        released in 0.11.0 answers membership only — this view can say
+        *whether*, not *by whom* or *when*. Showing that needs the
+        richer `candidate_seq → ack_seq` mapping requested upstream
+        (Assault-Consulting/Palimpsests#236, merged but not yet
+        released) — tracked as the rest of C-07c once it is.
 
         The response has the exact shape of `records()`'s window, reused
         rather than given a shape of its own: `total` counts SAFETY
@@ -980,12 +1015,14 @@ class ChainHandle:
         total = 0
         with self._lock:
             records = list(self._reader.records())
+            acknowledged = self._reader.acknowledged_candidates()
+            shredded = self._reader.shredded_targets()
         for record in records:
             if record.record_type != RT_SAFETY:
                 continue
             total += 1
             if len(window) < limit:
-                window.append(self._record_view(record, records))
+                window.append(self._record_view(record, records, acknowledged, shredded))
         return {
             "records": window,
             "offset": 0,
