@@ -27,6 +27,8 @@ function view(over: Partial<RecordView> = {}): RecordView {
     body_len: 0,
     body_tlv_types: null,
     key_id: null,
+    acknowledged: null,
+    shredded_by: null,
     ...over,
   };
 }
