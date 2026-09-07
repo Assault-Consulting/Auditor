@@ -362,10 +362,12 @@ body {
 }
 
 /* F8 — the SAFETY list. Ruled like .browse and .records: this slice
-   groups and counts what a record already resolves, not what F8 fully
-   asks for, and it is styled at the weight that earns — structural, not
-   yet the "loudest thing in the UI" F8 reserves for a resolved
-   unacknowledged candidate (U10, U13). */
+   groups and counts what a record already resolves, plus (C-07c,
+   partial) the binary acknowledged/not-yet marker U13 makes possible —
+   not yet the fuller "loudest thing in the UI" F8 reserves for a
+   resolved unacknowledged candidate WITH its own ack's operator and
+   deadline shown, which needs a richer upstream shape not yet
+   released. */
 .safety {
   margin-top: calc(var(--step) * 3);
   border: 1px solid var(--rule);
@@ -460,6 +462,25 @@ body {
 
 .safety-record:hover {
   color: var(--vellum);
+}
+
+/* Weight, not colour — the same choice .advisory-group[data-weight]
+   makes: an unacknowledged candidate reads with more presence, an
+   acknowledged one recedes, and neither takes on a colour that would
+   claim more than "is a hash-verified ack present" (C-07c, partial —
+   which ack, and its own operator or disposition, is not here yet). */
+.safety-ack-state {
+  margin-left: var(--step);
+  font-size: 0.7rem;
+}
+
+.safety-ack-state[data-acknowledged="false"] {
+  color: var(--vellum-dim);
+  font-weight: 600;
+}
+
+.safety-ack-state[data-acknowledged="true"] {
+  color: var(--unchecked);
 }
 
 /* The Chronoscope. Ruled like the provenance block rather than the
