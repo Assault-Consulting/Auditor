@@ -276,8 +276,8 @@ export function useOrigin(
   probe: Probe,
   chain: ChainState,
   seq: number | null,
-): Fetch<OriginCard | null> {
-  const [origin, setOrigin] = useState<Fetch<OriginCard | null>>({ kind: "unasked" });
+): Fetch<OriginCard> {
+  const [origin, setOrigin] = useState<Fetch<OriginCard>>({ kind: "unasked" });
   const opened = openedOf(chain);
 
   useEffect(() => {
