@@ -210,7 +210,7 @@ run.
 | C-06d | Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
 | C-07a | UI: the SAFETY list, grouped by kind and sorted by seq — the slice buildable on what a record already resolves. No detail text, no acknowledgement state. | 1 | C-01 |
 | C-07b | Detail text and the recurrence count it enables, once `EVT_DETAIL` is decoded. | ? | U12 *released* |
-| C-07c | The r2 oversight loop: acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records, an `OVERSIGHT_ACK`'s operator and deadline, `KEY_SHRED` resolution. **Display only** in the MVP — recording a disposition is the Phase-5 item below, behind its own ADR. `U10` dropped from the dependency: confirmed while building `U13` that resolution never needed a record's own hash exposed here, only the header bytes the package already holds internally. | ? | U13 *released*, U15 *released* |
+| C-07c | The r2 oversight loop. **Partial, merged** (Assault-Consulting/Auditor#60): binary acknowledged state for `INCIDENT_CANDIDATE`, full `KEY_SHRED` resolution — both facts 0.11.0 already supports at membership/full-mapping level. Still open: which ack resolved a candidate, and that ack's own operator and disposition — needs the richer `candidate_seq → ack_seq` mapping requested upstream (Assault-Consulting/Palimpsests#236, merged, not yet released). **Display only** in the MVP regardless — recording a disposition is the Phase-5 item below, behind its own ADR. | ? | Palimpsests#236 *released* |
 | C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01, C-06a |
 | C-09a | Search bar: seq jump (`#1447`), two of three quick buttons (first record, next warning). Unsupported input named plainly rather than silently ignored. | 1 | C-01, C-06a |
 | C-09b | Filter chips: `kind:`, `type:`, `span:`, `boot:`, `tier:`, date range — wired onto C-11's list. `span:`/`boot:` need no backend change (spans and boots are already fetched in full); `type:` needs a name→int mapping investigated but not built (§5 below); `kind:`/`tier:`/date range need new `/records` query parameters that do not exist yet. | ? | C-11 |
@@ -452,8 +452,9 @@ advisory" — which is how `reference_unresolved` and
 advisory at all, because nothing is wrong, and silence is not the same
 signal as "acknowledged". U13 asks for that resolution exposed directly,
 the same shape of request U10 already is — not new package behaviour,
-new package surface. Scoped as C-07c, behind U10 and U13 both — not
-built at the time this was written; C-07c itself remains open (§ above).
+new package surface. Scoped as C-07c — the U10 half of that dependency
+was wrong (below); the binary half of C-07c itself is now merged
+(Assault-Consulting/Auditor#60), with the richer half still open.
 
 (That last dependency was wrong in a way only building U13 surfaced:
 it needed no record hash exposed on `DecodedRecord` at all, only the
@@ -685,12 +686,14 @@ C-08, C-09a, C-10a and C-11 — up from the eleven this section counted at
 C-10a's own PR, corrected here rather than left stale: C-06b and C-06c
 both landed since. The twenty-one still counts the four splits (C-06 into
 four, C-09 into four, C-07 into three, C-10 into two). Eight remain:
-C-06d (unstarted design), C-07b and C-07c (dependency now satisfied —
-U12, U13, U15 all released — not yet built), C-09b/C-09c/C-09d, C-10b
-(blocked on U14's still-unfixed core), and B-12 (dependency satisfied,
-not yet built). Phase 3 stays unquantified until D-02 and D-07 have been
-looked at. If the work has to shrink, the cut lines are C-09b onward and
-B-05 — not the tests.
+C-06d (unstarted design), C-07b (dependency satisfied, not yet
+built), C-07c (partial — binary ack state and shred resolution
+merged, Assault-Consulting/Auditor#60; the richer half waits on
+Palimpsests#236's release), C-09b/C-09c/C-09d, C-10b (blocked on
+U14's still-unfixed core), and B-12 (dependency satisfied, not yet
+built). Phase 3 stays unquantified until D-02 and D-07 have been
+looked at. If the work has to shrink, the cut lines are C-09b onward
+and B-05 — not the tests.
 
 ## 7. Phase 4 — evidence artifacts
 
