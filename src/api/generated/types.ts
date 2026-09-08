@@ -363,6 +363,24 @@ export interface OriginModel {
 }
 
 /**
+ * What F9 needs said about a record's origin — three states, not
+ * the two `AuditReader.origin_at()` alone can tell apart.
+ *
+ * `origin_at()` returns null for two different facts: nothing has
+ * been declared yet, and something was declared and then explicitly
+ * unloaded (a MODEL_UNLOAD record) — both leave its running state at
+ * null. `unloaded_at()` (U11, released 0.11.0) is the package's own
+ * way to tell them apart, additive to `origin_at()` rather than a
+ * change to it.
+ */
+export interface OriginState {
+  /** One of: active, unloaded, not_stated. 'active' means a model is declared running — see `origin` below. 'unloaded' means one was declared and then explicitly ended by a MODEL_UNLOAD. 'not_stated' means nothing has been declared at or before this record at all. */
+  state: string;
+  /** The declared origin, present only when state is 'active'. */
+  origin: OriginModel | null;
+}
+
+/**
  * A window onto the records.
  *
  * Paginated because a chain has no bound: a container from a busy
