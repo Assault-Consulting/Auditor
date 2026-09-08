@@ -773,20 +773,22 @@ export default function App() {
                       : `body present, decoded — TLV types ${record.value.body.tlvTypes.join(", ")}`)}
                 </p>
 
-                {/* F9 — origin, rendered for any selected record. Two
-                    different "nothing to show" facts collapse into the
-                    same null on this side of the seam (see api/origin.ts);
-                    both render the one sentence the data actually
-                    supports, and the rest is U11. */}
+                {/* F9 — origin, rendered for any selected record. Three
+                    states, not the two a bare null used to collapse
+                    (C-08b, U11) — "not stated" and "unloaded" now each
+                    get their own sentence (see api/origin.ts). */}
                 <div className="origin">
                   <p className="origin-title">Origin</p>
                   {origin.kind === "failed" && (
                     <p className="origin-failed">{origin.detail}</p>
                   )}
-                  {origin.kind === "found" && origin.value === null && (
+                  {origin.kind === "found" && origin.value.state === "not_stated" && (
                     <p className="origin-none">not stated in this file</p>
                   )}
-                  {origin.kind === "found" && origin.value !== null && (
+                  {origin.kind === "found" && origin.value.state === "unloaded" && (
+                    <p className="origin-none">no model active</p>
+                  )}
+                  {origin.kind === "found" && origin.value.state === "active" && (
                     <dl className="origin-facts">
                       <div>
                         <dt>Role</dt>
@@ -813,14 +815,23 @@ export default function App() {
                           {/* The MODEL_LOAD that made this origin active —
                               the same record-jump-link the record card's
                               own prev-hash link uses (C-06c), so the two
-                              read as one kind of action. */}
-                          <button
-                            className="record-jump-link"
-                            onClick={() => select(origin.value!.sinceSeq)}
-                            type="button"
-                          >
-                            #{origin.value.sinceSeq}
-                          </button>
+                              read as one kind of action. Local const
+                              before the closure: TypeScript's narrowing
+                              on origin.value's discriminant does not
+                              survive into onClick otherwise (confirmed —
+                              tried the direct access first). */}
+                          {(() => {
+                            const sinceSeq = origin.value.sinceSeq;
+                            return (
+                              <button
+                                className="record-jump-link"
+                                onClick={() => select(sinceSeq)}
+                                type="button"
+                              >
+                                #{sinceSeq}
+                              </button>
+                            );
+                          })()}
                         </dd>
                       </div>
                       {origin.value.detail !== null && (
