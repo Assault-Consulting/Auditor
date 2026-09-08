@@ -904,6 +904,18 @@
       "RecordView": {
         "description": "One record, as structure rather than as content.\n\nHeader fields and the shape of the body. What is *inside* a record is a\nseparate view with its own decisions about keys and redaction.",
         "properties": {
+          "acknowledged": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For an INCIDENT_CANDIDATE: whether a hash-verified OVERSIGHT_ACK names it (U13, released 0.11.0). Null for every other kind \u2014 'not acknowledged' and 'not the kind of record that gets acknowledged' are different facts, and collapsing them to false would claim something about a record that never made the claim. Membership only: which ack, and its own operator or disposition, is not carried here yet \u2014 that needs a richer upstream shape, released but not yet in a package release.",
+            "title": "Acknowledged"
+          },
           "assurance_tier": {
             "$ref": "#/components/schemas/NamedValue"
           },
@@ -1029,6 +1041,18 @@
             "title": "Seq",
             "type": "integer"
           },
+          "shredded_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Seq of the KEY_SHRED that shreds this record, resolved in the chain and key_id-matched (U15, released 0.11.0), or null when it is not currently shredded. A KEY_SHRED's own target_seqs can name any record, so no kind is excluded structurally \u2014 null here means 'not shredded', not 'not shreddable'.",
+            "title": "Shredded By"
+          },
           "span_id": {
             "anyOf": [
               {
@@ -1081,7 +1105,9 @@
           "time_trust",
           "body_len",
           "body_tlv_types",
-          "key_id"
+          "key_id",
+          "acknowledged",
+          "shredded_by"
         ],
         "title": "RecordView",
         "type": "object"
@@ -2156,7 +2182,7 @@
     },
     "/session/{session_id}/safety": {
       "get": {
-        "description": "Every SAFETY record \u2014 F8's first-class list, not a filter.\n\nNo caller-adjustable `limit`, unlike `/records`. This answer is\ncached for the life of the session the same way boots and spans\nare \u2014 one question, one answer \u2014 and a caller-visible limit would\nhave needed a cache keyed by it, the exact class of bug the\n`Session` docstring documents avoiding elsewhere: a second caller\nasking with a different limit would silently receive the first\ncaller's cached answer at the first caller's limit.\n\n`ChainHandle.safety` still bounds the response internally, purely\ndefensively, at a size no caller chooses.\n\nThe same `RecordPage` shape `/records` returns, reused rather than\ngiven one of its own: `total` counts every SAFETY record that\nexists, which can exceed the internal cap on an unusually large\nchain, and `has_more` says so rather than leaving it to be\ninferred from a length that matches the cap by coincidence.\n\n`detail` text and any acknowledgement state are not on these\nrecords yet \u2014 see `ChainHandle.safety`'s own docstring for why,\nand `DEVELOPMENT-PLAN.md` U12/U13 for what closes the gap.",
+        "description": "Every SAFETY record \u2014 F8's first-class list, not a filter.\n\nNo caller-adjustable `limit`, unlike `/records`. This answer is\ncached for the life of the session the same way boots and spans\nare \u2014 one question, one answer \u2014 and a caller-visible limit would\nhave needed a cache keyed by it, the exact class of bug the\n`Session` docstring documents avoiding elsewhere: a second caller\nasking with a different limit would silently receive the first\ncaller's cached answer at the first caller's limit.\n\n`ChainHandle.safety` still bounds the response internally, purely\ndefensively, at a size no caller chooses.\n\nThe same `RecordPage` shape `/records` returns, reused rather than\ngiven one of its own: `total` counts every SAFETY record that\nexists, which can exceed the internal cap on an unusually large\nchain, and `has_more` says so rather than leaving it to be\ninferred from a length that matches the cap by coincidence.\n\n`detail` text is not on these records yet \u2014 see\n`ChainHandle.safety`'s own docstring for why, and\n`DEVELOPMENT-PLAN.md` C-07b for what closes the gap. Acknowledged\nstate and shred resolution are (C-07c, partial) \u2014 membership\nonly; which ack, and its own operator or disposition, needs a\nricher upstream shape not yet released.",
         "operationId": "session_safety_session__session_id__safety_get",
         "parameters": [
           {
