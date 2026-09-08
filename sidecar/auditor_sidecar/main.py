@@ -36,7 +36,7 @@ from .models import (
     HealthResponse,
     KeychainSeedRequest,
     KeychainStatus,
-    OriginModel,
+    OriginState,
     RecordPage,
     RecordView,
     SessionRequest,
@@ -403,7 +403,7 @@ def build_app(token: str | None = None) -> FastAPI:
             )
         return RecordView(**record)
 
-    @app.get("/session/{session_id}/origin", response_model=OriginModel | None)
+    @app.get("/session/{session_id}/origin", response_model=OriginState)
     def session_origin(
         session_id: str,
         seq: int = Query(
@@ -413,21 +413,25 @@ def build_app(token: str | None = None) -> FastAPI:
                 "would answer a different question than the caller meant."
             ),
         ),
-    ) -> OriginModel | None:
-        """What was running when a record was written, or null if unstated.
+    ) -> OriginState:
+        """What was running when a record was written — three states.
 
-        **Null is an answer, not an absence.** Nothing before the first
-        MODEL_LOAD has an origin, because none had been declared — and a UI
-        must render that as "not stated in this file" rather than as an
-        empty card, which would read as "nothing was running".
+        **`state` carries the distinction a bare null could not.**
+        `origin_at()` alone returns null for two different facts:
+        nothing has been declared yet ("not_stated"), and something was
+        declared and then explicitly ended by a MODEL_UNLOAD
+        ("unloaded") — both left its running state at null before U11
+        (released 0.11.0) added `unloaded_at()` to tell them apart. A UI
+        must render each as its own sentence, never as one empty card
+        that reads as "nothing was running" regardless of which is true.
 
-        200 with a null body rather than 404 for that reason: the question
-        was answered, and the answer is that the file does not say.
+        Always 200. The question is always answered; `state` says which
+        answer it is, `origin` carries the declared fields only when
+        `state` is `"active"`.
         """
         session = _session_or_404(app, session_id)
         _assert_still_the_subject(session)
-        origin = session.origin(seq)
-        return None if origin is None else OriginModel(**origin)
+        return OriginState(**session.origin(seq))
 
     @app.get("/session/{session_id}/timeline", response_model=Timeline)
     def session_timeline(
