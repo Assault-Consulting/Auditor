@@ -21,6 +21,13 @@
  * segment boundary) is a wholly separate, independent fact from the hash
  * link. `prevSeq` is already resolved on that basis by the sidecar; nothing
  * here re-derives it.
+ *
+ * C-07c, partial: `acknowledged` (an INCIDENT_CANDIDATE's ack state) and
+ * `shredded` (any record's shredding KEY_SHRED) are membership facts
+ * only — U13/U15 as released in 0.11.0 answer "is it", not "by which
+ * record, with what operator or disposition". That needs a richer
+ * upstream shape, requested but not yet released
+ * (Assault-Consulting/Palimpsests#236) — the rest of C-07c waits for it.
  */
 
 import type { NamedValue, RecordView } from "./generated/types";
@@ -126,6 +133,23 @@ export interface RecordCard {
   monotonicNs: number;
   body: BodyState;
   /**
+   * For an INCIDENT_CANDIDATE: whether a hash-verified OVERSIGHT_ACK
+   * names it (U13). Null for every other kind — "not acknowledged" and
+   * "not the kind of record that gets acknowledged" are different
+   * facts, and collapsing them to false would claim something about a
+   * record that never made the claim. Membership only: which ack, and
+   * its own operator or disposition, needs a richer upstream shape not
+   * yet released — see the sidecar's own ChainHandle.safety docstring.
+   */
+  acknowledged: boolean | null;
+  /**
+   * Seq of the KEY_SHRED that shreds this record, resolved in the chain
+   * and key_id-matched (U15), or null when it is not currently
+   * shredded. Not "not shreddable" — a KEY_SHRED's own target_seqs can
+   * name any record.
+   */
+  shredded: number | null;
+  /**
    * F7's own sentence for an unnamed type, or null for an ordinary record.
    * Set once here rather than re-derived per render, and carried verbatim —
    * the same discipline `browse.ts` keeps for §F7's other fixed wordings.
@@ -153,6 +177,8 @@ export function recordCard(view: RecordView): RecordCard {
     wallClockIso: isoOf(view.wall_clock_ns),
     monotonicNs: view.monotonic_ns,
     body: bodyStateOf(view),
+    acknowledged: view.acknowledged,
+    shredded: view.shredded_by,
     note: view.type_name === null ? UNRECOGNISED_NOTE : null,
   };
 }

@@ -584,6 +584,29 @@ class RecordView(BaseModel):
     key_id: int | None = Field(
         description="Encryption key identifier, or null when the body is not encrypted."
     )
+    acknowledged: bool | None = Field(
+        description=(
+            "For an INCIDENT_CANDIDATE: whether a hash-verified "
+            "OVERSIGHT_ACK names it (U13, released 0.11.0). Null for "
+            "every other kind — 'not acknowledged' and 'not the kind "
+            "of record that gets acknowledged' are different facts, "
+            "and collapsing them to false would claim something about "
+            "a record that never made the claim. Membership only: "
+            "which ack, and its own operator or disposition, is not "
+            "carried here yet — that needs a richer upstream shape, "
+            "released but not yet in a package release."
+        )
+    )
+    shredded_by: int | None = Field(
+        description=(
+            "Seq of the KEY_SHRED that shreds this record, resolved in "
+            "the chain and key_id-matched (U15, released 0.11.0), or "
+            "null when it is not currently shredded. A KEY_SHRED's own "
+            "target_seqs can name any record, so no kind is excluded "
+            "structurally — null here means 'not shredded', not 'not "
+            "shreddable'."
+        )
+    )
 
 
 class RecordPage(BaseModel):

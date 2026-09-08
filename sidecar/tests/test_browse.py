@@ -508,19 +508,84 @@ def test_safety_reports_the_kind_names_already_resolved(
     assert page["records"][0]["kind_name"] == "INCIDENT_CANDIDATE"
 
 
-def test_safety_carries_no_detail_and_no_ack_state(
+def test_safety_still_carries_no_detail_text(
     open_client: TestClient, chain_path
 ) -> None:
-    """Structure, not content — the same discipline `/records` keeps, and
-    for the same reason: detail text needs a body TLV value decoded
-    (U12), and acknowledgement state needs that plus a candidate's own
-    hash to bind a reference correctly (U10, U13). Neither field exists
-    on this view yet, rather than existing and being wrong."""
+    """Structure, not content — the same discipline `/records` keeps.
+    Detail text needs a body TLV value decoded that nothing here
+    decodes yet (U12, released but not wired). Acknowledged state and
+    shred resolution are no longer in the same boat — see the tests
+    below."""
     sid = _open(open_client, chain_path)
     record = open_client.get(f"/session/{sid}/safety").json()["records"][0]
 
     assert "detail" not in record
-    assert "acknowledged" not in record
+
+
+def test_an_unacknowledged_candidate_is_acknowledged_false(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    sid = _open(open_client, safety_heavy_chain)
+    page = open_client.get(f"/session/{sid}/safety").json()
+    by_seq = {r["seq"]: r for r in page["records"]}
+
+    assert by_seq[4]["kind_name"] == "INCIDENT_CANDIDATE"
+    assert by_seq[4]["acknowledged"] is False
+
+
+def test_an_acknowledged_candidate_is_acknowledged_true(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    sid = _open(open_client, safety_heavy_chain)
+    page = open_client.get(f"/session/{sid}/safety").json()
+    by_seq = {r["seq"]: r for r in page["records"]}
+
+    assert by_seq[3]["kind_name"] == "INCIDENT_CANDIDATE"
+    assert by_seq[3]["acknowledged"] is True
+
+
+def test_acknowledged_is_null_for_a_record_that_is_not_a_candidate(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    """Null, not false — 'not acknowledged' and 'not the kind of
+    record that gets acknowledged' are different facts, and the
+    OVERSIGHT_ACK record itself must not claim the first."""
+    sid = _open(open_client, safety_heavy_chain)
+    page = open_client.get(f"/session/{sid}/safety").json()
+    by_seq = {r["seq"]: r for r in page["records"]}
+
+    assert by_seq[6]["kind_name"] == "OVERSIGHT_ACK"
+    assert by_seq[6]["acknowledged"] is None
+
+
+def test_a_shredded_record_reports_its_shredder(
+    open_client: TestClient, tmp_path
+) -> None:
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "shredded.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.kv_save(b"\x11" * 32)
+    clear_seq = w.seq - 1
+    w.key_shred(0, target_seqs=[clear_seq])
+    shred_seq = w.seq - 1
+    w.close()
+
+    sid = _open(open_client, path)
+    record = open_client.get(f"/session/{sid}/record/{clear_seq}").json()
+
+    assert record["shredded_by"] == shred_seq
+
+
+def test_an_unshredded_record_reports_null(
+    open_client: TestClient, chain_path
+) -> None:
+    sid = _open(open_client, chain_path)
+    record = open_client.get(f"/session/{sid}/record/0").json()
+
+    assert record["shredded_by"] is None
 
 
 def test_safety_total_counts_past_the_cap(safety_heavy_chain) -> None:

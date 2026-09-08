@@ -276,12 +276,12 @@ export default function App() {
 
         {/* F8: "SAFETY is a first-class list, not a filter — it is what
             an auditor reads first." Placed ahead of the Chronoscope for
-            that reason, even though this slice is not yet what F8 means
-            by "loudest": acknowledgement state (the r2 oversight loop)
-            needs a candidate's own hash to resolve correctly rather than
-            guess at it (U10, U13), and detail text needs a body TLV
-            value decoded that nothing here decodes yet (U12). Grouped by
-            kind, on what a SAFETY record already resolves. */}
+            that reason. Acknowledged state (C-07c, partial) is on now —
+            which ack, and its own operator or disposition, still is not
+            (needs a richer upstream shape not yet released). Detail text
+            needs a body TLV value decoded that nothing here decodes yet
+            (U12, released but not wired — C-07b). Grouped by kind, on
+            what a SAFETY record already resolves. */}
         {openedOf(chain) !== null && (
           <section className="safety" aria-labelledby="safety-title">
             <h2 className="safety-title" id="safety-title">
@@ -297,8 +297,10 @@ export default function App() {
             {safety.kind === "found" && safety.value.length > 0 && (
               <>
                 <p className="safety-note">
-                  Grouped by kind. Detail text and acknowledgement state are
-                  not resolved yet — records here are named, not explained.
+                  Grouped by kind. Acknowledged state is shown for
+                  INCIDENT_CANDIDATE records (C-07c, partial) — which ack,
+                  and its own operator or disposition, is not yet.
+                  Detail text is not resolved yet either.
                 </p>
                 <ol className="safety-groups">
                   {safety.value.map((g) => (
@@ -322,6 +324,14 @@ export default function App() {
                               type="button"
                             >
                               #{r.seq} · {r.bootId.slice(0, 8)}
+                              {r.acknowledged !== null && (
+                                <span
+                                  className="safety-ack-state"
+                                  data-acknowledged={r.acknowledged}
+                                >
+                                  {r.acknowledged ? "acknowledged" : "not yet acknowledged"}
+                                </span>
+                              )}
                             </button>
                           </li>
                         ))}
@@ -704,6 +714,35 @@ export default function App() {
                       })()}
                     </dd>
                   </div>
+                  {record.value.acknowledged !== null && (
+                    <div>
+                      <dt>Ack</dt>
+                      {/* Membership only (C-07c, partial) — which ack, and
+                          its own operator or disposition, waits on a
+                          richer upstream shape not yet released. */}
+                      <dd data-acknowledged={record.value.acknowledged}>
+                        {record.value.acknowledged ? "acknowledged" : "not yet acknowledged"}
+                      </dd>
+                    </div>
+                  )}
+                  {(() => {
+                    const shredder = record.value.shredded;
+                    if (shredder === null) return null;
+                    return (
+                      <div>
+                        <dt>Shredded</dt>
+                        <dd>
+                          <button
+                            type="button"
+                            className="record-jump-link"
+                            onClick={() => select(shredder)}
+                          >
+                            by #{shredder}
+                          </button>
+                        </dd>
+                      </div>
+                    );
+                  })()}
                   <div>
                     <dt>Tier</dt>
                     <dd>{record.value.assuranceTier.name ?? record.value.assuranceTier.value}</dd>

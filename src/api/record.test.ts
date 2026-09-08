@@ -37,6 +37,8 @@ function view(over: Partial<RecordView> = {}): RecordView {
     body_len: 0,
     body_tlv_types: null,
     key_id: null,
+    acknowledged: null,
+    shredded_by: null,
     ...over,
   };
 }
@@ -175,5 +177,32 @@ group("the envelope", () => {
   it("carries a null prev_seq through when there is nowhere to jump", () => {
     const card = recordCard(view({ prev_seq: null }));
     expect(card.prevSeq).toBeNull();
+  });
+
+  it("carries acknowledged=true through for an acked candidate (C-07c, U13)", () => {
+    const card = recordCard(view({ acknowledged: true }));
+    expect(card.acknowledged).toBe(true);
+  });
+
+  it("carries acknowledged=false through for an unacked candidate", () => {
+    const card = recordCard(view({ acknowledged: false }));
+    expect(card.acknowledged).toBe(false);
+  });
+
+  it("carries a null acknowledged through for a record that is not a candidate", () => {
+    // Not false — "not acknowledged" and "not the kind of record that
+    // gets acknowledged" are different facts.
+    const card = recordCard(view({ acknowledged: null }));
+    expect(card.acknowledged).toBeNull();
+  });
+
+  it("carries shredded_by through as the shredding record's seq (C-07c, U15)", () => {
+    const card = recordCard(view({ shredded_by: 42 }));
+    expect(card.shredded).toBe(42);
+  });
+
+  it("carries a null shredded through for a record that is not shredded", () => {
+    const card = recordCard(view({ shredded_by: null }));
+    expect(card.shredded).toBeNull();
   });
 });
