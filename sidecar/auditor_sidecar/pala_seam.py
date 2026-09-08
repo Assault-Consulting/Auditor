@@ -937,39 +937,58 @@ class ChainHandle:
             "steps": steps,
         }
 
-    def origin(self, seq: int) -> dict[str, object] | None:
-        """What was running when a record was written, or None if unstated.
+    def origin(self, seq: int) -> dict[str, object]:
+        """What was running when a record was written — three states,
+        not the two `origin_at()` alone can tell apart.
 
-        `None` is a real answer and the common one at the start of a chain:
-        nothing before the first MODEL_LOAD has an origin, because none had
-        been declared. A UI must show that as "not stated in this file"
-        rather than as an empty card, which would read as "nothing was
-        running".
+        `origin_at()` returns `None` for two different facts: nothing
+        before the first MODEL_LOAD has an origin, because none had
+        been declared; and a MODEL_UNLOAD explicitly ends one, which
+        also leaves the running state at `None`. F9 asks for different
+        wording for each ("not stated in this file" versus "no model
+        active"), and until now nothing on this side of the seam could
+        tell them apart without re-walking records for the last unload
+        ourselves — the second-implementation mistake ADR-0001 exists
+        to rule out.
 
-        F9 also asks for a second null wording — "no model active" after an
-        explicit MODEL_UNLOAD — and this method cannot currently produce it.
-        Read directly: `AuditReader.origin_at()` sets its running state to
-        `None` on `KIND_MODEL_UNLOAD` exactly the way it starts at `None`
-        before any `MODEL_LOAD`, so both collapse to the same return value.
-        Telling them apart on this side of the seam would mean re-walking
-        records to find the last MODEL_UNLOAD ourselves — the second-
-        implementation mistake ADR-0001 exists to rule out. Tracked as U11.
+        `unloaded_at()` (U11, released 0.11.0) is the package's own
+        answer: whether the last EVENT that set origin state at or
+        before `seq` was a MODEL_UNLOAD, additive to `origin_at()`
+        rather than a change to it. `state` is `"active"` when
+        `origin_at()` answered, `"unloaded"` when it did not and
+        `unloaded_at()` says the last word was an unload, `"not_stated"`
+        otherwise — nothing ever declared.
 
-        `since_seq` is the record that declared it, so a reader can jump to
-        the declaration rather than take this on trust — the same reason
-        every other claim here names its source.
+        `since_seq` is the record that declared the active origin, so a
+        reader can jump to the declaration rather than take this on
+        trust — the same reason every other claim here names its source.
+
+        Two calls into the package when the answer is not `"active"`:
+        `origin_at()` then `unloaded_at()`, both routed through the
+        package's own shared `_origin_state_at()` internally, so the
+        tracking loop runs twice — the underlying decode is cached
+        after the first (U14), so this is an O(n) Python loop repeated,
+        not a second parse. Not worth a second public method upstream
+        for what is one call per record selection, not a hot path.
         """
         with self._lock:
             view = self._reader.origin_at(seq)
-        if view is None:
-            return None
-        return {
-            "role": view.role,
-            "model_digest": view.model_digest.hex(),
-            "config_digest": view.config_digest.hex(),
-            "since_seq": view.since_seq,
-            "detail": view.detail,
-        }
+            if view is not None:
+                unloaded = False
+            else:
+                unloaded = self._reader.unloaded_at(seq)
+        if view is not None:
+            return {
+                "state": "active",
+                "origin": {
+                    "role": view.role,
+                    "model_digest": view.model_digest.hex(),
+                    "config_digest": view.config_digest.hex(),
+                    "since_seq": view.since_seq,
+                    "detail": view.detail,
+                },
+            }
+        return {"state": "unloaded" if unloaded else "not_stated", "origin": None}
 
     def safety(self, limit: int = 500) -> dict[str, object]:
         """Every SAFETY record, in the order F8 asks for.
