@@ -4,40 +4,47 @@
 /**
  * Origin: what was declared active when a record was written — F9.
  *
- * `origin_at(seq)` collapses two different facts into the same null,
- * checked directly against `palimpsests.audit.reader.AuditReader
- * .origin_at`: no model has been declared active yet, and one was
- * declared and then explicitly unloaded (a MODEL_UNLOAD record) — both
- * leave its running state at `None`. F9 asks for different wording for
- * each ("not stated in this file" versus "no model active"), and the
- * data available here cannot tell them apart. Rendering two different
- * sentences from one null would be inventing the distinction rather than
- * reading it, so this slice renders the one sentence the null actually
- * supports, and the rest is U11 (`DEVELOPMENT-PLAN.md`, §2).
+ * Three states, not the two a bare null used to collapse. Before U11
+ * (released 0.11.0), `origin_at()` returned null for two different
+ * facts — nothing had been declared yet, and something was declared and
+ * then explicitly ended by a MODEL_UNLOAD — and this slice could render
+ * only the one sentence that null actually supported. The sidecar's
+ * `/origin` now answers with a named `state` for all three
+ * (`DEVELOPMENT-PLAN.md`, C-08b), so each gets its own sentence here.
  */
 
-import type { OriginModel } from "./generated/types";
+import type { OriginState } from "./generated/types";
 
 /**
- * The declared origin, resolved for display — or null, passed through
- * unchanged. `OriginModel`'s own docstring is explicit that every field
- * here is a Recorded claim, never a proof of what actually ran (L3).
+ * The declared origin, resolved for display. `OriginState.origin`'s own
+ * docstring is explicit that every field is a Recorded claim, never a
+ * proof of what actually ran (L3) — carried through unchanged into the
+ * `"active"` case below, never into the other two, which have no origin
+ * to be a claim about.
  */
-export interface OriginCard {
-  role: string;
-  modelDigest: string;
-  configDigest: string;
-  sinceSeq: number;
-  detail: string | null;
-}
+export type OriginCard =
+  | {
+      state: "active";
+      role: string;
+      modelDigest: string;
+      configDigest: string;
+      sinceSeq: number;
+      detail: string | null;
+    }
+  | { state: "unloaded" }
+  | { state: "not_stated" };
 
-export function originCard(model: OriginModel | null): OriginCard | null {
-  if (model === null) return null;
-  return {
-    role: model.role,
-    modelDigest: model.model_digest,
-    configDigest: model.config_digest,
-    sinceSeq: model.since_seq,
-    detail: model.detail,
-  };
+export function originCard(view: OriginState): OriginCard {
+  if (view.state === "active" && view.origin !== null) {
+    return {
+      state: "active",
+      role: view.origin.role,
+      modelDigest: view.origin.model_digest,
+      configDigest: view.origin.config_digest,
+      sinceSeq: view.origin.since_seq,
+      detail: view.origin.detail,
+    };
+  }
+  if (view.state === "unloaded") return { state: "unloaded" };
+  return { state: "not_stated" };
 }

@@ -860,6 +860,33 @@
         "title": "OriginModel",
         "type": "object"
       },
+      "OriginState": {
+        "description": "What F9 needs said about a record's origin \u2014 three states, not\nthe two `AuditReader.origin_at()` alone can tell apart.\n\n`origin_at()` returns null for two different facts: nothing has\nbeen declared yet, and something was declared and then explicitly\nunloaded (a MODEL_UNLOAD record) \u2014 both leave its running state at\nnull. `unloaded_at()` (U11, released 0.11.0) is the package's own\nway to tell them apart, additive to `origin_at()` rather than a\nchange to it.",
+        "properties": {
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OriginModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The declared origin, present only when state is 'active'."
+          },
+          "state": {
+            "description": "One of: active, unloaded, not_stated. 'active' means a model is declared running \u2014 see `origin` below. 'unloaded' means one was declared and then explicitly ended by a MODEL_UNLOAD. 'not_stated' means nothing has been declared at or before this record at all.",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "origin"
+        ],
+        "title": "OriginState",
+        "type": "object"
+      },
       "RecordPage": {
         "description": "A window onto the records.\n\nPaginated because a chain has no bound: a container from a busy\ndeployment can hold millions of records, and an endpoint that serialised\nall of them would fail in the situation where the tool is most needed.",
         "properties": {
@@ -1953,7 +1980,7 @@
     },
     "/session/{session_id}/origin": {
       "get": {
-        "description": "What was running when a record was written, or null if unstated.\n\n**Null is an answer, not an absence.** Nothing before the first\nMODEL_LOAD has an origin, because none had been declared \u2014 and a UI\nmust render that as \"not stated in this file\" rather than as an\nempty card, which would read as \"nothing was running\".\n\n200 with a null body rather than 404 for that reason: the question\nwas answered, and the answer is that the file does not say.",
+        "description": "What was running when a record was written \u2014 three states.\n\n**`state` carries the distinction a bare null could not.**\n`origin_at()` alone returns null for two different facts:\nnothing has been declared yet (\"not_stated\"), and something was\ndeclared and then explicitly ended by a MODEL_UNLOAD\n(\"unloaded\") \u2014 both left its running state at null before U11\n(released 0.11.0) added `unloaded_at()` to tell them apart. A UI\nmust render each as its own sentence, never as one empty card\nthat reads as \"nothing was running\" regardless of which is true.\n\nAlways 200. The question is always answered; `state` says which\nanswer it is, `origin` carries the declared fields only when\n`state` is `\"active\"`.",
         "operationId": "session_origin_session__session_id__origin_get",
         "parameters": [
           {
@@ -1982,15 +2009,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/OriginModel"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "title": "Response Session Origin Session  Session Id  Origin Get"
+                  "$ref": "#/components/schemas/OriginState"
                 }
               }
             },
