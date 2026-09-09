@@ -340,17 +340,23 @@ Only C-06d — the raw hex view — remains, still an unstarted design.
 inside C-06a's own PR and had already called C-06b "merged" — it was not;
 that PR was C-06a. Both are corrected here.)
 
-### C-08 is merged — one wording gap, tracked as U11
+### C-08 is merged — the one wording gap closed as C-08(b)
 
 Origin inspection otherwise needed no seam changes: `/session/{id}/origin`
 has answered since C-01, and the card is a straightforward reading of what
-it returns. The gap is narrower than C-06's and did not earn a formal
+it returns. The gap was narrower than C-06's and did not earn a formal
 split — one sentence F9 asks for ("no model active" after a MODEL_UNLOAD)
-that `origin_at()` cannot currently produce, confirmed by reading the
-reader source directly rather than assumed (§2, U11). Until U11 lands, a
-MODEL_UNLOAD and "nothing declared yet" render the same honest sentence,
-"not stated in this file", because the data cannot currently tell a reader
-which one it is.
+that `origin_at()` alone could not produce, confirmed by reading the
+reader source directly rather than assumed (§2, U11). Before U11 landed, a
+MODEL_UNLOAD and "nothing declared yet" rendered the same honest sentence,
+"not stated in this file", because the data could not tell a reader which
+one it was.
+
+**Closed** (Assault-Consulting/Auditor#62): `/origin` now returns
+`OriginState`, a three-way `state` (`active` / `unloaded` / `not_stated`)
+built on `unloaded_at()` (U11, released 0.11.0) rather than the two-state
+`OriginModel | null` C-08 shipped with. Always 200 — the question is
+always answered, `state` says which answer it is.
 
 ### C-09 was one PR costed before anyone counted what F10 actually needs
 
