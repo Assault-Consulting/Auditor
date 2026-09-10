@@ -9,6 +9,13 @@ Scope reference: `FUNCTIONALITY.md`. Structure reference: `ARCHITECTURE.md`.
 
 ## 0. How to read this plan
 
+A `✓` before an item's id means merged (or, in Track U, released).
+A `◐` means partially merged — some of the item landed, the rest is
+still open, and the row's own text says which is which. Anything
+else — no mark — has not landed. The marks are a scanning aid only;
+the row's own text is still the source of truth for exactly what
+"done" covers, especially for a split or partial item.
+
 Effort is stated in **working days of focused effort**, never calendar
 dates. This is a small team with more than one project, so a plan pinned to
 dates is wrong by week two; a plan pinned to effort stays usable however
@@ -73,20 +80,20 @@ schedule rather than this project's.
 
 | PR | Content | Days | Blocks |
 |---|---|---|---|
-| U1 | Drift series per boot as structured advisory output: `d_i = (wall_i − wall_0) − (mono_i − mono_0)`, slope in ppm. Pure arithmetic on existing header fields, O(n), no wire change. | 2 | F6, F12 |
-| U2 | Step catalog: each detected discontinuity with magnitude, direction, `seq`, classified slew / step / regression. | 2 | F6, F12 |
-| U3 | Per-boot statistics: record counts, uptime by monotonic, anchor cadence and lag distribution, span durations, open-span rate. | 2 | F12 |
-| U4 | Header field map exported for rendering, so a hex inspector can highlight fields without knowing offsets. | 1 | F7 |
-| U5 | Merkle inclusion proofs for a `seq` range, over the existing RFC 6962 aggregation. | 3 | F13 |
-| U6 | Verification-report model as a package dataclass — one owner for the `pala-verification-report/1` schema. | 2 | F11 |
-| U7 | `time_trust` / `assurance_tier` constant→name tables exported, following the §10.5 pattern already used for kinds. | 0.5 | F2, F6 |
-| U9 | Ship the published vectors — core and inference-profile — in the distribution, behind one accessor. A vector set reachable only by cloning the repository is checkable only by those who least need to check it, which is the opposite of what publishing one is for. Cheap, and it unblocks the conformance half of B-10. | 1 | B-10(b) |
-| U8 | Evidence-bundle assembly as a library command (`pala bundle`): records + inclusion proofs + verification + manifest + the explicit time-claims section. By this plan's own Track-U criterion — independently useful without the shell (any CLI user or third-party tool gets it) — assembly belongs upstream; the shell invokes and presents (E-01). | 4 | E-01 |
-| U10 | A record's own hash, on `DecodedRecord`. `Header.prev_hash` and `Header.body_digest` are already there; the record's own hash is not, because nothing downstream of `decode_record` keeps the header bytes `pala.record_hash(header_bytes)` needs. Computed once during decode, from bytes the reader already has and discards, and cached on the dataclass — not re-derived by any caller. Confirmed against the installed 0.10.0 wheel by reading `palimpsests.audit.reader` directly rather than assumed. | 1 | C-06c |
-| U11 | `origin_at()` to distinguish "never declared" from "declared, then unloaded". Read directly rather than assumed: a `KIND_MODEL_UNLOAD` sets the running origin to `None`, exactly the value it starts at before any `MODEL_LOAD` — the two collapse. F9 asks for different wording for each ("not stated in this file" vs "no model active"); producing that distinction on this side of the seam would mean re-walking records for the last unload ourselves, the second-implementation mistake ADR-0001 rules out. | 1 | C-08(b) |
-| U12 | `detail` decoded from `EVT_DETAIL` onto `DecodedRecord`, the same way `origin_at()` already decodes named TLV fields into `OriginView` rather than leaving them as raw bytes. Confirmed present and readable: the reader's own `body_tlvs` already carries `(type, value)` pairs for a cleartext body, and `EVT_DETAIL = 4` is a published constant — nothing to discover, only to expose. Blocks F8's detail text and its recurrence count, and separately unblocks half of C-09d (free text still needs §22.3 decided). | 1 | C-07b, C-09d(b) |
-| U13 | Acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records — `AuditReader.acknowledged_candidates()`, hash-verified through the same resolution `_check_reference` already used for the *broken*-reference advisory codes. **Released in 0.11.0** (Assault-Consulting/Palimpsests#199). The `U10` dependency in the original scoping was wrong, confirmed by actually building this: the package resolves a target's hash from the raw header bytes it already holds (`self._headers`), never from a `DecodedRecord.record_hash` field — U10 remains needed only for showing a record's own hash in Auditor's UI (C-06c), not for this resolution. | 1 | C-07c(a) |
-| U15 | The rest of the r2 oversight loop `U13`'s original scope named but did not build: an `OVERSIGHT_ACK`'s `operator_id` and disposition, and `KEY_SHRED` target resolution (`shredded_targets()`). **Released in 0.11.0** (Assault-Consulting/Palimpsests#203). "Deadline delta" from the original scoping was never a wire field — confirmed while building this: no `EVT_DEADLINE` constant exists anywhere in the writer. It is `wall_clock_ns(ack) − wall_clock_ns(candidate)`, both already readable once a caller knows which ack resolves to which candidate (`acknowledged_candidates()`) — an Auditor-side subtraction, not something upstream was missing. | 1 | C-07c(b) |
+| ✓ U1 | Drift series per boot as structured advisory output: `d_i = (wall_i − wall_0) − (mono_i − mono_0)`, slope in ppm. Pure arithmetic on existing header fields, O(n), no wire change. | 2 | F6, F12 |
+| ✓ U2 | Step catalog: each detected discontinuity with magnitude, direction, `seq`, classified slew / step / regression. | 2 | F6, F12 |
+| ✓ U3 | Per-boot statistics: record counts, uptime by monotonic, anchor cadence and lag distribution, span durations, open-span rate. | 2 | F12 |
+| ✓ U4 | Header field map exported for rendering, so a hex inspector can highlight fields without knowing offsets. | 1 | F7 |
+| ✓ U5 | Merkle inclusion proofs for a `seq` range, over the existing RFC 6962 aggregation. | 3 | F13 |
+| ✓ U6 | Verification-report model as a package dataclass — one owner for the `pala-verification-report/1` schema. | 2 | F11 |
+| ✓ U7 | `time_trust` / `assurance_tier` constant→name tables exported, following the §10.5 pattern already used for kinds. | 0.5 | F2, F6 |
+| ✓ U9 | Ship the published vectors — core and inference-profile — in the distribution, behind one accessor. A vector set reachable only by cloning the repository is checkable only by those who least need to check it, which is the opposite of what publishing one is for. Cheap, and it unblocks the conformance half of B-10. | 1 | B-10(b) |
+| ✓ U8 | Evidence-bundle assembly as a library command (`pala bundle`): records + inclusion proofs + verification + manifest + the explicit time-claims section. By this plan's own Track-U criterion — independently useful without the shell (any CLI user or third-party tool gets it) — assembly belongs upstream; the shell invokes and presents (E-01). | 4 | E-01 |
+| ✓ U10 | A record's own hash, on `DecodedRecord`. `Header.prev_hash` and `Header.body_digest` are already there; the record's own hash is not, because nothing downstream of `decode_record` keeps the header bytes `pala.record_hash(header_bytes)` needs. Computed once during decode, from bytes the reader already has and discards, and cached on the dataclass — not re-derived by any caller. Confirmed against the installed 0.10.0 wheel by reading `palimpsests.audit.reader` directly rather than assumed. | 1 | C-06c |
+| ✓ U11 | `origin_at()` to distinguish "never declared" from "declared, then unloaded". Read directly rather than assumed: a `KIND_MODEL_UNLOAD` sets the running origin to `None`, exactly the value it starts at before any `MODEL_LOAD` — the two collapse. F9 asks for different wording for each ("not stated in this file" vs "no model active"); producing that distinction on this side of the seam would mean re-walking records for the last unload ourselves, the second-implementation mistake ADR-0001 rules out. | 1 | C-08(b) |
+| ✓ U12 | `detail` decoded from `EVT_DETAIL` onto `DecodedRecord`, the same way `origin_at()` already decodes named TLV fields into `OriginView` rather than leaving them as raw bytes. Confirmed present and readable: the reader's own `body_tlvs` already carries `(type, value)` pairs for a cleartext body, and `EVT_DETAIL = 4` is a published constant — nothing to discover, only to expose. Blocks F8's detail text and its recurrence count, and separately unblocks half of C-09d (free text still needs §22.3 decided). | 1 | C-07b, C-09d(b) |
+| ✓ U13 | Acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records — `AuditReader.acknowledged_candidates()`, hash-verified through the same resolution `_check_reference` already used for the *broken*-reference advisory codes. **Released in 0.11.0** (Assault-Consulting/Palimpsests#199). The `U10` dependency in the original scoping was wrong, confirmed by actually building this: the package resolves a target's hash from the raw header bytes it already holds (`self._headers`), never from a `DecodedRecord.record_hash` field — U10 remains needed only for showing a record's own hash in Auditor's UI (C-06c), not for this resolution. | 1 | C-07c(a) |
+| ✓ U15 | The rest of the r2 oversight loop `U13`'s original scope named but did not build: an `OVERSIGHT_ACK`'s `operator_id` and disposition, and `KEY_SHRED` target resolution (`shredded_targets()`). **Released in 0.11.0** (Assault-Consulting/Palimpsests#203). "Deadline delta" from the original scoping was never a wire field — confirmed while building this: no `EVT_DEADLINE` constant exists anywhere in the writer. It is `wall_clock_ns(ack) − wall_clock_ns(candidate)`, both already readable once a caller knows which ack resolves to which candidate (`acknowledged_candidates()`) — an Auditor-side subtraction, not something upstream was missing. | 1 | C-07c(b) |
 | U14 | Record-decode and verify performance at the scale §19 itself targets. `AuditReader.records()`'s underlying `_decoded_records()` is not the incremental generator its `yield from` syntax suggests — it is an eager list comprehension over every header, computed in full before the first item is yielded, cached afterward. Measured, not assumed: on a synthetic 100k-record / 22.4 MB chain, `open_chain` plus `ChainHandle.verify` (header verify plus `build_report`'s body-digest walk) together cost 4.9 s and reached a peak RSS of 460 MB — roughly 20.6× the file's own size. At 224 MB / 1,000,004 records — a chain slightly *larger* than §19's own "100 MB / ~1M-record" target — the same flow exceeded 3.9 GB of RAM and was killed by the OS before finishing. One partial mitigation is **released in 0.11.0** (Assault-Consulting/Palimpsests#198) and **wired into `ChainHandle.container()` on this side** (§5 below): `build_report()` accepts an already-open reader, so a caller who already paid the decode once does not pay it a second time inside `build_report`'s own separately-opened reader — only reachable, per `build_report`'s own docstring, when no anchor override is requested; `container()`'s anchor-override path still opens its own reader by necessity. The actual cause — `_decoded_records()`'s eager cache — remains unfixed upstream; separate profiling work on it is under way (`bench/u14-*` branches in Palimpsests) but has not shipped a fix. `docs/U14-decode-performance.md` (revision -01) has the full six-finding account. | ? | C-10b |
 
 **Track U total: ~21.5 days plus U14 and U15** (~17.5 without U8, which
@@ -120,13 +127,13 @@ yet.
 
 | PR | Content | Days |
 |---|---|---|
-| A-01 | Repo skeleton: `README`, `FUNCTIONALITY.md`, `ARCHITECTURE.md`, `ENVIRONMENT.md`, `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, `GOVERNANCE`, `REUSE.toml`, `.gitignore`, `.gitattributes` | 1 |
-| A-02 | Frontend: Vite 5 + React 18 + TS 5, fixed dev port 1420, `tsconfig` strict | 1 |
-| A-03 | Tauri 2 shell: `Cargo.toml`, `tauri.conf.json`, `capabilities/default.json`, placeholder icon generator | 1 |
-| A-04 | Sidecar: FastAPI on `127.0.0.1:8771`, `/health`, `pyproject.toml`, ruff + pytest config | 1 |
-| A-05 | CI: 3-OS matrix, ruff, pytest, coverage gate, `reuse lint` | 1 |
-| A-06 | Sidecar lifecycle from Tauri: spawn, per-launch bearer token, health poll, graceful shutdown, orphan cleanup | 2 |
-| A-07 | Generated typed API client from the sidecar OpenAPI schema; the frontend calls `/health` through it | 1 |
+| ✓ A-01 | Repo skeleton: `README`, `FUNCTIONALITY.md`, `ARCHITECTURE.md`, `ENVIRONMENT.md`, `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, `GOVERNANCE`, `REUSE.toml`, `.gitignore`, `.gitattributes` | 1 |
+| ✓ A-02 | Frontend: Vite 5 + React 18 + TS 5, fixed dev port 1420, `tsconfig` strict | 1 |
+| ✓ A-03 | Tauri 2 shell: `Cargo.toml`, `tauri.conf.json`, `capabilities/default.json`, placeholder icon generator | 1 |
+| ✓ A-04 | Sidecar: FastAPI on `127.0.0.1:8771`, `/health`, `pyproject.toml`, ruff + pytest config | 1 |
+| ✓ A-05 | CI: 3-OS matrix, ruff, pytest, coverage gate, `reuse lint` | 1 |
+| ✓ A-06 | Sidecar lifecycle from Tauri: spawn, per-launch bearer token, health poll, graceful shutdown, orphan cleanup | 2 |
+| ✓ A-07 | Generated typed API client from the sidecar OpenAPI schema; the frontend calls `/health` through it | 1 |
 
 **Phase 0: ~8 days.** Known CI traps to encode from the start, all of
 which have cost a red build before: build the frontend *before*
@@ -145,19 +152,19 @@ The product's minimum viable claim: open a file, get an honest verdict.
 
 | PR | Content | Days | Needs |
 |---|---|---|---|
-| B-01 | `pala_seam.py` — the single import surface; session store; `POST /session`, file digest, subject metadata | 2 | — |
-| B-02 | The no-parsing CI test (§20.2) | 0.5 | B-01 |
-| B-03 | `GET /verify` returning `Verification` verbatim; per-(session, profile) cache | 2 | B-01 |
-| B-04 | Anchor profiles: manual, file; `ChainedAnchorSource` composition; `/anchors/*` endpoints | 2 | B-03 |
-| B-10 | Agreement suite against `palimpsests pala verify` (§20.1a), plus the conformance half skipped pending U9 (§20.1b) | 2 | B-03 |
-| B-05 | Keychain anchor source (`keyring`), three OSes | 2 | B-04 |
-| B-06a | Frontend can open a file: Tauri dialog permission, drag-drop, the capability argued on its own PR | 1 | A-06 |
-| B-06b | Typed client for `/session` and `/verify`; session state in the frontend | 1.5 | B-06a, A-07 |
-| B-06c | UI: verdict triptych, tier-aware wording, not-checked state | 2.5 | B-06b, U7 *released* |
-| B-07 | UI: anchor provenance flow — answering link highlighted, absent dimmed, error named | 2 | B-04, B-06b |
-| B-08 | UI: diagnosis card, seven patterns, each with its visual | 3 | B-06b |
-| B-09 | UI: advisory lane, grouped by code, jump targets | 2 | B-06b |
-| B-11 | Mutation-demo fixture suite: each mutation → its expected pattern and copy | 2 | B-08 |
+| ✓ B-01 | `pala_seam.py` — the single import surface; session store; `POST /session`, file digest, subject metadata | 2 | — |
+| ✓ B-02 | The no-parsing CI test (§20.2) | 0.5 | B-01 |
+| ✓ B-03 | `GET /verify` returning `Verification` verbatim; per-(session, profile) cache | 2 | B-01 |
+| ✓ B-04 | Anchor profiles: manual, file; `ChainedAnchorSource` composition; `/anchors/*` endpoints | 2 | B-03 |
+| ✓ B-10 | Agreement suite against `palimpsests pala verify` (§20.1a), plus the conformance half skipped pending U9 (§20.1b) | 2 | B-03 |
+| ✓ B-05 | Keychain anchor source (`keyring`), three OSes | 2 | B-04 |
+| ✓ B-06a | Frontend can open a file: Tauri dialog permission, drag-drop, the capability argued on its own PR | 1 | A-06 |
+| ✓ B-06b | Typed client for `/session` and `/verify`; session state in the frontend | 1.5 | B-06a, A-07 |
+| ✓ B-06c | UI: verdict triptych, tier-aware wording, not-checked state | 2.5 | B-06b, U7 *released* |
+| ✓ B-07 | UI: anchor provenance flow — answering link highlighted, absent dimmed, error named | 2 | B-04, B-06b |
+| ✓ B-08 | UI: diagnosis card, seven patterns, each with its visual | 3 | B-06b |
+| ✓ B-09 | UI: advisory lane, grouped by code, jump targets | 2 | B-06b |
+| ✓ B-11 | Mutation-demo fixture suite: each mutation → its expected pattern and copy | 2 | B-08 |
 
 **Phase 1: ~22.5 days**, thirteen items rather than eleven. Three changes to
 the order and the granularity, each with a reason:
@@ -199,25 +206,25 @@ run.
 
 | PR | Content | Days | Needs |
 |---|---|---|---|
-| C-01 | `/boots`, `/spans`, `/records` (paginated, filtered), `/record/{seq}`, `/origin` | 3 | B-01 |
-| C-02 | `/timeline` density buckets, both axes, boot-gap markers | 2 | C-01, U1 |
-| C-03 | UI: Chronoscope — date rail with pinned caps, fine strip, axis toggle, wall-gap hatch with the ruler removed inside it, pins row | 5 | C-02 |
-| C-04 | UI: accordion compression for empty stretches, with explicit marks | 2 | C-03 |
-| C-05 | UI: boot and span lists; unclosed span as first-class evidence | 2 | C-01 |
-| C-06a | UI: the record card — envelope, tier and trust badges, type/kind name resolution, body presence state (none / opaque / cleartext / undecoded). An interim `seq` lookup field stands in for the seq-jump button until C-09 exists. | 1.5 | C-01 |
-| C-06b | `prev_hash` and container `index` on `RecordView`. Both are already on the reader's own objects — `Header.prev_hash`, `DecodedRecord.index` — and are not upstream work at all, just two fields `_record_view` was not copying through. Unlocks the predecessor jump; the record's own hash still waits on U10. | 0.5 | C-06a |
-| C-06c | Clickable `prev_hash` and the record's own hash. | 1 | **merged** |
+| ✓ C-01 | `/boots`, `/spans`, `/records` (paginated, filtered), `/record/{seq}`, `/origin` | 3 | B-01 |
+| ✓ C-02 | `/timeline` density buckets, both axes, boot-gap markers | 2 | C-01, U1 |
+| ✓ C-03 | UI: Chronoscope — date rail with pinned caps, fine strip, axis toggle, wall-gap hatch with the ruler removed inside it, pins row | 5 | C-02 |
+| ✓ C-04 | UI: accordion compression for empty stretches, with explicit marks | 2 | C-03 |
+| ✓ C-05 | UI: boot and span lists; unclosed span as first-class evidence | 2 | C-01 |
+| ✓ C-06a | UI: the record card — envelope, tier and trust badges, type/kind name resolution, body presence state (none / opaque / cleartext / undecoded). An interim `seq` lookup field stands in for the seq-jump button until C-09 exists. | 1.5 | C-01 |
+| ✓ C-06b | `prev_hash` and container `index` on `RecordView`. Both are already on the reader's own objects — `Header.prev_hash`, `DecodedRecord.index` — and are not upstream work at all, just two fields `_record_view` was not copying through. Unlocks the predecessor jump; the record's own hash still waits on U10. | 0.5 | C-06a |
+| ✓ C-06c | Clickable `prev_hash` and the record's own hash. | 1 | **merged** |
 | C-06d | Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
-| C-07a | UI: the SAFETY list, grouped by kind and sorted by seq — the slice buildable on what a record already resolves. No detail text, no acknowledgement state. | 1 | C-01 |
+| ✓ C-07a | UI: the SAFETY list, grouped by kind and sorted by seq — the slice buildable on what a record already resolves. No detail text, no acknowledgement state. | 1 | C-01 |
 | C-07b | Detail text and the recurrence count it enables, once `EVT_DETAIL` is decoded. | ? | U12 *released* |
-| C-07c | The r2 oversight loop. **Partial, merged** (Assault-Consulting/Auditor#60): binary acknowledged state for `INCIDENT_CANDIDATE`, full `KEY_SHRED` resolution — both facts 0.11.0 already supports at membership/full-mapping level. Still open: which ack resolved a candidate, and that ack's own operator and disposition — needs the richer `candidate_seq → ack_seq` mapping requested upstream (Assault-Consulting/Palimpsests#236, merged, not yet released). **Display only** in the MVP regardless — recording a disposition is the Phase-5 item below, behind its own ADR. | ? | Palimpsests#236 *released* |
-| C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01, C-06a |
-| C-09a | Search bar: seq jump (`#1447`), two of three quick buttons (first record, next warning). Unsupported input named plainly rather than silently ignored. | 1 | C-01, C-06a |
+| ◐ C-07c | The r2 oversight loop. **Partial, merged** (Assault-Consulting/Auditor#60): binary acknowledged state for `INCIDENT_CANDIDATE`, full `KEY_SHRED` resolution — both facts 0.11.0 already supports at membership/full-mapping level. Still open: which ack resolved a candidate, and that ack's own operator and disposition — needs the richer `candidate_seq → ack_seq` mapping requested upstream (Assault-Consulting/Palimpsests#236, merged, not yet released). **Display only** in the MVP regardless — recording a disposition is the Phase-5 item below, behind its own ADR. | ? | Palimpsests#236 *released* |
+| ✓ C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01, C-06a |
+| ✓ C-09a | Search bar: seq jump (`#1447`), two of three quick buttons (first record, next warning). Unsupported input named plainly rather than silently ignored. | 1 | C-01, C-06a |
 | C-09b | Filter chips: `kind:`, `type:`, `span:`, `boot:`, `tier:`, date range — wired onto C-11's list. `span:`/`boot:` need no backend change (spans and boots are already fetched in full); `type:` needs a name→int mapping investigated but not built (§5 below); `kind:`/`tier:`/date range need new `/records` query parameters that do not exist yet. | ? | C-11 |
 | C-09c | Time jump (nearest record to a wall-clock instant) and the anchor quick button (needs a record's own hash — U10, C-06c). | ? | C-06c, C-09b |
 | C-09d | Free text over `detail`. Blocked on `FUNCTIONALITY.md` §22.3, an open product question this plan has no authority to answer, and — until U12 releases — on there being no `detail` field on a record to search at all. | ? | §22.3 decided, U12 *released* |
-| C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
-| C-10a | The three claims §19 bundled as one line, taken apart. "Off-thread verify, window never blocks" — already true, confirmed with a concurrency test rather than left as an assumption. The opening screen's own state model already had an `"opening"` variant `chainLine` rendered correctly; the Open button just never read it, so a slow open looked identical to a stuck one and a second click started a second one — fixed. "Record table virtualised" — C-11's ≤50-row pagination already bounds render cost independent of chain size; a literal virtual-scroll would add nothing this screen does not already have, and reads worse for a forensic review tool than paging does (§C-10 prose below). | 0.5 | C-03, C-11 |
+| ✓ C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
+| ✓ C-10a | The three claims §19 bundled as one line, taken apart. "Off-thread verify, window never blocks" — already true, confirmed with a concurrency test rather than left as an assumption. The opening screen's own state model already had an `"opening"` variant `chainLine` rendered correctly; the Open button just never read it, so a slow open looked identical to a stuck one and a second click started a second one — fixed. "Record table virtualised" — C-11's ≤50-row pagination already bounds render cost independent of chain size; a literal virtual-scroll would add nothing this screen does not already have, and reads worse for a forensic review tool than paging does (§C-10 prose below). | 0.5 | C-03, C-11 |
 | C-10b | The "100 MB / ~1M-record chain verifies in under 10 s" half of §19 — the only claim of the three actually unmet, and not fixable here (U14). | ? | U14 *released, core unfixed* |
 | B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra | 1 | `anchors_pkcs11` *released* |
 
