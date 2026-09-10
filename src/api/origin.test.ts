@@ -4,7 +4,7 @@
 import { describe as group, expect, it } from "vitest";
 
 import { originCard } from "./origin";
-import type { OriginModel } from "./generated/types";
+import type { OriginModel, OriginState } from "./generated/types";
 
 function model(over: Partial<OriginModel> = {}): OriginModel {
   return {
@@ -17,24 +17,29 @@ function model(over: Partial<OriginModel> = {}): OriginModel {
   };
 }
 
-group("what origin_at answered", () => {
-  it("passes null through unchanged — the sidecar already resolved it", () => {
-    // A real answer, not an absence: this is "not stated in this file"
-    // (or, indistinguishably, "unloaded" — see the module doc for why
-    // the null is not split into two sentences here).
-    expect(originCard(null)).toBeNull();
-  });
-
-  it("carries every field through, since OriginModel's own claim is that all of them are Recorded", () => {
-    const card = originCard(
-      model({ role: "engine.wasm", since_seq: 900, detail: "resumed after crash" }),
-    );
-    expect(card).toEqual({
+group("origin state, resolved for display (C-08b, U11)", () => {
+  it("carries every field through when active, since OriginModel's own claim is that all of them are Recorded", () => {
+    const state: OriginState = {
+      state: "active",
+      origin: model({ role: "engine.wasm", since_seq: 900, detail: "resumed after crash" }),
+    };
+    expect(originCard(state)).toEqual({
+      state: "active",
       role: "engine.wasm",
       modelDigest: "ab" + "00".repeat(31),
       configDigest: "cd" + "00".repeat(31),
       sinceSeq: 900,
       detail: "resumed after crash",
     });
+  });
+
+  it("is its own state when unloaded, distinct from never having been declared", () => {
+    const state: OriginState = { state: "unloaded", origin: null };
+    expect(originCard(state)).toEqual({ state: "unloaded" });
+  });
+
+  it("is its own state when nothing has been declared at all", () => {
+    const state: OriginState = { state: "not_stated", origin: null };
+    expect(originCard(state)).toEqual({ state: "not_stated" });
   });
 });

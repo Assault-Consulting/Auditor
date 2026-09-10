@@ -432,15 +432,22 @@ def test_a_sequence_this_file_does_not_hold_is_404(
 
 
 # --- origin -----------------------------------------------------------------
+#
+# Three states, not the two a bare `None` could tell apart (C-08b, U11
+# released 0.11.0): "active" (a model is declared running), "unloaded"
+# (one was declared, then a MODEL_UNLOAD explicitly ended it), and
+# "not_stated" (nothing has been declared at or before this record at
+# all). `origin_at()` alone returns null for the last two alike.
 
 
 def test_origin_reports_what_was_running(open_client: TestClient, chain_path) -> None:
     sid = _open(open_client, chain_path)
-    origin = open_client.get(f"/session/{sid}/origin?seq=4").json()
+    state = open_client.get(f"/session/{sid}/origin?seq=4").json()
 
-    assert origin["role"] == "engine.native"
-    assert len(origin["model_digest"]) == 64
-    assert origin["since_seq"] == 2
+    assert state["state"] == "active"
+    assert state["origin"]["role"] == "engine.native"
+    assert len(state["origin"]["model_digest"]) == 64
+    assert state["origin"]["since_seq"] == 2
 
 
 def test_origin_names_the_record_that_declared_it(
@@ -449,27 +456,48 @@ def test_origin_names_the_record_that_declared_it(
     """since_seq is what makes this checkable rather than a claim to accept:
     a reader jumps to that record and sees the declaration."""
     sid = _open(open_client, chain_path)
-    origin = open_client.get(f"/session/{sid}/origin?seq=4").json()
+    state = open_client.get(f"/session/{sid}/origin?seq=4").json()
 
-    declaring = open_client.get(f"/session/{sid}/record/{origin['since_seq']}").json()
+    declaring = open_client.get(
+        f"/session/{sid}/record/{state['origin']['since_seq']}"
+    ).json()
     assert declaring["kind_name"] == "MODEL_LOAD"
 
 
-def test_no_origin_before_the_first_declaration_is_null_not_missing(
+def test_no_origin_before_the_first_declaration_is_not_stated(
     open_client: TestClient, chain_path
 ) -> None:
-    """200 with a null body, not 404.
-
-    Nothing before the first MODEL_LOAD has an origin because none had been
-    declared. The question was answered; the answer is that the file does
-    not say — and a UI must render that as "not stated" rather than as an
-    empty card, which would read as "nothing was running".
-    """
+    """200, always — the question is always answered. Before U11 this
+    collapsed to the same null an unload also produces; now it is its
+    own named state, distinguishable from "unloaded" on the wire."""
     sid = _open(open_client, chain_path)
     r = open_client.get(f"/session/{sid}/origin?seq=0")
 
     assert r.status_code == 200
-    assert r.json() is None
+    assert r.json() == {"state": "not_stated", "origin": None}
+
+
+def test_origin_after_an_unload_is_its_own_state(
+    open_client: TestClient, tmp_path
+) -> None:
+    """The state U11 exists for: origin_at() alone cannot tell this
+    apart from "never declared" — both leave its running state at
+    None — and unloaded_at() is what does."""
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "unloaded.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.model_load(b"\x11" * 32, b"\x22" * 32)
+    w.model_unload()
+    unload_seq = w.seq - 1
+    w.close()
+
+    sid = _open(open_client, path)
+    state = open_client.get(f"/session/{sid}/origin?seq={unload_seq}").json()
+
+    assert state == {"state": "unloaded", "origin": None}
 
 
 def test_origin_requires_a_sequence(open_client: TestClient, chain_path) -> None:
