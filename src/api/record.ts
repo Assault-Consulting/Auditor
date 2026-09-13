@@ -28,6 +28,10 @@
  * record, with what operator or disposition". That needs a richer
  * upstream shape, requested but not yet released
  * (Assault-Consulting/Palimpsests#236) — the rest of C-07c waits for it.
+ *
+ * C-07b: `detail` (EVT_DETAIL, U12) and `recurrenceCount` (how many
+ * SAFETY records share this record's detail text, F8's own framing) —
+ * both released 0.11.0, both wired through now.
  */
 
 import type { NamedValue, RecordView } from "./generated/types";
@@ -150,6 +154,19 @@ export interface RecordCard {
    */
   shredded: number | null;
   /**
+   * EVT_DETAIL, decoded for any record type that carries one — EVENT and
+   * SAFETY bodies (U12). Null when the record carries no detail at all,
+   * never an empty string.
+   */
+  detail: string | null;
+  /**
+   * How many SAFETY records in this container carry this exact detail
+   * text, this one included (F8, C-07b). Scoped to SAFETY the way
+   * `acknowledged` is scoped to INCIDENT_CANDIDATE: null for a
+   * non-SAFETY record and for a SAFETY record with no detail — never 0.
+   */
+  recurrenceCount: number | null;
+  /**
    * F7's own sentence for an unnamed type, or null for an ordinary record.
    * Set once here rather than re-derived per render, and carried verbatim —
    * the same discipline `browse.ts` keeps for §F7's other fixed wordings.
@@ -179,6 +196,8 @@ export function recordCard(view: RecordView): RecordCard {
     body: bodyStateOf(view),
     acknowledged: view.acknowledged,
     shredded: view.shredded_by,
+    detail: view.detail,
+    recurrenceCount: view.recurrence_count,
     note: view.type_name === null ? UNRECOGNISED_NOTE : null,
   };
 }
