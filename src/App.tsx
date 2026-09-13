@@ -279,9 +279,8 @@ export default function App() {
             that reason. Acknowledged state (C-07c, partial) is on now —
             which ack, and its own operator or disposition, still is not
             (needs a richer upstream shape not yet released). Detail text
-            needs a body TLV value decoded that nothing here decodes yet
-            (U12, released but not wired — C-07b). Grouped by kind, on
-            what a SAFETY record already resolves. */}
+            and its recurrence count are on in full (C-07b, U12). Grouped
+            by kind, on what a SAFETY record already resolves. */}
         {openedOf(chain) !== null && (
           <section className="safety" aria-labelledby="safety-title">
             <h2 className="safety-title" id="safety-title">
@@ -297,10 +296,10 @@ export default function App() {
             {safety.kind === "found" && safety.value.length > 0 && (
               <>
                 <p className="safety-note">
-                  Grouped by kind. Acknowledged state is shown for
+                  Grouped by kind, with detail text and its recurrence
+                  count (C-07b). Acknowledged state is shown for
                   INCIDENT_CANDIDATE records (C-07c, partial) — which ack,
                   and its own operator or disposition, is not yet.
-                  Detail text is not resolved yet either.
                 </p>
                 <ol className="safety-groups">
                   {safety.value.map((g) => (
@@ -330,6 +329,16 @@ export default function App() {
                                   data-acknowledged={r.acknowledged}
                                 >
                                   {r.acknowledged ? "acknowledged" : "not yet acknowledged"}
+                                </span>
+                              )}
+                              {r.detail !== null && (
+                                <span className="safety-detail">
+                                  {r.detail}
+                                  {r.recurrenceCount !== null && r.recurrenceCount > 1 && (
+                                    <span className="safety-recurrence">
+                                      ×{r.recurrenceCount}
+                                    </span>
+                                  )}
                                 </span>
                               )}
                             </button>
@@ -743,6 +752,25 @@ export default function App() {
                       </div>
                     );
                   })()}
+                  {record.value.detail !== null && (
+                    <div>
+                      <dt>Detail</dt>
+                      {/* EVT_DETAIL, decoded generically (C-07b, U12).
+                          The recurrence count is F8's own SAFETY-list
+                          feature — null outside that scope, so it is
+                          shown only when the sidecar actually sent one. */}
+                      <dd>
+                        {record.value.detail}
+                        {record.value.recurrenceCount !== null &&
+                          record.value.recurrenceCount > 1 && (
+                            <span className="record-recurrence">
+                              {" "}
+                              ×{record.value.recurrenceCount}
+                            </span>
+                          )}
+                      </dd>
+                    </div>
+                  )}
                   <div>
                     <dt>Tier</dt>
                     <dd>{record.value.assuranceTier.name ?? record.value.assuranceTier.value}</dd>
