@@ -24,9 +24,9 @@ the imports move, the rest of the codebase does not notice.
 from __future__ import annotations
 
 import threading
-from collections import Counter
 from .keychain import KeychainUnavailable
 from .keychain import read as keychain_read
+from collections import Counter
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _dist_version
 from palimpsests.audit.anchors import (
