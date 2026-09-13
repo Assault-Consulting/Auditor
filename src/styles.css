@@ -367,7 +367,9 @@ body {
    not yet the fuller "loudest thing in the UI" F8 reserves for a
    resolved unacknowledged candidate WITH its own ack's operator and
    deadline shown, which needs a richer upstream shape not yet
-   released. */
+   released. Detail text and its recurrence count (C-07b, U12) are
+   on in full — the writer's own claim, ochre, beside a slate count
+   this shell computed, never conflated as the same kind of fact. */
 .safety {
   margin-top: calc(var(--step) * 3);
   border: 1px solid var(--rule);
@@ -480,6 +482,25 @@ body {
 }
 
 .safety-ack-state[data-acknowledged="true"] {
+  color: var(--unchecked);
+}
+
+/* The writer's own free text (C-07b, U12) — ochre, the same Recorded
+   colour every other writer claim in this app takes (.record-recorded),
+   never verdigris: nothing here is proved, only declared. The
+   recurrence count beside it is a different kind of fact — computed by
+   this shell over what the writer wrote, not a claim of its own — so it
+   takes the neutral slate every other count in this app already uses
+   (.advisory-count, .records-count, .safety-group-count). */
+.safety-detail {
+  margin-left: var(--step);
+  font-size: 0.7rem;
+  color: var(--recorded);
+}
+
+.safety-recurrence,
+.record-recurrence {
+  margin-left: 0.3em;
   color: var(--unchecked);
 }
 
