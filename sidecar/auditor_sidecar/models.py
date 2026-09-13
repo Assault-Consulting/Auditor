@@ -607,6 +607,26 @@ class RecordView(BaseModel):
             "shreddable'."
         )
     )
+    detail: str | None = Field(
+        description=(
+            "EVT_DETAIL, decoded generically for any record type that "
+            "carries one — EVENT and SAFETY bodies, the same scope "
+            "`kind` already has (U12, released 0.11.0). Null when the "
+            "record carries no detail at all, never an empty string."
+        )
+    )
+    recurrence_count: int | None = Field(
+        description=(
+            "How many SAFETY records in this container carry this "
+            "exact detail text, this one included (F8: 'detail text "
+            "and a recurrence count for identical details'). Scoped "
+            "to SAFETY the way `acknowledged` is scoped to "
+            "INCIDENT_CANDIDATE: null for a non-SAFETY record (not "
+            "applicable) and for a SAFETY record with no detail "
+            "(nothing to count) — never 0, since a detail that exists "
+            "recurs at least once, itself."
+        )
+    )
 
 
 class RecordPage(BaseModel):
