@@ -29,6 +29,8 @@ function view(over: Partial<RecordView> = {}): RecordView {
     key_id: null,
     acknowledged: null,
     shredded_by: null,
+    detail: null,
+    recurrence_count: null,
     ...over,
   };
 }
