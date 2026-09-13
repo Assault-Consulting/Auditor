@@ -971,6 +971,18 @@
             "title": "Boot Id",
             "type": "string"
           },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "EVT_DETAIL, decoded generically for any record type that carries one \u2014 EVENT and SAFETY bodies, the same scope `kind` already has (U12, released 0.11.0). Null when the record carries no detail at all, never an empty string.",
+            "title": "Detail"
+          },
           "index": {
             "description": "Position of this record within THIS FILE, zero-based. Distinct from seq, which a rotated or segmented chain does not start at zero and does not number contiguously across a gap \u2014 index always does, because it counts what this file actually holds.",
             "title": "Index",
@@ -1063,6 +1075,18 @@
             "title": "Record Type",
             "type": "integer"
           },
+          "recurrence_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How many SAFETY records in this container carry this exact detail text, this one included (F8: 'detail text and a recurrence count for identical details'). Scoped to SAFETY the way `acknowledged` is scoped to INCIDENT_CANDIDATE: null for a non-SAFETY record (not applicable) and for a SAFETY record with no detail (nothing to count) \u2014 never 0, since a detail that exists recurs at least once, itself.",
+            "title": "Recurrence Count"
+          },
           "seq": {
             "description": "Sequence number.",
             "title": "Seq",
@@ -1134,7 +1158,9 @@
           "body_tlv_types",
           "key_id",
           "acknowledged",
-          "shredded_by"
+          "shredded_by",
+          "detail",
+          "recurrence_count"
         ],
         "title": "RecordView",
         "type": "object"
@@ -2201,7 +2227,7 @@
     },
     "/session/{session_id}/safety": {
       "get": {
-        "description": "Every SAFETY record \u2014 F8's first-class list, not a filter.\n\nNo caller-adjustable `limit`, unlike `/records`. This answer is\ncached for the life of the session the same way boots and spans\nare \u2014 one question, one answer \u2014 and a caller-visible limit would\nhave needed a cache keyed by it, the exact class of bug the\n`Session` docstring documents avoiding elsewhere: a second caller\nasking with a different limit would silently receive the first\ncaller's cached answer at the first caller's limit.\n\n`ChainHandle.safety` still bounds the response internally, purely\ndefensively, at a size no caller chooses.\n\nThe same `RecordPage` shape `/records` returns, reused rather than\ngiven one of its own: `total` counts every SAFETY record that\nexists, which can exceed the internal cap on an unusually large\nchain, and `has_more` says so rather than leaving it to be\ninferred from a length that matches the cap by coincidence.\n\n`detail` text is not on these records yet \u2014 see\n`ChainHandle.safety`'s own docstring for why, and\n`DEVELOPMENT-PLAN.md` C-07b for what closes the gap. Acknowledged\nstate and shred resolution are (C-07c, partial) \u2014 membership\nonly; which ack, and its own operator or disposition, needs a\nricher upstream shape not yet released.",
+        "description": "Every SAFETY record \u2014 F8's first-class list, not a filter.\n\nNo caller-adjustable `limit`, unlike `/records`. This answer is\ncached for the life of the session the same way boots and spans\nare \u2014 one question, one answer \u2014 and a caller-visible limit would\nhave needed a cache keyed by it, the exact class of bug the\n`Session` docstring documents avoiding elsewhere: a second caller\nasking with a different limit would silently receive the first\ncaller's cached answer at the first caller's limit.\n\n`ChainHandle.safety` still bounds the response internally, purely\ndefensively, at a size no caller chooses.\n\nThe same `RecordPage` shape `/records` returns, reused rather than\ngiven one of its own: `total` counts every SAFETY record that\nexists, which can exceed the internal cap on an unusually large\nchain, and `has_more` says so rather than leaving it to be\ninferred from a length that matches the cap by coincidence.\n\nDetail text and its recurrence count are on in full (C-07b,\nU12, released 0.11.0). Acknowledged state and shred resolution\nare (C-07c, partial) \u2014 membership only; which ack, and its\nown operator or disposition, needs a richer upstream shape\nnot yet released.",
         "operationId": "session_safety_session__session_id__safety_get",
         "parameters": [
           {
