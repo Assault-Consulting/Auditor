@@ -26,6 +26,7 @@ from __future__ import annotations
 import threading
 from .keychain import KeychainUnavailable
 from .keychain import read as keychain_read
+from collections import Counter
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _dist_version
 from palimpsests.audit.anchors import (
@@ -527,9 +528,10 @@ class ChainHandle:
             records = list(self._reader.records())
             acknowledged = self._reader.acknowledged_candidates()
             shredded = self._reader.shredded_targets()
+        detail_counts = self._detail_counts(records)
         for record in records:
             if record.seq == seq:
-                return self._record_view(record, records, acknowledged, shredded)
+                return self._record_view(record, records, acknowledged, shredded, detail_counts)
             if record.seq > seq:
                 break
         return None
@@ -589,6 +591,7 @@ class ChainHandle:
             records = list(self._reader.records())
             acknowledged = self._reader.acknowledged_candidates()
             shredded = self._reader.shredded_targets()
+        detail_counts = self._detail_counts(records)
         for record in records:
             if not self._matches(record, record_type, boot_id, span_id):
                 continue
@@ -597,7 +600,9 @@ class ChainHandle:
                 continue
             matched_at_or_past_offset += 1
             if len(window) < limit:
-                window.append(self._record_view(record, records, acknowledged, shredded))
+                window.append(
+                    self._record_view(record, records, acknowledged, shredded, detail_counts)
+                )
 
         return {
             "records": window,
@@ -630,7 +635,12 @@ class ChainHandle:
         return True
 
     def _record_view(
-        self, record, records: list, acknowledged, shredded: dict[int, int]
+        self,
+        record,
+        records: list,
+        acknowledged,
+        shredded: dict[int, int],
+        detail_counts: Counter,
     ) -> dict[str, object]:
         """One record's header fields, as plain data.
 
@@ -640,9 +650,10 @@ class ChainHandle:
 
         ``records`` is the full decoded list this record came from — needed
         to resolve ``prev_seq`` (below), not to re-derive anything about
-        this record itself. ``acknowledged`` and ``shredded`` are the
-        package's own resolutions (U13, U15 — released 0.11.0), computed
-        once per caller and passed in rather than recomputed per record.
+        this record itself. ``acknowledged``, ``shredded`` and
+        ``detail_counts`` are the package's own resolutions (U13, U15, U12
+        — all released 0.11.0), computed once per caller and passed in
+        rather than recomputed per record.
         """
         header = record.header
         return {
@@ -719,6 +730,25 @@ class ChainHandle:
             # structurally; None here just means "not currently shredded
             # by any resolving KEY_SHRED in this file").
             "shredded_by": shredded.get(record.seq),
+            # EVT_DETAIL, decoded generically for any record type that
+            # carries one (EVENT and SAFETY bodies — the same scope
+            # `kind` already has). None when the record carries no
+            # detail at all, not "" — the package's own distinction
+            # (U12, released 0.11.0).
+            "detail": record.detail,
+            # How many SAFETY records in this container carry this
+            # exact detail text, this one included — F8's own framing
+            # ("detail text and a recurrence count for identical
+            # details"), so scoped to SAFETY the way `acknowledged` is
+            # scoped to INCIDENT_CANDIDATE: None for a non-SAFETY
+            # record (not applicable) and for a SAFETY record with no
+            # detail (nothing to count), never 0 — a detail that
+            # exists recurs at least once, itself.
+            "recurrence_count": (
+                detail_counts[record.detail]
+                if record.record_type == RT_SAFETY and record.detail is not None
+                else None
+            ),
         }
 
     #: One UTC day, in nanoseconds. The rail groups by calendar day, and a
@@ -1007,15 +1037,13 @@ class ChainHandle:
         `_record_view`, and turning a flat, ordered list into groups is
         display logic, not a decoded fact the package owns.
 
-        Acknowledged state (an `INCIDENT_CANDIDATE`'s `acknowledged`)
-        and shred resolution (any record's `shredded_by`) are on
-        `_record_view` now (U13, U15, both released 0.11.0) — the same
-        discipline `records()` and `record()` keep, since this view is
-        a filtered read of the same thing, not a second one.
-
-        `detail` text is still not here: it needs `EVT_DETAIL` decoded
-        (U12, released — but not yet wired anywhere on this side).
-        Tracked in `DEVELOPMENT-PLAN.md`, §2, C-07b.
+        Acknowledged state (an `INCIDENT_CANDIDATE`'s `acknowledged`),
+        shred resolution (any record's `shredded_by`) and detail text
+        with its recurrence count (`detail`, `recurrence_count`) are
+        all on `_record_view` now (U13, U15, U12, all released
+        0.11.0) — the same discipline `records()` and `record()` keep,
+        since this view is a filtered read of the same thing, not a
+        second one.
 
         **What `acknowledged` does not yet carry: which ack, or its own
         operator and disposition.** `acknowledged_candidates()` as
@@ -1036,12 +1064,15 @@ class ChainHandle:
             records = list(self._reader.records())
             acknowledged = self._reader.acknowledged_candidates()
             shredded = self._reader.shredded_targets()
+        detail_counts = self._detail_counts(records)
         for record in records:
             if record.record_type != RT_SAFETY:
                 continue
             total += 1
             if len(window) < limit:
-                window.append(self._record_view(record, records, acknowledged, shredded))
+                window.append(
+                    self._record_view(record, records, acknowledged, shredded, detail_counts)
+                )
         return {
             "records": window,
             "offset": 0,
@@ -1080,6 +1111,23 @@ class ChainHandle:
                 {r.header.time_trust for r in records}, time_trust_name
             ),
         }
+
+    @staticmethod
+    def _detail_counts(records: list) -> Counter:
+        """How many times each detail text recurs among SAFETY records.
+
+        Built once per caller from the already-decoded list, the same
+        pattern ``acknowledged``/``shredded`` already follow — a `Counter`
+        over `record.detail` for every SAFETY record that carries one,
+        skipping every other record type (a detail on an EVENT record,
+        for instance, is a different fact and not part of what F8 asks
+        this count to answer).
+        """
+        return Counter(
+            r.detail
+            for r in records
+            if r.record_type == RT_SAFETY and r.detail is not None
+        )
 
     @staticmethod
     def _named(values: set[int], namer) -> list[dict[str, object]]:

@@ -374,12 +374,11 @@ def build_app(token: str | None = None) -> FastAPI:
         chain, and `has_more` says so rather than leaving it to be
         inferred from a length that matches the cap by coincidence.
 
-        `detail` text is not on these records yet — see
-        `ChainHandle.safety`'s own docstring for why, and
-        `DEVELOPMENT-PLAN.md` C-07b for what closes the gap. Acknowledged
-        state and shred resolution are (C-07c, partial) — membership
-        only; which ack, and its own operator or disposition, needs a
-        richer upstream shape not yet released.
+        Detail text and its recurrence count are on in full (C-07b,
+        U12, released 0.11.0). Acknowledged state and shred resolution
+        are (C-07c, partial) — membership only; which ack, and its
+        own operator or disposition, needs a richer upstream shape
+        not yet released.
         """
         session = _session_or_404(app, session_id)
         _assert_still_the_subject(session)

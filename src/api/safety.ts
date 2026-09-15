@@ -2,26 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * F8 — the SAFETY list, the slice buildable without a decoded body.
+ * F8 — the SAFETY list, grouped by kind, with detail text and its
+ * recurrence count.
  *
  * F8 asks for records "sorted by seq, grouped by kind_name, with detail
  * text and a recurrence count for identical details," plus the r2
  * oversight loop: acknowledged/unacknowledged state for
  * `INCIDENT_CANDIDATE` records, an `OVERSIGHT_ACK`'s operator and
- * deadline, and `KEY_SHRED` resolution. None of the second half is here:
+ * deadline, and `KEY_SHRED` resolution.
  *
- * - `detail` text (and the recurrence count it would enable) needs
- *   `EVT_DETAIL` — a body TLV value — decoded, and nothing on this side
- *   of the seam decodes TLV values yet. Tracked as U12.
- * - Acknowledged/unacknowledged needs `EVT_REF_SEQ` / `EVT_REF_HASH`
- *   decoded from an ack's body, *and* a candidate's own hash to bind the
- *   reference correctly rather than match on seq alone — matching on
- *   seq alone could call a candidate acknowledged when the ack actually
- *   named a different one, which is worse than not resolving it at all.
- *   The hash half is U10; the resolution itself is U13.
+ * `detail` and its recurrence count are on now (U12, released 0.11.0;
+ * C-07b) — carried straight through by `recordCard`, nothing recomputed
+ * here. Still not here: which ack acknowledged a candidate, and that
+ * ack's own operator or deadline — `acknowledged` on each `RecordCard`
+ * is membership only (C-07c, partial; `record.ts`'s own docstring has
+ * the full account).
  *
- * What is left — grouping and counting what a record already resolves,
- * its kind — needs nothing this application does not already have.
+ * What grouping itself needs — kind, already resolved per record — was
+ * always free; this module's own job is the grouping, not decoding.
  */
 
 import { recordCard, type RecordCard, type KindLabel } from "./record";

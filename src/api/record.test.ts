@@ -39,6 +39,8 @@ function view(over: Partial<RecordView> = {}): RecordView {
     key_id: null,
     acknowledged: null,
     shredded_by: null,
+    detail: null,
+    recurrence_count: null,
     ...over,
   };
 }
@@ -204,5 +206,27 @@ group("the envelope", () => {
   it("carries a null shredded through for a record that is not shredded", () => {
     const card = recordCard(view({ shredded_by: null }));
     expect(card.shredded).toBeNull();
+  });
+
+  it("carries detail through as the record's own text (C-07b, U12)", () => {
+    const card = recordCard(view({ detail: "guard escalation x3" }));
+    expect(card.detail).toBe("guard escalation x3");
+  });
+
+  it("carries a null detail through for a record with none", () => {
+    const card = recordCard(view({ detail: null }));
+    expect(card.detail).toBeNull();
+  });
+
+  it("carries recurrenceCount through for a SAFETY record with a detail", () => {
+    const card = recordCard(view({ detail: "sensor timeout", recurrence_count: 2 }));
+    expect(card.recurrenceCount).toBe(2);
+  });
+
+  it("carries a null recurrenceCount through for a non-SAFETY record or one with no detail", () => {
+    // Not 0 — the sidecar's own distinction: nothing to count is a
+    // different fact from "this detail never recurs".
+    const card = recordCard(view({ recurrence_count: null }));
+    expect(card.recurrenceCount).toBeNull();
   });
 });

@@ -258,7 +258,9 @@ def test_tlv_types_are_listed_and_contents_are_not(
     open_client: TestClient, chain_path
 ) -> None:
     """Structure, not content. Bodies may be encrypted, and what is inside a
-    record needs its own decisions about keys and redaction."""
+    record needs its own decisions about keys and redaction — except
+    `detail`, decoded generically now (U12, C-07b); see the dedicated
+    tests below for that field specifically."""
     sid = _open(open_client, chain_path)
     records = open_client.get(f"/session/{sid}/records").json()["records"]
 
@@ -268,9 +270,8 @@ def test_tlv_types_are_listed_and_contents_are_not(
     # against a constant, which would only be pinning the fixture's detail
     # string.
     assert safety["body_len"] > 0
-    # No field anywhere carries the bytes.
+    # No field anywhere carries the raw bytes.
     assert "body" not in safety
-    assert "detail" not in safety
 
 
 def test_a_record_with_no_body_reports_null_tlvs_not_empty(
@@ -536,18 +537,126 @@ def test_safety_reports_the_kind_names_already_resolved(
     assert page["records"][0]["kind_name"] == "INCIDENT_CANDIDATE"
 
 
-def test_safety_still_carries_no_detail_text(
+def test_safety_carries_its_detail_text(
     open_client: TestClient, chain_path
 ) -> None:
-    """Structure, not content — the same discipline `/records` keeps.
-    Detail text needs a body TLV value decoded that nothing here
-    decodes yet (U12, released but not wired). Acknowledged state and
-    shred resolution are no longer in the same boat — see the tests
-    below."""
+    """The gap this section's own tests used to document — closed
+    (U12, released 0.11.0; C-07b). `chain_path`'s one SAFETY record
+    carries a real detail string, not empty."""
     sid = _open(open_client, chain_path)
     record = open_client.get(f"/session/{sid}/safety").json()["records"][0]
 
-    assert "detail" not in record
+    assert record["detail"] == "guard escalation x3"
+
+
+def test_detail_is_null_for_a_candidate_written_without_one(
+    open_client: TestClient, tmp_path
+) -> None:
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "no-detail.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.incident_candidate(category=1, severity=2)
+    w.close()
+
+    sid = _open(open_client, path)
+    record = open_client.get(f"/session/{sid}/safety").json()["records"][0]
+
+    assert record["detail"] is None
+
+
+# --- recurrence_count (U12, C-07b) -----------------------------------------
+#
+# F8's own framing: "detail text and a recurrence count for identical
+# details". Scoped to SAFETY the way `acknowledged` is scoped to
+# INCIDENT_CANDIDATE — null for anything outside that scope, never 0.
+
+
+def test_a_unique_detail_recurs_once(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    """safety_heavy_chain's three candidates carry distinct details
+    ("first", "second", "third") — each recurs only as itself."""
+    sid = _open(open_client, safety_heavy_chain)
+    page = open_client.get(f"/session/{sid}/safety").json()
+    by_seq = {r["seq"]: r for r in page["records"]}
+
+    assert by_seq[3]["detail"] == "first"
+    assert by_seq[3]["recurrence_count"] == 1
+    assert by_seq[4]["detail"] == "second"
+    assert by_seq[4]["recurrence_count"] == 1
+
+
+def test_a_repeated_detail_is_counted_on_every_record_that_carries_it(
+    open_client: TestClient, tmp_path
+) -> None:
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "repeated-detail.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.incident_candidate(category=1, severity=2, detail="sensor timeout")
+    first_seq = w.seq - 1
+    w.incident_candidate(category=1, severity=1, detail="unrelated")
+    w.incident_candidate(category=1, severity=2, detail="sensor timeout")
+    third_seq = w.seq - 1
+    w.close()
+
+    sid = _open(open_client, path)
+    page = open_client.get(f"/session/{sid}/safety").json()
+    by_seq = {r["seq"]: r for r in page["records"]}
+
+    assert by_seq[first_seq]["recurrence_count"] == 2
+    assert by_seq[third_seq]["recurrence_count"] == 2
+
+
+def test_recurrence_count_is_null_without_a_detail(
+    open_client: TestClient, tmp_path
+) -> None:
+    """Null, not 0 — nothing to count is a different fact from "this
+    detail never recurs", and a SAFETY record with no detail at all
+    has no detail to have a count of."""
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "no-detail-count.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.incident_candidate(category=1, severity=2)
+    w.close()
+
+    sid = _open(open_client, path)
+    record = open_client.get(f"/session/{sid}/safety").json()["records"][0]
+
+    assert record["recurrence_count"] is None
+
+
+def test_recurrence_count_is_null_for_a_non_safety_record_even_with_a_detail(
+    open_client: TestClient, tmp_path
+) -> None:
+    """detail is decoded generically (EVENT and SAFETY bodies alike);
+    recurrence_count is F8's own SAFETY-list feature and stays null
+    outside that scope regardless — a MODEL_LOAD's detail is a
+    different fact than a SAFETY record's, and counting the two
+    together would answer a question nobody asked."""
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "event-detail.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.model_load(b"\x11" * 32, b"\x22" * 32, detail="engine warmed up")
+    load_seq = w.seq - 1
+    w.close()
+
+    sid = _open(open_client, path)
+    record = open_client.get(f"/session/{sid}/record/{load_seq}").json()
+
+    assert record["detail"] == "engine warmed up"
+    assert record["recurrence_count"] is None
 
 
 def test_an_unacknowledged_candidate_is_acknowledged_false(
