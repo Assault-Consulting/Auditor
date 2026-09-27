@@ -111,7 +111,7 @@
             "type": "string"
           },
           "source_kind": {
-            "description": "'manual', 'file' or 'keychain'.",
+            "description": "'manual', 'file', 'keychain' or 'pkcs11'.",
             "title": "Source Kind",
             "type": "string"
           }
@@ -251,9 +251,33 @@
             "title": "Head"
           },
           "kind": {
-            "description": "'manual', 'file' or 'keychain'.",
+            "description": "'manual', 'file', 'keychain' or 'pkcs11'.",
             "title": "Kind",
             "type": "string"
+          },
+          "module_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For kind='pkcs11': path to the PKCS#11 module the token speaks through (a .so, .dylib or .dll).",
+            "title": "Module Path"
+          },
+          "object_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For kind='pkcs11': the label of the data object on the token. Omitted means the package's own default, 'pala-anchor-head'.",
+            "title": "Object Label"
           },
           "path": {
             "anyOf": [
@@ -266,6 +290,30 @@
             ],
             "description": "For kind='file': path to a FileAnchor head file.",
             "title": "Path"
+          },
+          "pin_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For kind='pkcs11': the keychain account holding the token's user PIN. Required, and a keychain account rather than the PIN itself: profiles are returned in full by GET /anchors/profiles, so a PIN carried here would be readable by anyone holding the session token. Required because a head the package itself writes is invisible to a session without one, and would read as absent while present.",
+            "title": "Pin Account"
+          },
+          "token_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For kind='pkcs11': the label of the token holding the head.",
+            "title": "Token Label"
           }
         },
         "required": [
