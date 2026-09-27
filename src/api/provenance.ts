@@ -59,6 +59,13 @@ function detailOf(spec: AnchorSourceSpec): string {
       return spec.path ?? "(no path)";
     case "keychain":
       return `keychain account ${spec.account ?? "(unnamed)"}`;
+    case "pkcs11":
+      // token/object — the same identity the sidecar reports for this link
+      // (Pkcs11PinnedAnchor mirrors the package's own source_detail), so a
+      // never-reached row and an attempted one name the source alike. The
+      // default object label is the package's, spelled out rather than
+      // left blank: an operator comparing against their token needs it.
+      return `${spec.token_label ?? "(no token)"}/${spec.object_label ?? "pala-anchor-head"}`;
     case "manual":
       return free !== "" ? free : "a head entered by hand";
     default:
