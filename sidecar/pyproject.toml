@@ -68,6 +68,17 @@ report = [
 keyring = [
     "keyring>=25.0",
 ]
+# A PKCS#11 token as an anchor source (B-12, ADR-0004 upstream). Defers to
+# the package's own [pkcs11] extra so the python-pkcs11 bound is theirs, not
+# a second one kept here to drift. keyring comes with it because the token
+# PIN is read from the OS keychain rather than stored in a profile — see
+# Pkcs11PinnedAnchor for why. A plain install needs neither: every other
+# anchor source works without them, and a pkcs11 source configured without
+# the extra reports "error" for its own link rather than failing the check.
+pkcs11 = [
+    "palimpsests[pkcs11]>=0.11,<0.12",
+    "keyring>=25.0",
+]
 
 [project.scripts]
 palimpsests-auditor-sidecar = "auditor_sidecar.main:run"
