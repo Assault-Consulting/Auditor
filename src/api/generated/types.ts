@@ -42,7 +42,7 @@ export interface AdvisoryModel {
  * One source that was consulted, and what came back.
  */
 export interface AnchorAttemptModel {
-  /** 'manual', 'file' or 'keychain'. */
+  /** 'manual', 'file', 'keychain' or 'pkcs11'. */
   source_kind: string;
   /** Which one — a path, or free text. */
   source_detail: string;
@@ -104,7 +104,7 @@ export interface AnchorReadingModel {
  * request model.
  */
 export interface AnchorSourceSpec {
-  /** 'manual', 'file' or 'keychain'. */
+  /** 'manual', 'file', 'keychain' or 'pkcs11'. */
   kind: string;
   /** For kind='manual': the 64-character hex head, as handed over. */
   head?: string | null;
@@ -112,6 +112,14 @@ export interface AnchorSourceSpec {
   path?: string | null;
   /** For kind='keychain': the account name the head is stored under. The service name is fixed by the application, so this is the only part an operator chooses. */
   account?: string | null;
+  /** For kind='pkcs11': path to the PKCS#11 module the token speaks through (a .so, .dylib or .dll). */
+  module_path?: string | null;
+  /** For kind='pkcs11': the label of the token holding the head. */
+  token_label?: string | null;
+  /** For kind='pkcs11': the label of the data object on the token. Omitted means the package's own default, 'pala-anchor-head'. */
+  object_label?: string | null;
+  /** For kind='pkcs11': the keychain account holding the token's user PIN. Required, and a keychain account rather than the PIN itself: profiles are returned in full by GET /anchors/profiles, so a PIN carried here would be readable by anyone holding the session token. Required because a head the package itself writes is invisible to a session without one, and would read as absent while present. */
+  pin_account?: string | null;
   /** Free text shown beside this source in the provenance view. */
   detail?: string;
 }
