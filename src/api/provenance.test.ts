@@ -96,6 +96,22 @@ group("sources never reached are shown as never reached", () => {
     expect(links.every((l) => l.outcome !== "not-reached")).toBe(true);
   });
 
+  it("names an unreached pkcs11 source as token/object, the sidecar's own form", () => {
+    const withToken: AnchorSourceSpec[] = [
+      ...THREE.slice(0, 2),
+      {
+        kind: "pkcs11",
+        module_path: "/usr/lib/softhsm/libsofthsm2.so",
+        token_label: "desk-token",
+        pin_account: "token-pin",
+        detail: "",
+      },
+    ];
+    const links = provenance([ABSENT_FILE, ANSWERED_MANUAL], withToken);
+    // The default object label is spelled out, not left blank.
+    expect(links[2]?.detail).toBe("desk-token/pala-anchor-head");
+  });
+
   it("works with no profile at all", () => {
     // The attempts alone still render; they just cannot show what was never
     // tried, and pretending otherwise would be worse.

@@ -36,6 +36,11 @@ from palimpsests.audit.anchors import (
     FileAnchor,
     ManualAnchor,
 )
+from palimpsests.audit.anchors_pkcs11 import (
+    DEFAULT_OBJECT_LABEL,
+    Pkcs11Anchor,
+    Pkcs11Unavailable,
+)
 from palimpsests.audit.bootstats import boot_statistics
 from palimpsests.audit.names import assurance_tier_name, time_trust_name
 from palimpsests.audit.pala.codec import FORMAT_VERSION, RT_SAFETY, ZERO16, ZERO32
@@ -49,6 +54,7 @@ __all__ = [
     "ChainHandle",
     "KeychainAnchor",
     "NotAChain",
+    "Pkcs11PinnedAnchor",
     "UnknownAnchorKind",
     "open_chain",
     "package_version",
@@ -135,6 +141,80 @@ class KeychainAnchor:
         )
 
 
+class Pkcs11PinnedAnchor:
+    """A head on a PKCS#11 token (B-12), with its PIN kept in the keychain.
+
+    The reading itself is the package's ``Pkcs11Anchor`` (ADR-0004) — this
+    class adds exactly the two things that are this application's business
+    and nothing about what a head means:
+
+    **Where the PIN lives.** Never in the profile. Profiles are returned in
+    full by ``GET /anchors/profiles``, so a PIN carried in one would be one
+    request away from any holder of the session token. The profile names a
+    keychain account instead, and the PIN is read at the moment of use.
+
+    **Why a PIN is required at all.** Measured, not assumed, against
+    SoftHSM: a head written by the package's own ``Pkcs11AnchorStore`` is
+    invisible to a session opened without a PIN, and ``Pkcs11Anchor`` then
+    returns ``None`` — *absent* — for an anchor that is sitting right there.
+    That is the one degradation the three-outcome rule exists to forbid: a
+    completeness question quietly reported as "not checked" when it could
+    have been answered. Requiring a PIN makes the unlogged read impossible
+    to configure, rather than documenting it as a trap.
+
+    Failure mapping, all to ``AnchorSourceError`` so the chain records the
+    link and walks on: no PIN stored under that account; the secret store
+    unreachable; the ``[pkcs11]`` extra not installed. The last one matters
+    because ``Pkcs11Unavailable`` is a plain ``RuntimeError`` upstream —
+    unconverted, it would escape ``ChainedAnchorSource`` and turn one
+    misconfigured link into a 500 for the whole verification.
+    """
+
+    source_kind = "pkcs11"
+
+    def __init__(
+        self,
+        module_path: str,
+        token_label: str,
+        pin_account: str,
+        object_label: str = DEFAULT_OBJECT_LABEL,
+    ) -> None:
+        self._module_path = module_path
+        self._token_label = token_label
+        self._pin_account = pin_account
+        self._object_label = object_label
+        # Identical to the package's own source_detail for the same token
+        # and object, so an attempt that fails here and one that fails
+        # inside Pkcs11Anchor name the link the same way.
+        self.source_detail = f"{token_label}/{object_label}"
+
+    def _error(self, message: str) -> AnchorSourceError:
+        return AnchorSourceError(
+            message, source_kind=self.source_kind, source_detail=self.source_detail
+        )
+
+    def current_head(self) -> AnchorReading | None:
+        try:
+            pin = keychain_read(self._pin_account)
+        except KeychainUnavailable as exc:
+            raise self._error(
+                f"the token PIN could not be read from the secret store: {exc}"
+            ) from exc
+        if pin is None:
+            raise self._error(
+                f"no token PIN is stored under keychain account {self._pin_account!r}"
+            )
+        try:
+            return Pkcs11Anchor(
+                self._module_path,
+                self._token_label,
+                user_pin=pin,
+                object_label=self._object_label,
+            ).current_head()
+        except Pkcs11Unavailable as exc:
+            raise self._error(str(exc)) from exc
+
+
 def _anchor_source(specs: list[dict[str, str]]):
     """Build a chained anchor source from plain specifications.
 
@@ -158,6 +238,15 @@ def _anchor_source(specs: list[dict[str, str]]):
             sources.append(FileAnchor(spec["path"]))
         elif kind == "keychain":
             sources.append(KeychainAnchor(spec["account"]))
+        elif kind == "pkcs11":
+            sources.append(
+                Pkcs11PinnedAnchor(
+                    spec["module_path"],
+                    spec["token_label"],
+                    spec["pin_account"],
+                    spec.get("object_label") or DEFAULT_OBJECT_LABEL,
+                )
+            )
         else:
             raise UnknownAnchorKind(kind)
     return ChainedAnchorSource(sources)
