@@ -299,7 +299,7 @@ def safety_heavy_chain(tmp_path):
 
 
 @pytest.fixture
-def two_boot_chain(tmp_path):
+def two_boot_chain(tmp_path, monkeypatch):
     """A chain spanning two boots, so a boundary and a wall gap are real.
 
     One caveat this fixture cannot escape: `PalaWriter` reads the process
@@ -307,8 +307,30 @@ def two_boot_chain(tmp_path):
     reset `monotonic_ns` the way a real restart would. A test asserting that
     monotonic is incomparable across a boot must rest on the format's rule,
     never on what this fixture happens to produce.
+
+    The wall clock, unlike monotonic, is controlled — the same patch
+    `multi_day_chain` uses, for the same reason. Written in one burst on the
+    real clock, this chain's wall span was whatever the platform's clock
+    resolution made of a few microseconds: on Windows (~15.6 ms ticks) all
+    eight records could share ONE reading, and the timeline then correctly
+    returned a single wall bucket — which a test expecting fifty read as a
+    failure of the application rather than of the fixture. Found on the
+    Windows CI leg, the third time a test in test_timeline.py turned out to
+    be measuring the platform's clock. Now each record is one second after
+    the last and the writer is "down" for an hour between boots, so the wall
+    span and the gap are facts of the fixture, not of the machine.
     """
-    from palimpsests.audit.pala_writer import PalaWriter
+    import palimpsests.audit.pala_writer as pw
+
+    clock = {"now": 1_787_000_000_000_000_000}
+
+    def _tick() -> int:
+        now = clock["now"]
+        clock["now"] += 1_000_000_000
+        return now
+
+    monkeypatch.setattr(pw.time, "time_ns", _tick)
+    PalaWriter = pw.PalaWriter
 
     path = tmp_path / "twoboot.pala"
     w = PalaWriter(path)
@@ -318,6 +340,8 @@ def two_boot_chain(tmp_path):
     w.incident_candidate(category=1, severity=2, detail="first boot")
     w.anchor()
     w.close()
+
+    clock["now"] += 3_600_000_000_000  # the writer is down for an hour
 
     w2 = PalaWriter.open_existing(path)
     w2.boot()
