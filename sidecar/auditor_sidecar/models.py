@@ -15,7 +15,7 @@ generated client carries.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class HealthResponse(BaseModel):
@@ -266,6 +266,17 @@ class AdvisoryModel(BaseModel):
     )
 
 
+#: The fields each known anchor kind cannot work without. Unknown kinds are
+#: not listed and not refused by the model: they reach the seam, which
+#: refuses them by name (UnknownAnchorKind) — one refusal, in one place.
+_REQUIRED_BY_KIND: dict[str, tuple[str, ...]] = {
+    "manual": ("head",),
+    "file": ("path",),
+    "keychain": ("account",),
+    "pkcs11": ("module_path", "token_label", "pin_account"),
+}
+
+
 class AnchorSourceSpec(BaseModel):
     """One place a trusted head might live.
 
@@ -274,7 +285,7 @@ class AnchorSourceSpec(BaseModel):
     request model.
     """
 
-    kind: str = Field(description="'manual', 'file' or 'keychain'.")
+    kind: str = Field(description="'manual', 'file', 'keychain' or 'pkcs11'.")
     head: str | None = Field(
         default=None,
         description="For kind='manual': the 64-character hex head, as handed over.",
@@ -291,10 +302,58 @@ class AnchorSourceSpec(BaseModel):
             "only part an operator chooses."
         ),
     )
+    module_path: str | None = Field(
+        default=None,
+        description=(
+            "For kind='pkcs11': path to the PKCS#11 module the token speaks "
+            "through (a .so, .dylib or .dll)."
+        ),
+    )
+    token_label: str | None = Field(
+        default=None,
+        description="For kind='pkcs11': the label of the token holding the head.",
+    )
+    object_label: str | None = Field(
+        default=None,
+        description=(
+            "For kind='pkcs11': the label of the data object on the token. "
+            "Omitted means the package's own default, 'pala-anchor-head'."
+        ),
+    )
+    pin_account: str | None = Field(
+        default=None,
+        description=(
+            "For kind='pkcs11': the keychain account holding the token's user "
+            "PIN. Required, and a keychain account rather than the PIN itself: "
+            "profiles are returned in full by GET /anchors/profiles, so a PIN "
+            "carried here would be readable by anyone holding the session "
+            "token. Required because a head the package itself writes is "
+            "invisible to a session without one, and would read as absent "
+            "while present."
+        ),
+    )
     detail: str = Field(
         default="",
         description="Free text shown beside this source in the provenance view.",
     )
+
+    @model_validator(mode="after")
+    def _has_what_its_kind_needs(self) -> AnchorSourceSpec:
+        """Refused at entry, not at use.
+
+        Before this, a manual source with no head was accepted into a
+        profile and only failed when a verification reached it — as a
+        KeyError, which the route reported as a 500. Same reasoning as the
+        head validator below: a mistake belongs to the request that made it.
+        """
+        missing = [
+            f for f in _REQUIRED_BY_KIND.get(self.kind, ()) if not getattr(self, f)
+        ]
+        if missing:
+            raise ValueError(
+                f"a {self.kind!r} source needs {', '.join(missing)}"
+            )
+        return self
 
     @field_validator("head")
     @classmethod
@@ -335,7 +394,7 @@ class AnchorProfile(BaseModel):
 class AnchorAttemptModel(BaseModel):
     """One source that was consulted, and what came back."""
 
-    source_kind: str = Field(description="'manual', 'file' or 'keychain'.")
+    source_kind: str = Field(description="'manual', 'file', 'keychain' or 'pkcs11'.")
     source_detail: str = Field(description="Which one — a path, or free text.")
     outcome: str = Field(
         description=(
