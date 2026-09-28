@@ -2246,6 +2246,60 @@
               "description": "Keep only records carrying this span.",
               "title": "Span Id"
             }
+          },
+          {
+            "description": "Keep only records whose type the package names this, e.g. 'SAFETY'. Matched against the name the package resolves, exactly \u2014 no name-to-number table exists on this side.",
+            "in": "query",
+            "name": "type_name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep only records whose type the package names this, e.g. 'SAFETY'. Matched against the name the package resolves, exactly \u2014 no name-to-number table exists on this side.",
+              "title": "Type Name"
+            }
+          },
+          {
+            "description": "Keep only records whose kind the package names this, e.g. 'INCIDENT_CANDIDATE'. A kind this build cannot name is never matched by a name.",
+            "in": "query",
+            "name": "kind_name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep only records whose kind the package names this, e.g. 'INCIDENT_CANDIDATE'. A kind this build cannot name is never matched by a name.",
+              "title": "Kind Name"
+            }
+          },
+          {
+            "description": "Keep only records whose assurance tier the package names this: 'A', 'B' or 'B+'. There is no 'C' \u2014 tier C is asserted post-hoc by a witness record, never by a header.",
+            "in": "query",
+            "name": "tier",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep only records whose assurance tier the package names this: 'A', 'B' or 'B+'. There is no 'C' \u2014 tier C is asserted post-hoc by a witness record, never by a header.",
+              "title": "Tier"
+            }
           }
         ],
         "responses": {
