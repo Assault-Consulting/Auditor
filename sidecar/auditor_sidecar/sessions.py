@@ -140,6 +140,9 @@ class Session:
         record_type: int | None = None,
         boot_id: str | None = None,
         span_id: str | None = None,
+        type_name: str | None = None,
+        kind_name: str | None = None,
+        tier: str | None = None,
     ) -> dict:
         """A window onto the records. Deliberately uncached — see above."""
         return self.chain.records(
@@ -148,6 +151,9 @@ class Session:
             record_type=record_type,
             boot_id=boot_id,
             span_id=span_id,
+            type_name=type_name,
+            kind_name=kind_name,
+            tier=tier,
         )
 
     def subject(self) -> dict[str, object]:
