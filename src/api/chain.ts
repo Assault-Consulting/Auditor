@@ -322,6 +322,9 @@ export async function getRecords(
     recordType?: number;
     bootId?: string;
     spanId?: string;
+    typeName?: string;
+    kindName?: string;
+    tier?: string;
   } = {},
 ): Promise<RecordPage> {
   const query = new URLSearchParams();
@@ -330,6 +333,9 @@ export async function getRecords(
   if (options.recordType !== undefined) query.set("record_type", String(options.recordType));
   if (options.bootId !== undefined) query.set("boot_id", options.bootId);
   if (options.spanId !== undefined) query.set("span_id", options.spanId);
+  if (options.typeName !== undefined) query.set("type_name", options.typeName);
+  if (options.kindName !== undefined) query.set("kind_name", options.kindName);
+  if (options.tier !== undefined) query.set("tier", options.tier);
 
   const response = await fetch(
     url(session, `/session/${sessionId}/records?${query}`),
