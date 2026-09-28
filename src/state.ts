@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, getRecords, getSafety, listProfiles } from "./api/chain";
 import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
 import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
+import { type RecordFilters, filtersKey } from "./api/filters";
 import { type Chronoscope, chronoscope } from "./api/chronoscope";
 import type { AnchorProfile } from "./api/generated/types";
 import { onChainFilesDropped, pickChainFile } from "./api/openFile";
@@ -320,16 +321,22 @@ export function useRecords(
   probe: Probe,
   chain: ChainState,
   limit: number,
+  filters: RecordFilters = {},
 ): { page: Fetch<RecordsPage>; next: () => void; prev: () => void; canGoBack: boolean } {
   const [page, setPage] = useState<Fetch<RecordsPage>>({ kind: "unasked" });
   const [offset, setOffset] = useState(0);
   const [history, setHistory] = useState<number[]>([]);
   const opened = openedOf(chain);
+  // Keyed by value, not identity: a caller building a fresh object each
+  // render must not refetch each render. A change of question resets the
+  // cursor, because an offset is a threshold inside one question's
+  // matches and means nothing inside another's (C-09b).
+  const key = filtersKey(filters);
 
   useEffect(() => {
     setOffset(0);
     setHistory([]);
-  }, [opened?.session_id]);
+  }, [opened?.session_id, key]);
 
   useEffect(() => {
     if (probe.kind !== "ready" || opened === null) {
@@ -337,7 +344,7 @@ export function useRecords(
       return;
     }
     let cancelled = false;
-    void getRecords(probe.session, opened.session_id, { offset, limit })
+    void getRecords(probe.session, opened.session_id, { offset, limit, ...filters })
       .then((result) => {
         if (!cancelled) setPage({ kind: "found", value: recordsPage(result) });
       })
@@ -352,7 +359,8 @@ export function useRecords(
     return () => {
       cancelled = true;
     };
-  }, [probe, opened, offset, limit]);
+    // `filters` is tracked through `key`, deliberately: see above.
+  }, [probe, opened, offset, limit, key]);
 
   const next = () => {
     if (page.kind !== "found") return;
