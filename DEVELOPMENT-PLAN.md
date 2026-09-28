@@ -119,6 +119,18 @@ eager decode itself — the actual cost — is not, and separate upstream
 profiling work on it (`bench/u14-*` in Palimpsests) is under way but has
 not yet shipped a fix.
 
+**Since 0.11.0, merged upstream and not yet released** — found while
+wiring 0.11.0 into this application, and fixed there rather than worked
+around here only: the PKCS#11 reader refuses an unauthenticated read and a
+missing `[pkcs11]` extra fails one link instead of the whole chain
+(Palimpsests#260); `build_report` refuses a `reader` together with an
+`anchor_source` instead of silently dropping the anchor (Palimpsests#261).
+Still to land: a lock on the reader's decode cache, the race A1 closes on
+this side. Palimpsests#236 changes `acknowledged_candidates()` from a set to
+a dict, so the release carrying all of it is 0.12.0 rather than a patch;
+Auditor's `<0.12` pin moves with it, and nothing here reads the set in a
+way the dict breaks.
+
 ## 3. Phase 0 — scaffold
 
 Target: a window that opens, a frontend that renders, a sidecar that
@@ -216,17 +228,17 @@ run.
 | ✓ C-06c | Clickable `prev_hash` and the record's own hash. | 1 | **merged** |
 | C-06d | Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
 | ✓ C-07a | UI: the SAFETY list, grouped by kind and sorted by seq — the slice buildable on what a record already resolves. No detail text, no acknowledgement state. | 1 | C-01 |
-| C-07b | Detail text and the recurrence count it enables, once `EVT_DETAIL` is decoded. | ? | U12 *released* |
+| ✓ C-07b | Detail text and the recurrence count it enables, once `EVT_DETAIL` is decoded. **Merged** (Assault-Consulting/Auditor#65): `detail` on every record that carries one, `recurrence_count` scoped to SAFETY — null outside that scope, never 0. | ? | U12 *released* |
 | ◐ C-07c | The r2 oversight loop. **Partial, merged** (Assault-Consulting/Auditor#60): binary acknowledged state for `INCIDENT_CANDIDATE`, full `KEY_SHRED` resolution — both facts 0.11.0 already supports at membership/full-mapping level. Still open: which ack resolved a candidate, and that ack's own operator and disposition — needs the richer `candidate_seq → ack_seq` mapping requested upstream (Assault-Consulting/Palimpsests#236, merged, not yet released). **Display only** in the MVP regardless — recording a disposition is the Phase-5 item below, behind its own ADR. | ? | Palimpsests#236 *released* |
 | ✓ C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01, C-06a |
 | ✓ C-09a | Search bar: seq jump (`#1447`), two of three quick buttons (first record, next warning). Unsupported input named plainly rather than silently ignored. | 1 | C-01, C-06a |
 | C-09b | Filter chips: `kind:`, `type:`, `span:`, `boot:`, `tier:`, date range — wired onto C-11's list. `span:`/`boot:` need no backend change (spans and boots are already fetched in full); `type:` needs a name→int mapping investigated but not built (§5 below); `kind:`/`tier:`/date range need new `/records` query parameters that do not exist yet. | ? | C-11 |
 | C-09c | Time jump (nearest record to a wall-clock instant) and the anchor quick button (needs a record's own hash — U10, C-06c). | ? | C-06c, C-09b |
-| C-09d | Free text over `detail`. Blocked on `FUNCTIONALITY.md` §22.3, an open product question this plan has no authority to answer, and — until U12 releases — on there being no `detail` field on a record to search at all. | ? | §22.3 decided, U12 *released* |
+| C-09d | Free text over `detail`. Blocked only on `FUNCTIONALITY.md` §22.3 now, an open product question this plan has no authority to answer — the data half is done: every record carries `detail` since C-07b. | ? | §22.3 decided |
 | ✓ C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
 | ✓ C-10a | The three claims §19 bundled as one line, taken apart. "Off-thread verify, window never blocks" — already true, confirmed with a concurrency test rather than left as an assumption. The opening screen's own state model already had an `"opening"` variant `chainLine` rendered correctly; the Open button just never read it, so a slow open looked identical to a stuck one and a second click started a second one — fixed. "Record table virtualised" — C-11's ≤50-row pagination already bounds render cost independent of chain size; a literal virtual-scroll would add nothing this screen does not already have, and reads worse for a forensic review tool than paging does (§C-10 prose below). | 0.5 | C-03, C-11 |
 | C-10b | The "100 MB / ~1M-record chain verifies in under 10 s" half of §19 — the only claim of the three actually unmet, and not fixable here (U14). | ? | U14 *released, core unfixed* |
-| B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra | 1 | `anchors_pkcs11` *released* |
+| ✓ B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra. **Merged** (Assault-Consulting/Auditor#66); see the B-12 notes below for the PIN finding it surfaced upstream. | 1 | `anchors_pkcs11` *released* |
 
 **Phase 2: ~22.5 days plus C-06d, C-07b, C-07c, C-09b, C-09c, C-09d and
 C-10b** — 27 as planned, plus B-12 and C-11 (§below), minus the 4.5 days
@@ -273,6 +285,32 @@ entry: `anchors_pkcs11` is not in the installed 0.10.0 wheel at all —
 confirmed directly, `ModuleNotFoundError` — because it landed *after* that
 release, the same "since 0.10.0" this section's own heading already says.
 Corrected above to name what it actually waits on.)
+
+**Closed** (Assault-Consulting/Auditor#66), and it found a P0 upstream on
+the way. Measured against SoftHSM rather than assumed: a head written by
+the package's own `Pkcs11AnchorStore` is a *private* object, invisible to a
+session opened without a PIN, so `Pkcs11Anchor` without one reported it
+*absent* — and a read-write public session, which PKCS#11 allows with no
+PIN at all, could plant a public decoy under the same label that the
+no-PIN reader then returned as *answered*. "The host can read but cannot
+silently rewrite" held only on the PIN path. Auditor's source therefore
+requires a PIN, read from a keychain account at the moment of use and never
+carried in a profile (profiles come back in full from `GET
+/anchors/profiles`). Upstream fixed the reader to refuse an unauthenticated
+read and amended ADR-0004 (Assault-Consulting/Palimpsests#260, merged, not
+yet released).
+
+Two things the same PR fixed on this side: the two field descriptions above
+now list four kinds, and an anchor source of *any* known kind missing what
+it needs (a manual source with no head, a file source with no path) is
+refused with a 422 at `PUT`, where before it was accepted and failed later
+inside `/verify` as a 500.
+
+Open, and deliberately left as a decision rather than slipped in: CI does
+not install SoftHSM, so the four real-token tests in `test_pkcs11.py` skip
+there and pass only where a developer has SoftHSM. A separate ubuntu-only
+job would make them continuous, at the cost of one more `apt-get` in a
+pipeline that has already lost runs to Ubuntu mirrors (§0).
 
 **Rotation makes three of C-05's span states routine.** `RotationPolicy` and
 the record-boundary cut mean a long-lived chain now arrives as a sequence of
@@ -693,20 +731,20 @@ the original estimate made in the other direction.
 
 **MVP total: not restated either, for the same reason.** It was ~73 days on
 an estimate that no longer describes Phase 3. The honest statement is that
-Phase 0 and Phase 1 are closed, and Phase 2 stands at thirteen of
+Phase 0 and Phase 1 are closed, and Phase 2 stands at fifteen of
 twenty-one items merged — C-01 through C-05, C-06a, C-06b, C-06c, C-07a,
-C-08, C-09a, C-10a and C-11 — up from the eleven this section counted at
-C-10a's own PR, corrected here rather than left stale: C-06b and C-06c
-both landed since. The twenty-one still counts the four splits (C-06 into
-four, C-09 into four, C-07 into three, C-10 into two). Eight remain:
-C-06d (unstarted design), C-07b (dependency satisfied, not yet
-built), C-07c (partial — binary ack state and shred resolution
-merged, Assault-Consulting/Auditor#60; the richer half waits on
-Palimpsests#236's release), C-09b/C-09c/C-09d, C-10b (blocked on
-U14's still-unfixed core), and B-12 (dependency satisfied, not yet
-built). Phase 3 stays unquantified until D-02 and D-07 have been
-looked at. If the work has to shrink, the cut lines are C-09b onward
-and B-05 — not the tests.
+C-07b, C-08, C-09a, C-10a, C-11 and B-12 — plus C-07c in part. The
+twenty-one still counts the four splits (C-06 into four, C-09 into four,
+C-07 into three, C-10 into two). Six remain: C-06d (unstarted design),
+C-07c (partial — binary ack state and shred resolution merged,
+Assault-Consulting/Auditor#60; the richer half waits on the release
+carrying Palimpsests#236), C-09b/C-09c/C-09d, and C-10b (blocked on
+U14's still-unfixed core). Of those, C-09b and C-09c need nothing outside
+this repository, and C-09c's time jump is what the phase's own exit
+criterion ("what happened at 22:41 on 6 Aug") cannot be met without.
+Phase 3 stays unquantified until D-02 and D-07 have been looked at. If
+the work has to shrink, the cut lines are C-09b onward and B-05 — not the
+tests.
 
 ## 7. Phase 4 — evidence artifacts
 
