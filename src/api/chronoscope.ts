@@ -101,9 +101,11 @@ export interface Chronoscope {
   /**
    * External evidence — witness or timestamp-authority pins.
    *
-   * Always present and, at tier A, always empty. An absent row would read
-   * as "not implemented"; an empty row with its note reads as "this file
-   * contains no external witness", which is the true and useful statement.
+   * Always present, and empty until pins are read from a file (E-06). An
+   * absent row would read as "not implemented"; an empty row with its note
+   * reads as "this file contains no external witness", which is the true
+   * and useful statement. Not tied to tier: an external witness is
+   * tier-independent (see `pins_note` below).
    */
   pins: never[];
   pins_note: string;
@@ -187,9 +189,14 @@ export function chronoscope(timeline: Timeline): Chronoscope {
     last_date: days[days.length - 1]?.date ?? null,
     segments,
     pins: [],
-    pins_note:
-      "No external witness in this file. At tier A there is none to have — " +
-      "the absence is a property of the platform, not a gap in the record.",
+    // An absence, stated as one. This used to add "at tier A there is none
+    // to have — a property of the platform": the only sentence in the
+    // application that claimed something was impossible rather than
+    // absent, written from an assumption. Checked against palimpsests
+    // 0.12.0: SCITT registration (pala/scitt.py) never consults the tier,
+    // so a tier-A head can be registered and receipted. What this file
+    // shows is that it carries no witness — nothing about what could exist.
+    pins_note: "No external witness in this file.",
   };
 }
 
