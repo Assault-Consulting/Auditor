@@ -94,7 +94,8 @@ schedule rather than this project's.
 | ✓ U12 | `detail` decoded from `EVT_DETAIL` onto `DecodedRecord`, the same way `origin_at()` already decodes named TLV fields into `OriginView` rather than leaving them as raw bytes. Confirmed present and readable: the reader's own `body_tlvs` already carries `(type, value)` pairs for a cleartext body, and `EVT_DETAIL = 4` is a published constant — nothing to discover, only to expose. Blocks F8's detail text and its recurrence count, and separately unblocks half of C-09d (free text still needs §22.3 decided). | 1 | C-07b, C-09d(b) |
 | ✓ U13 | Acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records — `AuditReader.acknowledged_candidates()`, hash-verified through the same resolution `_check_reference` already used for the *broken*-reference advisory codes. **Released in 0.11.0** (Assault-Consulting/Palimpsests#199). The `U10` dependency in the original scoping was wrong, confirmed by actually building this: the package resolves a target's hash from the raw header bytes it already holds (`self._headers`), never from a `DecodedRecord.record_hash` field — U10 remains needed only for showing a record's own hash in Auditor's UI (C-06c), not for this resolution. | 1 | C-07c(a) |
 | ✓ U15 | The rest of the r2 oversight loop `U13`'s original scope named but did not build: an `OVERSIGHT_ACK`'s `operator_id` and disposition, and `KEY_SHRED` target resolution (`shredded_targets()`). **Released in 0.11.0** (Assault-Consulting/Palimpsests#203). "Deadline delta" from the original scoping was never a wire field — confirmed while building this: no `EVT_DEADLINE` constant exists anywhere in the writer. It is `wall_clock_ns(ack) − wall_clock_ns(candidate)`, both already readable once a caller knows which ack resolves to which candidate (`acknowledged_candidates()`) — an Auditor-side subtraction, not something upstream was missing. | 1 | C-07c(b) |
-| U14 | Record-decode and verify performance at the scale §19 itself targets. `AuditReader.records()`'s underlying `_decoded_records()` is not the incremental generator its `yield from` syntax suggests — it is an eager list comprehension over every header, computed in full before the first item is yielded, cached afterward. Measured, not assumed: on a synthetic 100k-record / 22.4 MB chain, `open_chain` plus `ChainHandle.verify` (header verify plus `build_report`'s body-digest walk) together cost 4.9 s and reached a peak RSS of 460 MB — roughly 20.6× the file's own size. At 224 MB / 1,000,004 records — a chain slightly *larger* than §19's own "100 MB / ~1M-record" target — the same flow exceeded 3.9 GB of RAM and was killed by the OS before finishing. One partial mitigation is **released in 0.11.0** (Assault-Consulting/Palimpsests#198) and **wired into `ChainHandle.container()` on this side** (§5 below): `build_report()` accepts an already-open reader, so a caller who already paid the decode once does not pay it a second time inside `build_report`'s own separately-opened reader — only reachable, per `build_report`'s own docstring, when no anchor override is requested; `container()`'s anchor-override path still opens its own reader by necessity. The actual cause — `_decoded_records()`'s eager cache — remains unfixed upstream; separate profiling work on it is under way (`bench/u14-*` branches in Palimpsests) but has not shipped a fix. `docs/U14-decode-performance.md` (revision -01) has the full six-finding account. | ? | C-10b |
+| ◐ U14 | Record-decode and verify performance at the scale §19 itself targets. `AuditReader.records()`'s underlying `_decoded_records()` is not the incremental generator its `yield from` syntax suggests — it is an eager list comprehension over every header, computed in full before the first item is yielded, cached afterward. Measured, not assumed: on a synthetic 100k-record / 22.4 MB chain, `open_chain` plus `ChainHandle.verify` (header verify plus `build_report`'s body-digest walk) together cost 4.9 s and reached a peak RSS of 460 MB — roughly 20.6× the file's own size. At 224 MB / 1,000,004 records — a chain slightly *larger* than §19's own "100 MB / ~1M-record" target — the same flow exceeded 3.9 GB of RAM and was killed by the OS before finishing. One partial mitigation is **released in 0.11.0** (Assault-Consulting/Palimpsests#198) and **wired into `ChainHandle.container()` on this side** (§5 below): `build_report()` accepts an already-open reader, so a caller who already paid the decode once does not pay it a second time inside `build_report`'s own separately-opened reader — only reachable, per `build_report`'s own docstring, when no anchor override is requested; `container()`'s anchor-override path still opens its own reader by necessity. The actual cause — `_decoded_records()`'s eager cache — remains unfixed upstream; separate profiling work on it is under way (`bench/u14-*` branches in Palimpsests) but has not shipped a fix. `docs/U14-decode-performance.md` (revision -01) has the full six-finding account. **0.12.0, measured here** on a 1M-record / 250 MB chain: `verify()` + `build_report(reader=)` 11.3 s / 421 MB (100k: 1.12 s / 61 MB against 0.11.0's 2.74 s / 284 MB) — the verify half of §19 met at the package level; `records()` still eager, 16.9 s / 1.9 GB, and that is the path left. New cheap paths: `safety_records()` (1.6 s at 1M) and `structure()`. | ? | C-10b |
+| U16 | Public sparse access: `AuditReader.record_at(index)` (exists privately as `_record_at`) and a header-level view per index — type, wall clock, tier, time trust, boot, span, seq — without a body decode. `bootstats` and `timehealth` already read `reader._headers` this way, privately. Without it the seam must call the eager `records()` for any window, timeline or subject count; with it, C-10b's browse half is buildable. Small and additive. | 1–2 | C-10b(b) |
 
 **Track U total: ~21.5 days plus U14 and U15** (~17.5 without U8, which
 blocks only Phase 4). U14 and U15 carry no number: neither is a feature
@@ -108,28 +109,22 @@ Note on U1–U3: these must be **advisory** output, never verdict fields.
 The existing `Advisory` channel shape is already fixed for exactly this
 kind of extension.
 
-**Status against 0.11.0.** U1–U4, U6, U7, U9 and U10–U13, U15 are
-released; U5 and U8 are in the wheel as `proofs` and `bundle`. Same
-release: PKCS#11 anchors, writer rotation, and SCITT registration —
-three items this plan did not ask for and could not ignore, accounted
-for where each lands (§5 below, and Phase 4 for SCITT). U14 alone stays
-partial: the reader-reuse mitigation (`build_report`'s `reader=`) is in
-0.11.0 and wired into `ChainHandle.container()` as of this section; the
-eager decode itself — the actual cost — is not, and separate upstream
-profiling work on it (`bench/u14-*` in Palimpsests) is under way but has
-not yet shipped a fix.
+**Status against 0.12.0** (released 2026-09-29; checked against the wheel
+rather than the changelog). U1–U13 and U15 are released; U5 and U8 are in the
+wheel as `proofs` and `bundle`. 0.12.0 closes the four findings reported from
+this repository while wiring 0.11.0 in — the PKCS#11 no-PIN read (F1, a
+security fix, #260) and its missing-extra escape (F2), the unlocked decode
+cache (F3), and `build_report` silently dropping an anchor passed with a
+reader (F4, #261) — and releases #236, `acknowledged_candidates()` as a
+`dict[candidate_seq, ack_seq]`. U14 is partial and measured (row above):
+verify is bounded, `records()` is not. U16 is new and is the one upstream
+item C-10b still needs.
 
-**Since 0.11.0, merged upstream and not yet released** — found while
-wiring 0.11.0 into this application, and fixed there rather than worked
-around here only: the PKCS#11 reader refuses an unauthenticated read and a
-missing `[pkcs11]` extra fails one link instead of the whole chain
-(Palimpsests#260); `build_report` refuses a `reader` together with an
-`anchor_source` instead of silently dropping the anchor (Palimpsests#261).
-Still to land: a lock on the reader's decode cache, the race A1 closes on
-this side. Palimpsests#236 changes `acknowledged_candidates()` from a set to
-a dict, so the release carrying all of it is 0.12.0 rather than a patch;
-Auditor's `<0.12` pin moves with it, and nothing here reads the set in a
-way the dict breaks.
+Also in 0.12.0, and accounted for where each lands: `EVT_SOURCE` —
+client-reported tool calls, `source`/`source_name` on `DecodedRecord` — as
+C-12 in §5; prefix-consistency proofs as E-07 in §7; kind 10
+`TOOLS_OFFERED_NO_CALL`, which needs nothing here because kind names come
+from the package.
 
 ## 3. Phase 0 — scaffold
 
@@ -229,15 +224,16 @@ run.
 | C-06d | Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
 | ✓ C-07a | UI: the SAFETY list, grouped by kind and sorted by seq — the slice buildable on what a record already resolves. No detail text, no acknowledgement state. | 1 | C-01 |
 | ✓ C-07b | Detail text and the recurrence count it enables, once `EVT_DETAIL` is decoded. **Merged** (Assault-Consulting/Auditor#65): `detail` on every record that carries one, `recurrence_count` scoped to SAFETY — null outside that scope, never 0. | ? | U12 *released* |
-| ◐ C-07c | The r2 oversight loop. **Partial, merged** (Assault-Consulting/Auditor#60): binary acknowledged state for `INCIDENT_CANDIDATE`, full `KEY_SHRED` resolution — both facts 0.11.0 already supports at membership/full-mapping level. Still open: which ack resolved a candidate, and that ack's own operator and disposition — needs the richer `candidate_seq → ack_seq` mapping requested upstream (Assault-Consulting/Palimpsests#236, merged, not yet released). **Display only** in the MVP regardless — recording a disposition is the Phase-5 item below, behind its own ADR. | ? | Palimpsests#236 *released* |
+| ◐ C-07c | The r2 oversight loop. **Partial, merged** (Assault-Consulting/Auditor#60): binary acknowledged state for `INCIDENT_CANDIDATE`, full `KEY_SHRED` resolution — both facts 0.11.0 already supports at membership/full-mapping level. Still open: which ack resolved a candidate, and that ack's own operator and disposition — needs the richer `candidate_seq → ack_seq` mapping (Assault-Consulting/Palimpsests#236 — **released in 0.12.0**; the ack's own `operator_id` and `disposition` have been on `DecodedRecord` since 0.11.0, #203). Now unblocked in full. **Display only** in the MVP regardless — recording a disposition is the Phase-5 item below, behind its own ADR. | 1 | Palimpsests#236 *released (0.12.0)* |
 | ✓ C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01, C-06a |
 | ✓ C-09a | Search bar: seq jump (`#1447`), two of three quick buttons (first record, next warning). Unsupported input named plainly rather than silently ignored. | 1 | C-01, C-06a |
-| C-09b | Filter chips: `kind:`, `type:`, `span:`, `boot:`, `tier:`, date range — wired onto C-11's list. `span:`/`boot:` need no backend change (spans and boots are already fetched in full); `type:` needs a name→int mapping investigated but not built (§5 below); `kind:`/`tier:`/date range need new `/records` query parameters that do not exist yet. | ? | C-11 |
-| C-09c | Time jump (nearest record to a wall-clock instant) and the anchor quick button (needs a record's own hash — U10, C-06c). | ? | C-06c, C-09b |
+| ✓ C-09b | Filter chips: `kind:`, `type:`, `tier:`, `boot:`, `span:` on C-11's list. **Merged** (Assault-Consulting/Auditor#68). No name→int mapping was needed after all: `/records` matches `type_name`/`kind_name`/`tier` against the names the package resolved on each record, so no table exists on this side. Date range moved to C-09c, with time jump — both are about the writer's clock. | 1.5 | C-11 |
+| C-09c | Time jump (nearest record to a wall-clock instant, labelled Recorded, and saying so when the writer's clock does not follow proved order), date range (`from:`/`to:` as UTC days, matching the rail), and the anchor quick button (the record whose own hash is the verified anchor's head — or, when none in this file has it, saying so rather than falling back). The item the phase's exit criterion cannot be met without. | 2.5 | C-06c, C-09b |
 | C-09d | Free text over `detail`. Blocked only on `FUNCTIONALITY.md` §22.3 now, an open product question this plan has no authority to answer — the data half is done: every record carries `detail` since C-07b. | ? | §22.3 decided |
 | ✓ C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
 | ✓ C-10a | The three claims §19 bundled as one line, taken apart. "Off-thread verify, window never blocks" — already true, confirmed with a concurrency test rather than left as an assumption. The opening screen's own state model already had an `"opening"` variant `chainLine` rendered correctly; the Open button just never read it, so a slow open looked identical to a stuck one and a second click started a second one — fixed. "Record table virtualised" — C-11's ≤50-row pagination already bounds render cost independent of chain size; a literal virtual-scroll would add nothing this screen does not already have, and reads worse for a forensic review tool than paging does (§C-10 prose below). | 0.5 | C-03, C-11 |
-| C-10b | The "100 MB / ~1M-record chain verifies in under 10 s" half of §19 — the only claim of the three actually unmet, and not fixable here (U14). | ? | U14 *released, core unfixed* |
+| C-10b | §19's size envelope. **Re-scoped after measuring 0.12.0**: the package's verify path now meets it (U14 row); what misses it is this repository's seam, which calls the eager `records()` for `record()`, `records()`, `safety()`, `timeline()`, `subject()` and `open_chain()`'s emptiness check. (a) Move what 0.12.0 already allows onto cheap paths — `safety()` to `safety_records()` (16.9 s → 1.6 s at 1M), boots and spans to one `structure()` — and add a 1M benchmark script whose numbers go in this row. (b) The rest needs U16. | 1.5 + 1 | (a) none · (b) U16 |
+| C-12 | Client-reported provenance. 0.12.0 records tool calls a client *reported* (`EVT_SOURCE`, `source`/`source_name`), forever distinguishable from events the serve observed; the package's own boundary: the chain proves the report and when, not that a tool ran. Without this item Auditor renders a reported call exactly like an observed one — the same class of overclaim as showing wall time as proved. `source` on `RecordView`, a "reported by client" mark on the card and in both lists carrying the package's sentence, optional `source:` chip. | 1 | 0.12.0 |
 | ✓ B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra. **Merged** (Assault-Consulting/Auditor#66); see the B-12 notes below for the PIN finding it surfaced upstream. | 1 | `anchors_pkcs11` *released* |
 
 **Phase 2: ~22.5 days plus C-06d, C-07b, C-07c, C-09b, C-09c, C-09d and
@@ -297,8 +293,8 @@ silently rewrite" held only on the PIN path. Auditor's source therefore
 requires a PIN, read from a keychain account at the moment of use and never
 carried in a profile (profiles come back in full from `GET
 /anchors/profiles`). Upstream fixed the reader to refuse an unauthenticated
-read and amended ADR-0004 (Assault-Consulting/Palimpsests#260, merged, not
-yet released).
+read and amended ADR-0004 (Assault-Consulting/Palimpsests#260, released in
+0.12.0).
 
 Two things the same PR fixed on this side: the two field descriptions above
 now list four kinds, and an anchor source of *any* known kind missing what
@@ -340,6 +336,16 @@ Before Phase 4 renders any pin, the sentence is verified or replaced. It is
 currently the only claim in this application that says something is
 *impossible* rather than *absent*, and it was written from an assumption
 rather than from the package.
+
+**Closed — replaced, not verified** (Assault-Consulting/Auditor#69). Checked
+against 0.12.0: `pala/scitt.py` never consults the tier, so a tier-A head
+can be registered and receipted and the sentence asserted a limit the
+mechanism does not have. It was on screen, not only planned, so waiting for
+Phase 4 was the wrong gate. The row now says only what the file shows; a
+test forbids the impossibility wording; and the same sweep found and fixed
+a sibling — question two's tier-A caveat called any anchor "a local anchor
+store", which is now said only of a file or keychain anchor, the two that
+sit on the log's own host.
 
 ### C-06 was one PR costed before anyone had read what `RecordView` carries
 
@@ -731,20 +737,21 @@ the original estimate made in the other direction.
 
 **MVP total: not restated either, for the same reason.** It was ~73 days on
 an estimate that no longer describes Phase 3. The honest statement is that
-Phase 0 and Phase 1 are closed, and Phase 2 stands at fifteen of
-twenty-one items merged — C-01 through C-05, C-06a, C-06b, C-06c, C-07a,
-C-07b, C-08, C-09a, C-10a, C-11 and B-12 — plus C-07c in part. The
-twenty-one still counts the four splits (C-06 into four, C-09 into four,
-C-07 into three, C-10 into two). Six remain: C-06d (unstarted design),
-C-07c (partial — binary ack state and shred resolution merged,
-Assault-Consulting/Auditor#60; the richer half waits on the release
-carrying Palimpsests#236), C-09b/C-09c/C-09d, and C-10b (blocked on
-U14's still-unfixed core). Of those, C-09b and C-09c need nothing outside
-this repository, and C-09c's time jump is what the phase's own exit
-criterion ("what happened at 22:41 on 6 Aug") cannot be met without.
+Phase 0 and Phase 1 are closed, and Phase 2 stands at sixteen of
+twenty-two items merged — C-01 through C-05, C-06a, C-06b, C-06c, C-07a,
+C-07b, C-08, C-09a, C-09b, C-10a, C-11 and B-12 — plus C-07c in part. The
+twenty-two counts the four splits (C-06 into four, C-09 into four, C-07
+into three, C-10 into two) and C-12, added after 0.12.0. Six remain:
+C-06d (unstarted design), C-07c's remainder (unblocked by 0.12.0),
+C-09c, C-09d (§22.3), C-10b (re-scoped: mostly this side's work, the rest
+on U16) and C-12. C-09c is the one the phase's exit criterion ("what
+happened at 22:41 on 6 Aug") cannot be met without; C-06d and C-09d are
+the two candidates to carry past the phase's close as named, deferred
+items rather than hold it open.
+
 Phase 3 stays unquantified until D-02 and D-07 have been looked at. If
-the work has to shrink, the cut lines are C-09b onward and B-05 — not the
-tests.
+the work has to shrink, the cut lines are C-06d and C-09d — not the tests.
+(This used to name C-09b onward and B-05; both have since merged.)
 
 ## 7. Phase 4 — evidence artifacts
 
@@ -758,9 +765,10 @@ party can re-check without it.
 | E-03 | Record health: aggregation and trends over U1–U3 output; the three disciplines enforced in the UI copy | 5 | U1–U3 |
 | E-04 | Health summary into the JSON report, labelled advisory, carrying its caveats | 1 | E-03, D-01 |
 | E-05 | Local witness log: hash-chained record of checks performed, with the honest statement of what it does and does not prove | 3 | B-03 |
-| E-06 | SCITT receipts as external evidence: present a registered head and its receipt as a pin, through the seam. Registration and receipt verification are upstream's (`pala/scitt.py`); the shell displays and never mints. Gated on the pins-row sentence in §5 being verified first — a row that renders a pin while the copy says none can exist is worse than either alone. | ? | §5 pins check |
+| E-06 | SCITT receipts as external evidence: present a registered head and its receipt as a pin, through the seam. Registration and receipt verification are upstream's (`pala/scitt.py`); the shell displays and never mints. The pins-row gate is closed (§5, Auditor#69): the row no longer says a witness cannot exist. What remains is reading the receipt format against what a pin needs to show. | ? | — |
+| E-07 | Prefix-consistency proofs (0.12.0, `pala/proofs.py`: `consistency_proof`, `verify_consistency`): show that the file held is a prefix of a later chain without handing over the later chain. Pairs with segment sequences (Phase 5), which rotation already made the ordinary shape of a long-lived chain. | ? | 0.12.0 |
 
-**Phase 4: ~13.5 days plus E-06** (and U8's 4 days upstream — net neutral,
+**Phase 4: ~13.5 days plus E-06 and E-07** (and U8's 4 days upstream — net neutral,
 honestly placed). E-06 carries `?` for the same reason Phase 3's two items
 do: nobody has read the receipt format against what a pin needs to show.
 
