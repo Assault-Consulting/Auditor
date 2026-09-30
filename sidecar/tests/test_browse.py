@@ -775,6 +775,150 @@ def test_acknowledged_is_null_for_a_record_that_is_not_a_candidate(
     assert by_seq[6]["acknowledged"] is None
 
 
+# --- the oversight loop in full (C-07c) --------------------------------------
+#
+# Which ack, read both ways, from the package's own hash-verified mapping;
+# the ack's own operator and disposition; and latency — a Recorded figure,
+# same boot only.
+
+
+def test_a_candidate_names_the_ack_that_acknowledges_it(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    sid = _open(open_client, safety_heavy_chain)
+    by_seq = {r["seq"]: r for r in open_client.get(f"/session/{sid}/safety").json()["records"]}
+
+    assert by_seq[3]["acknowledged_by"] == 6
+    assert by_seq[4]["acknowledged_by"] is None  # not acknowledged
+    assert by_seq[6]["acknowledged_by"] is None  # not a candidate
+
+
+def test_an_ack_names_the_candidate_it_acknowledges(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    sid = _open(open_client, safety_heavy_chain)
+    by_seq = {r["seq"]: r for r in open_client.get(f"/session/{sid}/safety").json()["records"]}
+
+    assert by_seq[6]["acknowledges"] == 3
+    assert by_seq[3]["acknowledges"] is None
+
+
+def test_an_ack_carries_its_operator_and_disposition_as_the_package_decoded_them(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    sid = _open(open_client, safety_heavy_chain)
+    ack = open_client.get(f"/session/{sid}/record/6").json()
+
+    assert ack["operator_id"] == "01" * 16
+    assert ack["disposition"] == {"value": 1, "name": "DISMISSED"}
+
+
+def test_records_without_ack_fields_report_null_not_empty(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    sid = _open(open_client, safety_heavy_chain)
+    candidate = open_client.get(f"/session/{sid}/record/3").json()
+
+    assert candidate["operator_id"] is None
+    assert candidate["disposition"] is None
+
+
+def test_an_ack_whose_reference_does_not_verify_acknowledges_nothing(
+    open_client: TestClient, tmp_path
+) -> None:
+    """The right seq, the wrong hash. The package does not count it, and
+    neither side of the pair may look acknowledged — the advisory channel
+    is where this one is named (reference_hash_mismatch)."""
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    path = tmp_path / "broken-ack.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.incident_candidate(category=1, severity=2, detail="c")
+    candidate_seq = w.seq - 1
+    w.oversight_ack(candidate_seq, b"\xee" * 32, disposition=1, operator_id=b"\x02" * 16)
+    ack_seq = w.seq - 1
+    w.close()
+
+    sid = _open(open_client, path)
+    candidate = open_client.get(f"/session/{sid}/record/{candidate_seq}").json()
+    ack = open_client.get(f"/session/{sid}/record/{ack_seq}").json()
+
+    assert candidate["acknowledged"] is False
+    assert candidate["acknowledged_by"] is None
+    assert ack["acknowledges"] is None
+    # Its own fields are still what the writer recorded — decoded, not judged.
+    assert ack["operator_id"] == "02" * 16
+
+
+def _controlled_clock(monkeypatch, start: int, step: int):
+    import palimpsests.audit.pala_writer as pw
+
+    clock = {"now": start}
+
+    def _tick() -> int:
+        now = clock["now"]
+        clock["now"] += step
+        return now
+
+    monkeypatch.setattr(pw.time, "time_ns", _tick)
+    return clock
+
+
+def test_ack_latency_is_the_writers_clock_within_one_boot(
+    open_client: TestClient, tmp_path, monkeypatch
+) -> None:
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    _controlled_clock(monkeypatch, 1_787_000_000_000_000_000, 60_000_000_000)
+    path = tmp_path / "latency.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    candidate_hash = w.incident_candidate(category=1, severity=2, detail="c")
+    candidate_seq = w.seq - 1
+    w.model_load(b"\x11" * 32, b"\x22" * 32)  # one minute passes in between
+    w.oversight_ack(candidate_seq, candidate_hash, disposition=1, operator_id=b"\x01" * 16)
+    w.close()
+
+    sid = _open(open_client, path)
+    candidate = open_client.get(f"/session/{sid}/record/{candidate_seq}").json()
+
+    assert candidate["ack_latency_ns"] == 2 * 60_000_000_000
+
+
+def test_ack_latency_is_not_computed_across_a_boot(
+    open_client: TestClient, tmp_path, monkeypatch
+) -> None:
+    """A restart sits between the two: the clock may have been set, and a
+    number would span a period nobody observed. acknowledged_by stays —
+    the acknowledgement is a chain fact; only the subtraction is withheld."""
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    clock = _controlled_clock(monkeypatch, 1_787_000_000_000_000_000, 1_000_000_000)
+    path = tmp_path / "crossboot.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    candidate_hash = w.incident_candidate(category=1, severity=2, detail="c")
+    candidate_seq = w.seq - 1
+    w.close()
+    clock["now"] += 3_600_000_000_000
+
+    w2 = PalaWriter.open_existing(path)
+    w2.boot()
+    w2.oversight_ack(candidate_seq, candidate_hash, disposition=1, operator_id=b"\x01" * 16)
+    ack_seq = w2.seq - 1
+    w2.close()
+
+    sid = _open(open_client, path)
+    candidate = open_client.get(f"/session/{sid}/record/{candidate_seq}").json()
+
+    assert candidate["acknowledged_by"] == ack_seq
+    assert candidate["ack_latency_ns"] is None
+
+
 def test_a_shredded_record_reports_its_shredder(
     open_client: TestClient, tmp_path
 ) -> None:
