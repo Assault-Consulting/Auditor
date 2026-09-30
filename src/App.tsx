@@ -468,8 +468,8 @@ export default function App() {
               ))}
             </ol>
 
-            {/* Always present, and at tier A always empty. An absent row
-                would read as "not implemented". */}
+            {/* Always present, and empty until pins are read from a file
+                (E-06). An absent row would read as "not implemented". */}
             <p className="rail-pins">{rail.pins_note}</p>
           </section>
         )}
