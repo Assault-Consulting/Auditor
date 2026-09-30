@@ -41,7 +41,11 @@ export type Standing =
   | "answered-no"
   /** Nothing asked it. Never rendered as a pass (L7). */
   | "not-checked"
-  /** Nothing on this platform could answer it. Not a failure of the log. */
+  /**
+   * Nothing in this file can answer it — no witness is present. Not a
+   * failure of the log, and not a claim that nothing could: the absence
+   * is the file's, not the platform's.
+   */
   | "unavailable";
 
 export interface Panel {
@@ -65,6 +69,16 @@ function tierPhrase(subject: ChainSubject): string {
   // the sentence has to say so rather than pick a winner.
   return `mixed tiers ${names.join(", ")}`;
 }
+
+/**
+ * Anchor sources that live on the same host as the log they vouch for.
+ *
+ * A file anchor and a keychain entry sit beside the chain; at tier A nothing
+ * stops the host that can rewrite the log from rewriting them too. A manual
+ * head (handed over by someone else) and a PKCS#11 token (a private object
+ * behind a PIN) do not share that exposure, so they do not get the caveat.
+ */
+const HOST_LOCAL_SOURCES: ReadonlySet<string> = new Set(["file", "keychain"]);
 
 /** Whether every record was written under tier A — the floor. */
 function isTierAOnly(subject: ChainSubject): boolean {
@@ -176,9 +190,16 @@ function completeness(v: VerificationResponse, subject: ChainSubject): Panel {
       index: "02",
       question,
       standing: "answered-yes",
-      answer: isTierAOnly(subject)
-        ? `Complete to the head held by ${from}. At tier A that means complete against a local anchor store, nothing more.`
-        : `Complete to the head held by ${from}.`,
+      // The caveat is about WHERE the head was kept, not about the tier
+      // alone. It used to fire for any tier-A chain and call the anchor "a
+      // local anchor store" — wrong for a head pasted from an independent
+      // party (manual) or read from a token (pkcs11). The real limit is
+      // narrower and stated as such: a head kept on the same host as a
+      // tier-A log (a file, the OS keychain) can be rewritten with it.
+      answer:
+        isTierAOnly(subject) && v.anchor !== null && HOST_LOCAL_SOURCES.has(v.anchor.source_kind)
+          ? `Complete to the head held by ${from}. At tier A a head kept on the same host as the log can be rewritten with it — this is complete against that store, nothing more.`
+          : `Complete to the head held by ${from}.`,
       basis: `Proved against ${from}`,
     };
   }
@@ -200,10 +221,11 @@ function completeness(v: VerificationResponse, subject: ChainSubject): Panel {
 /**
  * Question three: did this history exist at time T?
  *
- * At tier A there is no external evidence to have. That is honest and it is
- * not a defect in the log — it is a property of the platform it was written
- * on, and the panel is the standing argument for a tier upgrade rather than
- * an error to be cleared.
+ * Answered from what this file carries, and only that: no witness is present
+ * in it. That is not a defect in the log, and it is not a claim that none
+ * could exist — an external witness (a SCITT receipt over a published head,
+ * for instance) is tier-independent, checked against palimpsests 0.12.0.
+ * The panel reports an absence; it never asserts an impossibility.
  */
 function existence(subject: ChainSubject): Panel {
   const question = "Did this history exist at time T?";
