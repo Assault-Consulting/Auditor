@@ -282,14 +282,23 @@ group("clock steps", () => {
 // --- the pins row is empty and says why -------------------------------------
 
 group("external evidence", () => {
-  it("is present and empty at tier A", () => {
+  it("is present and empty when the file carries no witness", () => {
     // An absent row reads as "not implemented". An empty row with its note
     // reads as "this file contains no external witness", which is the true
     // and useful statement.
     const rail = chronoscope(timeline());
     expect(rail.pins).toEqual([]);
     expect(rail.pins_note).toContain("No external witness");
-    expect(rail.pins_note).toContain("property of the platform");
+  });
+
+  it("states an absence, never an impossibility", () => {
+    // A tier-A chain CAN carry an external witness — SCITT registration is
+    // tier-independent (checked against palimpsests 0.12.0). The note must
+    // say what this file lacks, not what the platform cannot have.
+    const note = chronoscope(timeline()).pins_note.toLowerCase();
+    for (const claim of ["none to have", "cannot", "impossible", "property of the platform"]) {
+      expect(note).not.toContain(claim);
+    }
   });
 });
 
