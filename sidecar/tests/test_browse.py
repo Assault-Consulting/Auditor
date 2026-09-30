@@ -393,6 +393,86 @@ def test_filters_and_paging_compose(open_client: TestClient, chain_path) -> None
     assert page["has_more"] is True
 
 
+# --- filters by name (C-09b) ------------------------------------------------
+#
+# The chips a reader types — kind:, type:, tier: — are names, and the only
+# authority on a name is the package. These filters compare against the name
+# the package resolved on each record, so no name-to-number table exists
+# anywhere on this side of the seam to drift from it.
+
+
+def test_a_type_name_filter_matches_what_the_record_card_shows(
+    open_client: TestClient, chain_path
+) -> None:
+    sid = _open(open_client, chain_path)
+    page = open_client.get(f"/session/{sid}/records?type_name=SAFETY").json()
+
+    assert [r["type_name"] for r in page["records"]] == ["SAFETY"]
+    assert page["total"] == 1
+
+
+def test_a_kind_name_filter_keeps_only_that_kind(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    sid = _open(open_client, safety_heavy_chain)
+    page = open_client.get(
+        f"/session/{sid}/records?kind_name=INCIDENT_CANDIDATE"
+    ).json()
+
+    assert page["total"] == 3
+    assert {r["kind_name"] for r in page["records"]} == {"INCIDENT_CANDIDATE"}
+
+
+def test_a_tier_filter_uses_the_package_tier_name(
+    open_client: TestClient, chain_path
+) -> None:
+    """The fixture's writer defaults to tier A. Asking for A keeps
+    everything; asking for B keeps nothing — an empty answer, not an
+    error, the same as any other filter on a value that is not there."""
+    sid = _open(open_client, chain_path)
+    tiers = {
+        r["assurance_tier"]["name"]
+        for r in open_client.get(f"/session/{sid}/records").json()["records"]
+    }
+    assert tiers == {"A"}
+
+    assert open_client.get(f"/session/{sid}/records?tier=A").json()["total"] == 5
+    assert open_client.get(f"/session/{sid}/records?tier=B").json()["total"] == 0
+
+
+def test_name_filters_are_exact_not_case_folded(
+    open_client: TestClient, chain_path
+) -> None:
+    """The names are the package's. Folding case here would be a second
+    opinion about what a name is — the chip parser normalises what a
+    person typed, the endpoint does not guess."""
+    sid = _open(open_client, chain_path)
+    assert open_client.get(f"/session/{sid}/records?type_name=safety").json()["total"] == 0
+
+
+def test_name_filters_compose_with_the_others(
+    open_client: TestClient, safety_heavy_chain
+) -> None:
+    sid = _open(open_client, safety_heavy_chain)
+    boot_id = open_client.get(f"/session/{sid}/boots").json()[0]["boot_id"]
+    page = open_client.get(
+        f"/session/{sid}/records?type_name=SAFETY&kind_name=OVERSIGHT_ACK&boot_id={boot_id}"
+    ).json()
+
+    assert page["total"] == 1
+    assert page["records"][0]["kind_name"] == "OVERSIGHT_ACK"
+
+
+def test_an_unknown_name_is_an_empty_answer(
+    open_client: TestClient, chain_path
+) -> None:
+    sid = _open(open_client, chain_path)
+    page = open_client.get(f"/session/{sid}/records?kind_name=NO_SUCH_KIND").json()
+
+    assert page["records"] == []
+    assert page["total"] == 0
+
+
 # --- one record -------------------------------------------------------------
 
 

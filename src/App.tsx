@@ -19,7 +19,7 @@
  * split is what let the wording acquire tests.
  */
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 import { advisoryGroups, advisoryLine } from "./api/advisory";
 import { choiceLine, footnoteFor, panelsFor, rowsFor } from "./api/bootScreen";
@@ -27,7 +27,8 @@ import { chainLine, openedOf } from "./api/chainState";
 import { backwards, compress, compressionLine, density } from "./api/chronoscope";
 import { diagnosisCard } from "./api/diagnosis";
 import { provenance, provenanceSummary } from "./api/provenance";
-import { nextWarning, parseSearch } from "./api/search";
+import { type RecordFilters, resolveChips } from "./api/filters";
+import { type Chip, chipLabel, nextWarning, parseSearch } from "./api/search";
 import { safetyGroupKey } from "./api/safety";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords, useSafety } from "./state";
 
@@ -43,8 +44,22 @@ export default function App() {
   const rail = useRail(probe, chain);
   const { boots, spans } = useBrowse(probe, chain);
   const safety = useSafety(probe, chain);
+  // C-09b: the chips the list is currently narrowed by, and the query they
+  // resolved to. Kept together so the heading can always say which chips
+  // produced the rows under it.
+  const [activeChips, setActiveChips] = useState<Chip[]>([]);
+  const [recordFilters, setRecordFilters] = useState<RecordFilters>({});
   const { page: recordsPage, next: recordsNext, prev: recordsPrev, canGoBack: recordsCanGoBack } =
-    useRecords(probe, chain, RECORDS_PAGE_SIZE);
+    useRecords(probe, chain, RECORDS_PAGE_SIZE, recordFilters);
+  // Chips belong to the file they were typed against. A boot id resolved
+  // in one container names nothing in the next, and carried over it would
+  // show the new file as "no records match these filters" — a statement
+  // about a question nobody asked of it.
+  const openedSessionId = openedOf(chain)?.session_id;
+  useEffect(() => {
+    setActiveChips([]);
+    setRecordFilters({});
+  }, [openedSessionId]);
   const { record, select } = useRecord(probe, chain);
   // Kept in lockstep with the record card rather than driven separately —
   // origin is F9's card "on any selected record", and next-warning below
@@ -73,14 +88,30 @@ export default function App() {
     if (outcome.kind === "seq") {
       setSearchNote(null);
       select(outcome.seq);
-    } else {
-      // Named plainly rather than silently ignored: typing a filter chip
-      // or free text into this bar today would otherwise look accepted
-      // and then do nothing.
-      setSearchNote(
-        "only #<seq> works here so far — free text, filter chips and time jump are not built yet (F10)",
-      );
+      return;
     }
+    if (outcome.kind === "unsupported") {
+      // Named plainly rather than silently ignored — and the list is left
+      // as it was, not half-filtered by whatever part of the input parsed.
+      setSearchNote(outcome.reason);
+      return;
+    }
+    const resolved = resolveChips(outcome.chips, {
+      boots: boots.kind === "loaded" ? boots.rows.map((b) => b.boot_id) : null,
+      spans: spans.kind === "loaded" ? spans.rows.map((s) => s.span_id) : null,
+    });
+    if (resolved.kind === "refused") {
+      setSearchNote(resolved.reason);
+      return;
+    }
+    setSearchNote(null);
+    setActiveChips(outcome.chips);
+    setRecordFilters(resolved.filters);
+  };
+
+  const clearFilters = () => {
+    setActiveChips([]);
+    setRecordFilters({});
   };
 
   // Present only when the verifier produced a diagnosis, which is only when
@@ -531,9 +562,9 @@ export default function App() {
           </section>
         )}
 
-        {/* C-11 — the records list. Filter chips (C-09b) will narrow it
-            and C-10 will virtualise it; neither could mean anything
-            until a list existed to narrow or virtualise. Rows are
+        {/* C-11 — the records list, narrowed by the bar's filter chips
+            (C-09b). C-10 chose paging over virtual scroll for it; neither
+            could mean anything until a list existed. Rows are
             clickable and drive the same `select` the search bar and the
             origin card's jump already use — one selection mechanism,
             not a second. */}
@@ -543,12 +574,33 @@ export default function App() {
               Records
             </h2>
 
+            {/* The chips the rows below answer to, always on screen while
+                they apply — a filtered list that did not say so would read
+                as the whole file. */}
+            {activeChips.length > 0 && (
+              <div className="records-filters">
+                <span className="records-filters-label">filtered by</span>
+                {activeChips.map((chip) => (
+                  <code className="records-chip" key={chip.key}>
+                    {chipLabel(chip)}
+                  </code>
+                ))}
+                <button onClick={clearFilters} type="button">
+                  clear
+                </button>
+              </div>
+            )}
+
             {recordsPage.kind === "failed" && (
               <p className="records-failed">{recordsPage.detail}</p>
             )}
 
             {recordsPage.kind === "found" && recordsPage.value.rows.length === 0 && (
-              <p className="records-empty">No records match this window.</p>
+              <p className="records-empty">
+                {activeChips.length > 0
+                  ? "No records in this file match these filters."
+                  : "No records match this window."}
+              </p>
             )}
 
             {recordsPage.kind === "found" && recordsPage.value.rows.length > 0 && (
@@ -613,7 +665,7 @@ export default function App() {
                 <span className="search-hint">search</span>
                 <input
                   onChange={(e) => setSearchField(e.target.value)}
-                  placeholder="#1447"
+                  placeholder="#1447  or  kind:INCIDENT_CANDIDATE boot:3fa9"
                   type="text"
                   value={searchField}
                 />

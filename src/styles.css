@@ -871,6 +871,44 @@ body {
   margin: 0 0 calc(var(--step) * 1.5);
 }
 
+/* The chips the list below answers to (C-09b). Present whenever they
+   apply, because a narrowed list that did not say so would read as the
+   whole file. Slate, not a truth-value colour: a filter is the reader's
+   question, not a fact about the chain. */
+.records-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.6);
+  margin: 0 0 calc(var(--step) * 1.2);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
+.records-chip {
+  font-family: var(--mono);
+  color: var(--vellum);
+  border: 1px solid var(--rule);
+  padding: 0.05em 0.5em;
+}
+
+.records-filters button {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--vellum-dim);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.records-filters button:hover {
+  color: var(--vellum);
+}
+
 .records-empty {
   margin: 0;
   font-size: 0.86rem;
@@ -1018,7 +1056,10 @@ body {
   background: var(--ink-raised);
   border: 1px solid var(--rule);
   padding: calc(var(--step) * 0.5) var(--step);
-  width: 8ch;
+  /* Wide enough for a chip query, not only a seq: `#1447` fit in eight
+     characters, `kind:INCIDENT_CANDIDATE boot:3fa9` does not (C-09b). */
+  width: 36ch;
+  max-width: 100%;
 }
 
 .search-bar button {

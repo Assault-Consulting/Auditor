@@ -2,57 +2,118 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * F10 — search and jumps, the slice buildable without a records list.
+ * F10 — search and jumps: seq jump and filter chips.
  *
  * F10 specifies "one bar, four behaviours" (free text over `detail`, filter
  * chips, time jump, seq jump) plus three quick buttons (next warning, first
- * record, anchor). This module is deliberately not all of it:
+ * record, anchor). What this module reads today:
  *
- * - Free text is `FUNCTIONALITY.md` §22's own open question ("is free-text
- *   search over `detail` MVP or fast-follow?") — undecided, and there is no
- *   `detail` field on a record to search yet regardless (that is C-06d's
- *   decoded-body territory). Building it would answer a product question
- *   this module has no authority to answer.
- * - Filter chips (`kind:`, `type:`, `span:`, `boot:`, `tier:`, date range)
- *   narrow *which records a list shows* — and this application has no
- *   records-list view to narrow. `/records` supports it server-side since
- *   C-01; nothing client-side renders more than one record at a time yet.
- *   Tracked in `DEVELOPMENT-PLAN.md` as a real gap, not silently deferred.
- * - Time jump needs the nearest record to a wall-clock instant, which
- *   `/records` cannot answer today — offset is by seq, not by time.
- * - The **anchor** quick button needs a record's own hash to know which
- *   record the configured anchor's head names, which does not exist on
- *   this side of the seam yet (U10, C-06c).
+ * - **Seq jump**, `#1447` (C-09a).
+ * - **Filter chips** (C-09b): `kind:`, `type:`, `tier:`, `boot:`, `span:`,
+ *   space-separated and ANDed, narrowing C-11's records list. `kind`,
+ *   `type` and `tier` are names, upper-cased here because that is how the
+ *   package spells them and how the record card shows them; the sidecar
+ *   then matches them exactly against the name the package resolved — no
+ *   name-to-number table exists on this side. `boot` and `span` are hex
+ *   prefixes, because the screen shows eight characters, never sixty-four;
+ *   `api/filters.ts` resolves a prefix against the lists already loaded.
  *
- * What is left — seq jump and two of the three quick buttons — needs
- * nothing this application does not already have.
+ * What it still does not read, and says so rather than ignoring:
+ *
+ * - Free text over `detail` — `FUNCTIONALITY.md` §22.3's open question.
+ *   The data exists since C-07b; the product decision does not.
+ * - Date range and time jump (C-09c) — both are about the writer's wall
+ *   clock, and belong together.
  */
 
 import type { AdvisoryItemModel } from "./generated/types";
 
+/** The chip keys this build reads. */
+export type ChipKey = "kind" | "type" | "tier" | "boot" | "span";
+
+const CHIP_KEYS: readonly ChipKey[] = ["kind", "type", "tier", "boot", "span"];
+
+/** One `key:value` token, normalised. */
+export interface Chip {
+  key: ChipKey;
+  value: string;
+}
+
 /** What the bar was asked to do, once parsed. */
 export type SearchOutcome =
   | { kind: "seq"; seq: number }
-  | { kind: "unsupported"; raw: string };
+  | { kind: "filters"; chips: Chip[] }
+  | { kind: "unsupported"; raw: string; reason: string };
 
 const SEQ_SYNTAX = /^#(\d+)$/;
+const CHIP_SYNTAX = /^([a-z]+):(\S+)$/i;
+const HEX = /^[0-9a-f]+$/;
+
+const NOT_YET =
+  "free text, date range and time jump are not built yet (F10, C-09c/C-09d)";
+
+function unsupported(raw: string, reason: string): SearchOutcome {
+  return { kind: "unsupported", raw, reason };
+}
 
 /**
  * Parse the bar's input against F10's own syntax.
  *
  * `null` for blank input — there is nothing to search for, not a failed
- * search. Anything that is not exactly `#<digits>` is reported as
- * `unsupported` rather than silently ignored or guessed at: a filter chip
- * or a time jump typed into this bar today would otherwise look accepted
- * and then do nothing, which is worse than saying plainly that this slice
- * does not read it yet.
+ * search. `#<digits>` alone is a seq jump. Otherwise every space-separated
+ * token must be a chip this build reads; the first one that is not makes
+ * the whole input `unsupported`, with a reason that names it. Half-applying
+ * a query — filtering by the chips that parsed and dropping the word that
+ * did not — would show a list that answers a different question from the
+ * one typed, under the typed question's heading.
  */
 export function parseSearch(raw: string): SearchOutcome | null {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
-  const match = SEQ_SYNTAX.exec(trimmed);
-  if (match) return { kind: "seq", seq: Number(match[1]) };
-  return { kind: "unsupported", raw: trimmed };
+
+  const seq = SEQ_SYNTAX.exec(trimmed);
+  if (seq) return { kind: "seq", seq: Number(seq[1]) };
+
+  const chips: Chip[] = [];
+  for (const token of trimmed.split(/\s+/)) {
+    const match = CHIP_SYNTAX.exec(token);
+    if (!match) {
+      return unsupported(
+        trimmed,
+        `"${token}" is not #<seq> or a filter chip — ${NOT_YET}`,
+      );
+    }
+    const key = match[1]!.toLowerCase();
+    if (!(CHIP_KEYS as readonly string[]).includes(key)) {
+      return unsupported(
+        trimmed,
+        `"${key}:" is not a chip this build reads — it reads ${CHIP_KEYS.map((k) => `${k}:`).join(", ")}`,
+      );
+    }
+    const chipKey = key as ChipKey;
+    if (chips.some((c) => c.key === chipKey)) {
+      // Two of the same key would be ANDed into a list that is always
+      // empty (a record has one kind, one boot) — refused rather than
+      // shown as a result.
+      return unsupported(trimmed, `"${key}:" appears twice — one value per chip`);
+    }
+    let value = match[2]!;
+    if (chipKey === "boot" || chipKey === "span") {
+      value = value.toLowerCase();
+      if (!HEX.test(value)) {
+        return unsupported(trimmed, `"${key}:${match[2]}" — a ${key} id is hexadecimal`);
+      }
+    } else {
+      value = value.toUpperCase();
+    }
+    chips.push({ key: chipKey, value });
+  }
+  return { kind: "filters", chips };
+}
+
+/** A chip, written back the way a person would type it. */
+export function chipLabel(chip: Chip): string {
+  return `${chip.key}:${chip.value}`;
 }
 
 /**

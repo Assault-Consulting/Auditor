@@ -632,6 +632,9 @@ class ChainHandle:
         record_type: int | None = None,
         boot_id: str | None = None,
         span_id: str | None = None,
+        type_name: str | None = None,
+        kind_name: str | None = None,
+        tier: str | None = None,
     ) -> dict[str, object]:
         """A window onto the records, with the header fields for each.
 
@@ -658,6 +661,15 @@ class ChainHandle:
         or the literal "none" — would decide their vocabulary from the
         wrong end.
 
+        `type_name`, `kind_name` and `tier` filter by **name** (C-09b), and
+        by the name the package itself resolves on each record — never by a
+        name-to-number table kept on this side of the seam. A filter chip
+        typed as `kind:INCIDENT_CANDIDATE` therefore means exactly what the
+        record card shows as its kind, and a kind this build cannot name
+        (`kind_name` null) is simply never matched by a name. Matching is
+        exact: the names are the package's, and case-folding them here would
+        be a small second opinion about what a name is.
+
         Body TLVs are reported as **type and length, not content**. Bodies
         may be encrypted, and a records list is a structural view; showing
         what is inside a record is C-06d's job (`DEVELOPMENT-PLAN.md`, §5)
@@ -682,7 +694,9 @@ class ChainHandle:
             shredded = self._reader.shredded_targets()
         detail_counts = self._detail_counts(records)
         for record in records:
-            if not self._matches(record, record_type, boot_id, span_id):
+            if not self._matches(
+                record, record_type, boot_id, span_id, type_name, kind_name, tier
+            ):
                 continue
             matched += 1
             if record.seq < offset:
@@ -713,6 +727,9 @@ class ChainHandle:
         record_type: int | None,
         boot_id: str | None,
         span_id: str | None,
+        type_name: str | None = None,
+        kind_name: str | None = None,
+        tier: str | None = None,
     ) -> bool:
         """Whether a record passes the filters, all of which are ANDed."""
         if record_type is not None and record.record_type != record_type:
@@ -720,6 +737,12 @@ class ChainHandle:
         if boot_id is not None and record.header.boot_id.hex() != boot_id:
             return False
         if span_id is not None and _span_or_none(record.header.span_id) != span_id:
+            return False
+        if type_name is not None and record.type_name != type_name:
+            return False
+        if kind_name is not None and record.kind_name != kind_name:
+            return False
+        if tier is not None and assurance_tier_name(record.header.assurance_tier) != tier:
             return False
         return True
 

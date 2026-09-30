@@ -334,6 +334,30 @@ def build_app(token: str | None = None) -> FastAPI:
         span_id: str | None = Query(
             default=None, description="Keep only records carrying this span."
         ),
+        type_name: str | None = Query(
+            default=None,
+            description=(
+                "Keep only records whose type the package names this, e.g. "
+                "'SAFETY'. Matched against the name the package resolves, "
+                "exactly — no name-to-number table exists on this side."
+            ),
+        ),
+        kind_name: str | None = Query(
+            default=None,
+            description=(
+                "Keep only records whose kind the package names this, e.g. "
+                "'INCIDENT_CANDIDATE'. A kind this build cannot name is never "
+                "matched by a name."
+            ),
+        ),
+        tier: str | None = Query(
+            default=None,
+            description=(
+                "Keep only records whose assurance tier the package names "
+                "this: 'A', 'B' or 'B+'. There is no 'C' — tier C is asserted "
+                "post-hoc by a witness record, never by a header."
+            ),
+        ),
     ) -> RecordPage:
         """A window onto the records, as structure rather than content.
 
@@ -350,6 +374,9 @@ def build_app(token: str | None = None) -> FastAPI:
                 record_type=record_type,
                 boot_id=boot_id,
                 span_id=span_id,
+                type_name=type_name,
+                kind_name=kind_name,
+                tier=tier,
             )
         )
 
