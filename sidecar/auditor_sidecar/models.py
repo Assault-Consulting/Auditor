@@ -650,10 +650,55 @@ class RecordView(BaseModel):
             "every other kind — 'not acknowledged' and 'not the kind "
             "of record that gets acknowledged' are different facts, "
             "and collapsing them to false would claim something about "
-            "a record that never made the claim. Membership only: "
-            "which ack, and its own operator or disposition, is not "
-            "carried here yet — that needs a richer upstream shape, "
-            "released but not yet in a package release."
+            "a record that never made the claim. Which ack is "
+            "`acknowledged_by`."
+        )
+    )
+    acknowledged_by: int | None = Field(
+        description=(
+            "For an INCIDENT_CANDIDATE: the seq of the OVERSIGHT_ACK "
+            "that acknowledges it, from the package's hash-verified "
+            "resolution (acknowledged_candidates(), 0.12.0). Null when "
+            "not acknowledged, and for every other kind. An ack whose "
+            "reference does not verify never appears here; the "
+            "advisory channel names it instead."
+        )
+    )
+    acknowledges: int | None = Field(
+        description=(
+            "For an OVERSIGHT_ACK: the seq of the candidate it "
+            "verifiably acknowledges — the same resolution read "
+            "backwards. Null for an ack whose reference does not "
+            "verify, which must not look like it acknowledges anything, "
+            "and for every other kind."
+        )
+    )
+    ack_latency_ns: int | None = Field(
+        description=(
+            "For an acknowledged INCIDENT_CANDIDATE: wall_clock(ack) − "
+            "wall_clock(candidate), a RECORDED figure — two claims of "
+            "the writer's clock subtracted, never proved. Computed only "
+            "when both records are in the same boot: across a restart "
+            "the clock may have been set, and a number would span a "
+            "period nobody observed. acknowledged_by non-null with this "
+            "null means exactly that — a cross-boot pair. Can be "
+            "negative, when the writer's clock went backwards; shown as "
+            "it is rather than clamped."
+        )
+    )
+    operator_id: str | None = Field(
+        description=(
+            "For an OVERSIGHT_ACK: the operator id the writer recorded, "
+            "hex. Pseudonymous by design (16 bytes the writer chose); "
+            "this application never resolves it to a person. Null for "
+            "every record that carries none."
+        )
+    )
+    disposition: NamedValue | None = Field(
+        description=(
+            "For an OVERSIGHT_ACK: the disposition the writer recorded, "
+            "with the package's name for it (e.g. DISMISSED). Null for "
+            "every record that carries none."
         )
     )
     shredded_by: int | None = Field(
