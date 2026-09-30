@@ -164,10 +164,18 @@ class Pkcs11PinnedAnchor:
 
     Failure mapping, all to ``AnchorSourceError`` so the chain records the
     link and walks on: no PIN stored under that account; the secret store
-    unreachable; the ``[pkcs11]`` extra not installed. The last one matters
-    because ``Pkcs11Unavailable`` is a plain ``RuntimeError`` upstream —
-    unconverted, it would escape ``ChainedAnchorSource`` and turn one
-    misconfigured link into a 500 for the whole verification.
+    unreachable; the ``[pkcs11]`` extra not installed. The last one mattered
+    because ``Pkcs11Unavailable`` is a plain ``RuntimeError`` — unconverted,
+    it escaped ``ChainedAnchorSource`` and turned one misconfigured link
+    into a 500 for the whole verification. Since 0.12.0 the package itself
+    converts it on the read path (upstream F2, reported from here); the
+    conversion below is now redundant and kept deliberately — it costs
+    nothing, and it keeps this link's failure mapping true on its own
+    rather than only as long as upstream's stays.
+
+    Upstream also now refuses a PIN-less read outright (0.12.0, F1). The
+    PIN requirement here predates that and is kept for its own reason:
+    the PIN lives in the keychain, never in a profile.
     """
 
     source_kind = "pkcs11"
@@ -334,14 +342,18 @@ class ChainHandle:
     def __init__(self, reader: AuditReader, path: Path) -> None:
         self._reader = reader
         self._path = path
-        # AuditReader documents no thread-safety guarantee, and its own
-        # decode cache (_decoded_records) has none: a fresh reader asked
-        # for records/safety/timeline together — exactly what the
-        # frontend does on chain-open — lets each request see the cache
-        # unset and independently decode the whole chain. Measured on a
-        # 100k-record fixture: decode() called 300006 times for 100002
-        # records, and wall time worse than plain sequential (6.8s vs a
-        # single decode's 1.66s), not "serialized for free" by the GIL.
+        # Before 0.12.0, AuditReader's decode cache (_decoded_records)
+        # had no lock: a fresh reader asked for records/safety/timeline
+        # together — exactly what the frontend does on chain-open — let
+        # each request see the cache unset and decode the whole chain
+        # independently. Measured on a 100k-record fixture: decode()
+        # called 300006 times for 100002 records, 6.8s against 1.66s.
+        # 0.12.0 fills that cache under a lock of its own (upstream F3,
+        # reported from here). This lock stays anyway: it is cheap, it
+        # still makes each multi-call read below (records, then acks,
+        # then shreds) one consistent view, and it is the one place a
+        # future non-thread-safe reader method would be covered by
+        # default rather than by remembering to.
         # RLock rather than Lock: verify() calls self.container()
         # directly. That follow-up landed (0.11.0 released container()'s
         # own reader= wiring) — but verify()'s own `with self._lock:`
@@ -381,10 +393,12 @@ class ChainHandle:
         ``build_report``'s own docstring is explicit that ``anchor_source``
         is *ignored* when ``reader`` is given, since a shared reader
         answers with its own anchor — and ``self._reader`` was opened with
-        none. Passing both here would silently check the file against no
-        anchor while the caller asked for a specific one. So that path
-        keeps paying the second full pass (U14, tracked upstream) rather
-        than risk answering the wrong question quickly.
+        none. Before 0.12.0, passing both silently checked the file
+        against no anchor while the caller asked for a specific one; since
+        0.12.0 (upstream F4, reported from here) the package refuses the
+        combination with ``ValueError`` — which this method never
+        triggers, because the two paths stay apart. The override path
+        still pays a second open, by necessity.
         """
         specs = anchor_specs or []
         if specs:
@@ -828,11 +842,10 @@ class ChainHandle:
             # other kind — "not acknowledged" and "not the kind of record
             # that gets acknowledged" are different facts, and collapsing
             # them to False would say something about a GENESIS record
-            # that GENESIS never claimed. `in` reads correctly against
-            # acknowledged_candidates()'s current set[int] and its
-            # future dict[int, int] alike (0.11.0; richer shape pending
-            # an upstream release, Assault-Consulting/Palimpsests#236) —
-            # membership, not the value, is all this field needs.
+            # that GENESIS never claimed. `in` is membership on the
+            # dict[candidate_seq, ack_seq] 0.12.0 returns (Palimpsests
+            # #236) exactly as it was on 0.11.0's set — this field needs
+            # only membership; which ack is C-07c's remainder.
             "acknowledged": (record.seq in acknowledged)
             if record.kind == KIND_INCIDENT_CANDIDATE
             else None,
@@ -1158,12 +1171,11 @@ class ChainHandle:
         second one.
 
         **What `acknowledged` does not yet carry: which ack, or its own
-        operator and disposition.** `acknowledged_candidates()` as
-        released in 0.11.0 answers membership only — this view can say
-        *whether*, not *by whom* or *when*. Showing that needs the
-        richer `candidate_seq → ack_seq` mapping requested upstream
-        (Assault-Consulting/Palimpsests#236, merged but not yet
-        released) — tracked as the rest of C-07c once it is.
+        operator and disposition.** This view says *whether*, not *by
+        whom* or *when*. Everything needed to say the rest is now in the
+        package — the `candidate_seq → ack_seq` mapping (0.12.0,
+        Palimpsests#236) and the ack's own `operator_id`/`disposition`
+        (0.11.0) — and wiring it through is C-07c's remainder.
 
         The response has the exact shape of `records()`'s window, reused
         rather than given a shape of its own: `total` counts SAFETY
