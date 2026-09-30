@@ -20,24 +20,22 @@ dependencies = [
     # [pala] adds cryptography for encrypted record bodies; header-only
     # verification is stdlib and needs nothing.
     #
-    # 0.11.0 released U10-U15 (record_hash, unloaded_at, detail,
-    # acknowledged_candidates, operator_id/disposition, shredded_targets)
-    # and anchors_pkcs11 — the reason for this bump, unblocking C-06c,
-    # C-07b, C-07c, C-08(b) and B-12 in DEVELOPMENT-PLAN.md.
+    # 0.12.0 closes the findings reported from this repository while
+    # wiring 0.11.0 in: the PKCS#11 no-PIN read (F1, a security fix) and
+    # its missing-extra escape (F2), the unlocked decode cache (F3), and
+    # build_report silently dropping an anchor passed with a reader (F4).
+    # It also changes acknowledged_candidates() from a set to a
+    # dict[candidate_seq, ack_seq] (#236) — breaking for set algebra,
+    # which nothing here does; membership reads the same.
     #
-    # Not what this bump fixes: U14's core cost. build_report()'s
-    # reader= parameter is wired into ChainHandle.container() as of this
-    # same release (no anchor override; the anchor-override path still
-    # cannot use it — see container()'s own docstring for why), which
-    # removes one of several redundant costs docs/U14-decode-
-    # performance.md names. It does not touch AuditReader's own eager
-    # decode (that document's finding 1, closed here by A1's lock, is
-    # the only one of six actually closed) or the file-read-plus-body-
-    # hash pass build_report() still runs unconditionally (finding 2,
-    # still open). A future bump justified by U14 progress needs its
-    # own honest accounting, not an assumption that this one already
-    # gave it.
-    "palimpsests[pala]>=0.11,<0.12",
+    # What it does and does not do for U14, measured here on a 1M-record
+    # (250 MB) chain rather than taken from the changelog: verify() plus
+    # build_report(reader=) takes 11.3 s / 421 MB, where 0.11.0 could
+    # not finish; records() still materialises every record (16.9 s,
+    # 1.9 GB), and that is the path this seam still walks for record
+    # windows, timelines and subject counts. C-10b is therefore mostly
+    # this side's work now — see DEVELOPMENT-PLAN.md.
+    "palimpsests[pala]>=0.12,<0.13",
 ]
 
 [project.optional-dependencies]
@@ -76,7 +74,7 @@ keyring = [
 # anchor source works without them, and a pkcs11 source configured without
 # the extra reports "error" for its own link rather than failing the check.
 pkcs11 = [
-    "palimpsests[pkcs11]>=0.11,<0.12",
+    "palimpsests[pkcs11]>=0.12,<0.13",
     "keyring>=25.0",
 ]
 
