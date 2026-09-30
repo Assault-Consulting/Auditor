@@ -41,6 +41,11 @@ function view(over: Partial<RecordView> = {}): RecordView {
     shredded_by: null,
     detail: null,
     recurrence_count: null,
+    acknowledged_by: null,
+    acknowledges: null,
+    ack_latency_ns: null,
+    operator_id: null,
+    disposition: null,
     ...over,
   };
 }
@@ -228,5 +233,67 @@ group("the envelope", () => {
     // different fact from "this detail never recurs".
     const card = recordCard(view({ recurrence_count: null }));
     expect(card.recurrenceCount).toBeNull();
+  });
+});
+
+// --- the oversight loop in full (C-07c) -------------------------------------
+
+group("which ack, read both ways", () => {
+  it("carries the ack that acknowledges a candidate", () => {
+    const card = recordCard(view({ acknowledged: true, acknowledged_by: 6, ack_latency_ns: 0 }));
+    expect(card.acknowledgedBy).toBe(6);
+  });
+
+  it("carries the candidate an ack acknowledges, and its own fields", () => {
+    const card = recordCard(
+      view({
+        acknowledges: 3,
+        operator_id: "01".repeat(16),
+        disposition: { value: 1, name: "DISMISSED" },
+      }),
+    );
+    expect(card.acknowledges).toBe(3);
+    expect(card.operatorId).toBe("01".repeat(16));
+    expect(card.disposition?.name).toBe("DISMISSED");
+  });
+});
+
+group("ack latency says whose clock, and when it cannot be said", () => {
+  it("is absent for a candidate nobody acknowledged", () => {
+    expect(recordCard(view({ acknowledged: false })).ackLatency).toBeNull();
+  });
+
+  it("names the writer's clock when it is measured", () => {
+    const card = recordCard(
+      view({ acknowledged: true, acknowledged_by: 6, ack_latency_ns: 125_000_000_000 }),
+    );
+    expect(card.ackLatency).toEqual({
+      kind: "measured",
+      ns: 125_000_000_000,
+      text: "2 min 5 s later, by the writer's clock",
+    });
+  });
+
+  it("says a cross-boot pair has no latency, rather than showing a number", () => {
+    // acknowledged_by non-null with a null latency is the sidecar's way of
+    // saying a restart sits between the two.
+    const card = recordCard(view({ acknowledged: true, acknowledged_by: 9, ack_latency_ns: null }));
+    expect(card.ackLatency?.kind).toBe("cross-boot");
+    expect(card.ackLatency?.text).toContain("no latency is computed across a restart");
+  });
+
+  it("shows a backwards clock as it is, not clamped to zero", () => {
+    const card = recordCard(
+      view({ acknowledged: true, acknowledged_by: 6, ack_latency_ns: -5_000_000_000 }),
+    );
+    expect(card.ackLatency?.text).toBe("the writer's clock puts the ack 5 s before the candidate");
+  });
+
+  it("never presents the figure as proved", () => {
+    const card = recordCard(
+      view({ acknowledged: true, acknowledged_by: 6, ack_latency_ns: 3_600_000_000_000 }),
+    );
+    expect(card.ackLatency?.text).toContain("writer's clock");
+    expect(card.ackLatency?.text.toLowerCase()).not.toContain("proved");
   });
 });
