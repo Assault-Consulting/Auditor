@@ -240,7 +240,8 @@ group("question two keeps its third state", () => {
     expect(q2.answer).toContain("/var/lib/pala/anchor.head");
   });
 
-  it("at tier A, complete says what complete means there", () => {
+  it("at tier A, a head kept on the log's own host carries its limit", () => {
+    // ANSWERED is a file anchor — it sits beside the chain.
     const [, q2] = triptych(
       response({
         completeness: { complete_to_anchor: true, anchor_lag: null, anchor_reason: null },
@@ -248,7 +249,23 @@ group("question two keeps its third state", () => {
       }),
       TIER_A,
     );
-    expect(q2.answer).toContain("local anchor store");
+    expect(q2.answer).toContain("same host as the log");
+  });
+
+  it("at tier A, a head from elsewhere does not get a host caveat it does not have", () => {
+    // A manual head is handed over by someone else, and a pkcs11 head sits
+    // behind a PIN on a token: neither shares the log's host exposure.
+    for (const source_kind of ["manual", "pkcs11"]) {
+      const [, q2] = triptych(
+        response({
+          completeness: { complete_to_anchor: true, anchor_lag: null, anchor_reason: null },
+          anchor: { ...ANSWERED, source_kind },
+        }),
+        TIER_A,
+      );
+      expect(q2.answer).not.toContain("same host");
+      expect(q2.answer).not.toContain("local anchor store");
+    }
   });
 
   it("a lagging tail reports how many records sit past the anchor", () => {
@@ -267,8 +284,9 @@ group("question two keeps its third state", () => {
 
 group("question three is honest about having nothing", () => {
   it("is unavailable, not failed", () => {
-    // A tier-A chain has no external evidence to have. That is a property of
-    // the platform it was written on, not a defect in the log.
+    // This file carries no witness. That is an absence in the file, not a
+    // defect in the log — and not a property of tier A either: an external
+    // witness is tier-independent (checked against palimpsests 0.12.0).
     const [, , q3] = triptych(response(), TIER_A);
     expect(q3.standing).toBe("unavailable");
   });
