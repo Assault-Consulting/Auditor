@@ -150,8 +150,9 @@ body {
    green and a red would collapse them at the last step and waste that.
 
    `unavailable` is deliberately the same inert slate as an unasked
-   question: a tier-A chain having no witness is not a failure of the log,
-   and nothing on the screen should make it look like one. */
+   question: a file carrying no witness is not a failure of the log — and,
+   at any tier, not a claim that none could exist — so nothing on the
+   screen should make it look like one. */
 .question[data-standing="answered-yes"] .question-basis {
   color: var(--proved);
 }
@@ -361,15 +362,15 @@ body {
   margin: 0.4em 0;
 }
 
-/* F8 — the SAFETY list. Ruled like .browse and .records: this slice
-   groups and counts what a record already resolves, plus (C-07c,
-   partial) the binary acknowledged/not-yet marker U13 makes possible —
-   not yet the fuller "loudest thing in the UI" F8 reserves for a
-   resolved unacknowledged candidate WITH its own ack's operator and
-   deadline shown, which needs a richer upstream shape not yet
-   released. Detail text and its recurrence count (C-07b, U12) are
-   on in full — the writer's own claim, ochre, beside a slate count
-   this shell computed, never conflated as the same kind of fact. */
+/* F8 — the SAFETY list. Ruled like .browse and .records: it groups and
+   counts what a record already resolves, with the acknowledgement marker
+   naming which ack (C-07c) — the ack's own operator, disposition and
+   latency are on the record card. Still not the fuller "loudest thing in
+   the UI" F8 reserves for an unacknowledged candidate: that is a design
+   decision, not a data gap, and belongs to D-03's wording audit. Detail
+   text and its recurrence count (C-07b, U12) — the writer's own claim,
+   ochre, beside a slate count this shell computed, never conflated as the
+   same kind of fact. */
 .safety {
   margin-top: calc(var(--step) * 3);
   border: 1px solid var(--rule);
@@ -469,8 +470,9 @@ body {
 /* Weight, not colour — the same choice .advisory-group[data-weight]
    makes: an unacknowledged candidate reads with more presence, an
    acknowledged one recedes, and neither takes on a colour that would
-   claim more than "is a hash-verified ack present" (C-07c, partial —
-   which ack, and its own operator or disposition, is not here yet). */
+   claim more than "a hash-verified ack is present, and which" (C-07c).
+   The ack's operator and disposition stay on the card, in ochre: they
+   are the writer's claims, not verdicts about the candidate. */
 .safety-ack-state {
   margin-left: var(--step);
   font-size: 0.7rem;
@@ -496,6 +498,18 @@ body {
   margin-left: var(--step);
   font-size: 0.7rem;
   color: var(--recorded);
+}
+
+/* Ack latency (C-07c): ochre when measured — the writer's clock,
+   subtracted, a Recorded figure like every other wall time here. A
+   cross-boot pair is slate: nothing was computed, and the sentence says
+   why. */
+.record-ack-latency[data-kind="measured"] {
+  color: var(--recorded);
+}
+
+.record-ack-latency[data-kind="cross-boot"] {
+  color: var(--unchecked);
 }
 
 .safety-recurrence,
