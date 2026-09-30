@@ -292,12 +292,21 @@ def test_a_wrong_pin_is_an_error(
 @needs_softhsm
 def test_why_the_pin_is_required(_softhsm_tokens, head_hex) -> None:
     """The measurement behind making pin_account mandatory, kept as a test
-    so it is re-checked rather than remembered: the package's own reader,
-    asked without a PIN, reports a head it wrote itself as absent."""
+    so it is re-checked rather than remembered.
+
+    On 0.11.0 the package's own reader, asked without a PIN, reported a
+    head it wrote itself as absent (None) — and could be handed a planted
+    public decoy instead. That was reported upstream from this repository
+    and fixed in 0.12.0 (F1): the reader now refuses outright. This test
+    flipped with the fix, and now pins the fixed behaviour — if a future
+    release ever returned None here again, the reason pin_account exists
+    would be back, and this is where it would show.
+    """
+    from palimpsests.audit.anchors import AnchorSourceError
     from palimpsests.audit.anchors_pkcs11 import Pkcs11Anchor
 
     token = _token("why-pin")
     _seed(token, head_hex)
-    reading = Pkcs11Anchor(token["module_path"], token["token_label"]).current_head()
 
-    assert reading is None
+    with pytest.raises(AnchorSourceError, match="no PIN"):
+        Pkcs11Anchor(token["module_path"], token["token_label"]).current_head()
