@@ -979,6 +979,18 @@
       "RecordView": {
         "description": "One record, as structure rather than as content.\n\nHeader fields and the shape of the body. What is *inside* a record is a\nseparate view with its own decisions about keys and redaction.",
         "properties": {
+          "ack_latency_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For an acknowledged INCIDENT_CANDIDATE: wall_clock(ack) \u2212 wall_clock(candidate), a RECORDED figure \u2014 two claims of the writer's clock subtracted, never proved. Computed only when both records are in the same boot: across a restart the clock may have been set, and a number would span a period nobody observed. acknowledged_by non-null with this null means exactly that \u2014 a cross-boot pair. Can be negative, when the writer's clock went backwards; shown as it is rather than clamped.",
+            "title": "Ack Latency Ns"
+          },
           "acknowledged": {
             "anyOf": [
               {
@@ -988,8 +1000,32 @@
                 "type": "null"
               }
             ],
-            "description": "For an INCIDENT_CANDIDATE: whether a hash-verified OVERSIGHT_ACK names it (U13, released 0.11.0). Null for every other kind \u2014 'not acknowledged' and 'not the kind of record that gets acknowledged' are different facts, and collapsing them to false would claim something about a record that never made the claim. Membership only: which ack, and its own operator or disposition, is not carried here yet \u2014 that needs a richer upstream shape, released but not yet in a package release.",
+            "description": "For an INCIDENT_CANDIDATE: whether a hash-verified OVERSIGHT_ACK names it (U13, released 0.11.0). Null for every other kind \u2014 'not acknowledged' and 'not the kind of record that gets acknowledged' are different facts, and collapsing them to false would claim something about a record that never made the claim. Which ack is `acknowledged_by`.",
             "title": "Acknowledged"
+          },
+          "acknowledged_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For an INCIDENT_CANDIDATE: the seq of the OVERSIGHT_ACK that acknowledges it, from the package's hash-verified resolution (acknowledged_candidates(), 0.12.0). Null when not acknowledged, and for every other kind. An ack whose reference does not verify never appears here; the advisory channel names it instead.",
+            "title": "Acknowledged By"
+          },
+          "acknowledges": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For an OVERSIGHT_ACK: the seq of the candidate it verifiably acknowledges \u2014 the same resolution read backwards. Null for an ack whose reference does not verify, which must not look like it acknowledges anything, and for every other kind.",
+            "title": "Acknowledges"
           },
           "assurance_tier": {
             "$ref": "#/components/schemas/NamedValue"
@@ -1030,6 +1066,17 @@
             ],
             "description": "EVT_DETAIL, decoded generically for any record type that carries one \u2014 EVENT and SAFETY bodies, the same scope `kind` already has (U12, released 0.11.0). Null when the record carries no detail at all, never an empty string.",
             "title": "Detail"
+          },
+          "disposition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NamedValue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For an OVERSIGHT_ACK: the disposition the writer recorded, with the package's name for it (e.g. DISMISSED). Null for every record that carries none."
           },
           "index": {
             "description": "Position of this record within THIS FILE, zero-based. Distinct from seq, which a rotated or segmented chain does not start at zero and does not number contiguously across a gap \u2014 index always does, because it counts what this file actually holds.",
@@ -1076,6 +1123,18 @@
             "description": "Monotonic clock. Comparable only within one boot.",
             "title": "Monotonic Ns",
             "type": "integer"
+          },
+          "operator_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For an OVERSIGHT_ACK: the operator id the writer recorded, hex. Pseudonymous by design (16 bytes the writer chose); this application never resolves it to a person. Null for every record that carries none.",
+            "title": "Operator Id"
           },
           "parent_span_id": {
             "anyOf": [
@@ -1206,6 +1265,11 @@
           "body_tlv_types",
           "key_id",
           "acknowledged",
+          "acknowledged_by",
+          "acknowledges",
+          "ack_latency_ns",
+          "operator_id",
+          "disposition",
           "shredded_by",
           "detail",
           "recurrence_count"
@@ -2329,7 +2393,7 @@
     },
     "/session/{session_id}/safety": {
       "get": {
-        "description": "Every SAFETY record \u2014 F8's first-class list, not a filter.\n\nNo caller-adjustable `limit`, unlike `/records`. This answer is\ncached for the life of the session the same way boots and spans\nare \u2014 one question, one answer \u2014 and a caller-visible limit would\nhave needed a cache keyed by it, the exact class of bug the\n`Session` docstring documents avoiding elsewhere: a second caller\nasking with a different limit would silently receive the first\ncaller's cached answer at the first caller's limit.\n\n`ChainHandle.safety` still bounds the response internally, purely\ndefensively, at a size no caller chooses.\n\nThe same `RecordPage` shape `/records` returns, reused rather than\ngiven one of its own: `total` counts every SAFETY record that\nexists, which can exceed the internal cap on an unusually large\nchain, and `has_more` says so rather than leaving it to be\ninferred from a length that matches the cap by coincidence.\n\nDetail text and its recurrence count are on in full (C-07b,\nU12, released 0.11.0). Acknowledged state and shred resolution\nare (C-07c, partial) \u2014 membership only; which ack, and its\nown operator or disposition, needs a richer upstream shape\nnot yet released.",
+        "description": "Every SAFETY record \u2014 F8's first-class list, not a filter.\n\nNo caller-adjustable `limit`, unlike `/records`. This answer is\ncached for the life of the session the same way boots and spans\nare \u2014 one question, one answer \u2014 and a caller-visible limit would\nhave needed a cache keyed by it, the exact class of bug the\n`Session` docstring documents avoiding elsewhere: a second caller\nasking with a different limit would silently receive the first\ncaller's cached answer at the first caller's limit.\n\n`ChainHandle.safety` still bounds the response internally, purely\ndefensively, at a size no caller chooses.\n\nThe same `RecordPage` shape `/records` returns, reused rather than\ngiven one of its own: `total` counts every SAFETY record that\nexists, which can exceed the internal cap on an unusually large\nchain, and `has_more` says so rather than leaving it to be\ninferred from a length that matches the cap by coincidence.\n\nDetail text and its recurrence count are on in full (C-07b,\nU12). So is the oversight loop (C-07c): which ack acknowledged\na candidate, the candidate an ack verifiably acknowledges, the\nack's operator and disposition, and \u2014 within one boot only \u2014 the\nlatency between them by the writer's clock.",
         "operationId": "session_safety_session__session_id__safety_get",
         "parameters": [
           {
