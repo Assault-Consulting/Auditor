@@ -22,12 +22,13 @@
  * link. `prevSeq` is already resolved on that basis by the sidecar; nothing
  * here re-derives it.
  *
- * C-07c, partial: `acknowledged` (an INCIDENT_CANDIDATE's ack state) and
- * `shredded` (any record's shredding KEY_SHRED) are membership facts
- * only — U13/U15 as released in 0.11.0 answer "is it", not "by which
- * record, with what operator or disposition". That needs a richer
- * upstream shape, requested but not yet released
- * (Assault-Consulting/Palimpsests#236) — the rest of C-07c waits for it.
+ * C-07c: the oversight loop in full. A candidate carries whether it is
+ * acknowledged and by which ack; an ack carries which candidate it
+ * verifiably acknowledges, its pseudonymous operator and its
+ * disposition — all the package's own resolution and decode, read
+ * through. The one figure this side computes is `ackLatency`, and it is
+ * the writer's clock twice, subtracted: Recorded, never proved, and
+ * withheld across a boot (see `AckLatency`).
  *
  * C-07b: `detail` (EVT_DETAIL, U12) and `recurrenceCount` (how many
  * SAFETY records share this record's detail text, F8's own framing) —
@@ -141,11 +142,23 @@ export interface RecordCard {
    * names it (U13). Null for every other kind — "not acknowledged" and
    * "not the kind of record that gets acknowledged" are different
    * facts, and collapsing them to false would claim something about a
-   * record that never made the claim. Membership only: which ack, and
-   * its own operator or disposition, needs a richer upstream shape not
-   * yet released — see the sidecar's own ChainHandle.safety docstring.
+   * record that never made the claim. Which ack is `acknowledgedBy`.
    */
   acknowledged: boolean | null;
+  /** The ack that acknowledges this candidate, by seq; null otherwise. */
+  acknowledgedBy: number | null;
+  /**
+   * On an ack: the candidate it verifiably acknowledges. Null for an ack
+   * whose reference does not verify — it must not look like it
+   * acknowledges anything.
+   */
+  acknowledges: number | null;
+  /** How long after the candidate its ack was written, by the writer's clock. */
+  ackLatency: AckLatency | null;
+  /** On an ack: the operator id the writer recorded, hex. Pseudonymous. */
+  operatorId: string | null;
+  /** On an ack: the recorded disposition, named by the package when it can. */
+  disposition: NamedValue | null;
   /**
    * Seq of the KEY_SHRED that shreds this record, resolved in the chain
    * and key_id-matched (U15), or null when it is not currently
@@ -176,6 +189,52 @@ export interface RecordCard {
 
 const UNRECOGNISED_NOTE = "chain-checked, not interpretable by this verifier version";
 
+/**
+ * The time between a candidate and its ack, as far as it can honestly be
+ * said.
+ *
+ * - `measured`: both records are in one boot, so one clock wrote both.
+ *   Still a Recorded figure — the writer's clock, subtracted — and the
+ *   text says "by the writer's clock" rather than presenting a duration
+ *   as fact. Negative when that clock went backwards; shown as it is,
+ *   because clamping would erase the only evidence.
+ * - `cross-boot`: acknowledged, but a restart sits between the two. The
+ *   acknowledgement is a chain fact; the subtraction is withheld, the same
+ *   reason the Chronoscope removes its ruler inside a wall gap.
+ */
+export type AckLatency =
+  | { kind: "measured"; ns: number; text: string }
+  | { kind: "cross-boot"; text: string };
+
+function spanText(ns: number): string {
+  const s = Math.round(Math.abs(ns) / 1e9);
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min ${s % 60} s`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h} h ${m % 60} min`;
+  return `${Math.floor(h / 24)} d ${h % 24} h`;
+}
+
+export function ackLatencyOf(view: RecordView): AckLatency | null {
+  if (view.acknowledged_by === null) return null;
+  const ns = view.ack_latency_ns;
+  if (ns === null) {
+    return {
+      kind: "cross-boot",
+      text: "acknowledged in a later boot — no latency is computed across a restart",
+    };
+  }
+  return {
+    kind: "measured",
+    ns,
+    text:
+      ns >= 0
+        ? `${spanText(ns)} later, by the writer's clock`
+        : `the writer's clock puts the ack ${spanText(ns)} before the candidate`,
+  };
+}
+
 export function recordCard(view: RecordView): RecordCard {
   return {
     seq: view.seq,
@@ -195,6 +254,11 @@ export function recordCard(view: RecordView): RecordCard {
     monotonicNs: view.monotonic_ns,
     body: bodyStateOf(view),
     acknowledged: view.acknowledged,
+    acknowledgedBy: view.acknowledged_by,
+    acknowledges: view.acknowledges,
+    ackLatency: ackLatencyOf(view),
+    operatorId: view.operator_id,
+    disposition: view.disposition,
     shredded: view.shredded_by,
     detail: view.detail,
     recurrenceCount: view.recurrence_count,
