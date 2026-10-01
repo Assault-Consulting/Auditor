@@ -623,6 +623,18 @@ export default function App() {
                             {r.kindLabel.named ? r.kindLabel.name : `kind ${r.kindLabel.raw}`}
                           </span>
                         )}
+                        {/* C-12. Marked on the row, not only on the card: a
+                            reader skimming the list must not take a call a
+                            client reported for one the serve observed.
+                            Only the two non-default marks are shown —
+                            parsed-from-wire is the profile's baseline, and
+                            marking every observed call would bury the one
+                            that matters. */}
+                        {r.source !== null && r.source.kind !== "wire" && (
+                          <span className="records-source" data-source={r.source.kind}>
+                            {r.source.kind === "reported" ? "reported" : `source ${r.source.value}?`}
+                          </span>
+                        )}
                         <span className="records-boot">{r.bootId.slice(0, 8)}</span>
                         {/* Ochre — a Recorded claim, the same reason the
                             record card's own Clock line is (L3). */}
@@ -666,7 +678,7 @@ export default function App() {
                 <span className="search-hint">search</span>
                 <input
                   onChange={(e) => setSearchField(e.target.value)}
-                  placeholder="#1447  or  kind:INCIDENT_CANDIDATE boot:3fa9"
+                  placeholder="#1447  or  kind:INCIDENT_CANDIDATE source:reported-by-client"
                   type="text"
                   value={searchField}
                 />
@@ -850,6 +862,19 @@ export default function App() {
                       <dd className="record-recorded">
                         {record.value.disposition.name ??
                           `value ${record.value.disposition.value}, unknown`}
+                      </dd>
+                    </div>
+                  )}
+                  {record.value.source !== null && (
+                    <div>
+                      <dt>Source</dt>
+                      {/* C-12. The label, then the inference profile's own
+                          sentence for it, quoted — what a reader may claim
+                          from this record is the profile's statement, and
+                          rewording it would make a second, weaker one. */}
+                      <dd className="record-source" data-source={record.value.source.kind}>
+                        {record.value.source.label}
+                        <span className="record-source-note">{record.value.source.note}</span>
                       </dd>
                     </div>
                   )}
