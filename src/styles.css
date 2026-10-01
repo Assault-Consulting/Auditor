@@ -987,6 +987,23 @@ body {
   text-align: right;
 }
 
+/* C-12 — a call or result a client reported, marked on the row. Ochre,
+   because it is the client's assertion recorded, not the serve's
+   observation; boxed like a chip so it is seen while skimming. Never red:
+   a reported call is not a suspicious one, it is a differently-sourced
+   one, and the mark says which. */
+.records-source {
+  font-size: 0.7rem;
+  color: var(--recorded);
+  border: 1px solid var(--recorded);
+  padding: 0 0.4em;
+}
+
+.records-source[data-source="unknown"] {
+  color: var(--unchecked);
+  border-color: var(--rule);
+}
+
 /* Ochre — a Recorded claim, the same reason the record card's own Clock
    line is (L3). */
 .records-clock {
@@ -1196,6 +1213,30 @@ body {
 
 .record-facts dd {
   margin: 0;
+  color: var(--vellum-dim);
+}
+
+/* C-12 — the source line on the card. The label in its own colour, the
+   profile's sentence beneath it quoted (italic, ruled), the same form the
+   verifier's narrative takes: words carried, not ours. Reported is ochre —
+   an assertion recorded; wire-parsed is plain — the serve's own
+   observation, the profile's baseline; unknown is slate. */
+.record-source[data-source="reported"] {
+  color: var(--recorded);
+}
+
+.record-source[data-source="unknown"] {
+  color: var(--unchecked);
+}
+
+.record-source-note {
+  display: block;
+  margin-top: 0.2em;
+  padding-left: var(--step);
+  border-left: 1px solid var(--rule);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.82rem;
   color: var(--vellum-dim);
 }
 

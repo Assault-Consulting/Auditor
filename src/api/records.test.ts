@@ -36,6 +36,7 @@ function view(over: Partial<RecordView> = {}): RecordView {
     ack_latency_ns: null,
     operator_id: null,
     disposition: null,
+    source: null,
     ...over,
   };
 }

@@ -142,3 +142,29 @@ group("filter chips", () => {
     expect(chipLabel({ key: "boot", value: "3fa9" })).toBe("boot:3fa9");
   });
 });
+
+group("the source chip (C-12)", () => {
+  it("lower-cases the value — the package spells the marks that way", () => {
+    expect(parseSearch("source:Reported-By-Client")).toEqual({
+      kind: "filters",
+      chips: [{ key: "source", value: "reported-by-client" }],
+    });
+  });
+
+  it("composes with the other chips", () => {
+    const outcome = parseSearch("kind:TOOL_CALL source:reported-by-client");
+    expect(outcome).toEqual({
+      kind: "filters",
+      chips: [
+        { key: "kind", value: "TOOL_CALL" },
+        { key: "source", value: "reported-by-client" },
+      ],
+    });
+  });
+
+  it("is named in the list of chips this build reads", () => {
+    const outcome = parseSearch("colour:red");
+    expect(outcome?.kind).toBe("unsupported");
+    if (outcome?.kind === "unsupported") expect(outcome.reason).toContain("source:");
+  });
+});

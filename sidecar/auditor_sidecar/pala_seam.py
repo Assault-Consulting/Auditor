@@ -660,6 +660,7 @@ class ChainHandle:
         type_name: str | None = None,
         kind_name: str | None = None,
         tier: str | None = None,
+        source_name: str | None = None,
     ) -> dict[str, object]:
         """A window onto the records, with the header fields for each.
 
@@ -695,6 +696,11 @@ class ChainHandle:
         exact: the names are the package's, and case-folding them here would
         be a small second opinion about what a name is.
 
+        `source_name` (C-12) is the same kind of filter over the evidence
+        mark on TOOL_CALL / TOOL_RESULT records — `reported-by-client` or
+        `parsed-from-wire`, as the package names them. Every other record
+        carries no mark at all, so it never matches either name.
+
         Body TLVs are reported as **type and length, not content**. Bodies
         may be encrypted, and a records list is a structural view; showing
         what is inside a record is C-06d's job (`DEVELOPMENT-PLAN.md`, §5)
@@ -721,7 +727,8 @@ class ChainHandle:
         acks = self._ack_context(records, acknowledged)
         for record in records:
             if not self._matches(
-                record, record_type, boot_id, span_id, type_name, kind_name, tier
+                record, record_type, boot_id, span_id, type_name, kind_name, tier,
+                source_name,
             ):
                 continue
             matched += 1
@@ -756,6 +763,7 @@ class ChainHandle:
         type_name: str | None = None,
         kind_name: str | None = None,
         tier: str | None = None,
+        source_name: str | None = None,
     ) -> bool:
         """Whether a record passes the filters, all of which are ANDed."""
         if record_type is not None and record.record_type != record_type:
@@ -769,6 +777,8 @@ class ChainHandle:
         if kind_name is not None and record.kind_name != kind_name:
             return False
         if tier is not None and assurance_tier_name(record.header.assurance_tier) != tier:
+            return False
+        if source_name is not None and record.source_name != source_name:
             return False
         return True
 
@@ -882,6 +892,18 @@ class ChainHandle:
             "disposition": None
             if record.disposition is None
             else {"value": record.disposition, "name": record.disposition_name},
+            # How the serving layer learned of a tool call or result
+            # (EVT_SOURCE, profile r5; released 0.12.0) — the package's
+            # value and name, passed through. Present on TOOL_CALL and
+            # TOOL_RESULT only, where an absent tag already decodes as
+            # parsed-from-wire: the package's own comment calls that "a
+            # claim, not the absence of one", so it is carried as one.
+            # None on every other record, where the mark has no meaning.
+            # An unknown value keeps its number and a null name rather
+            # than being guessed at.
+            "source": None
+            if record.source is None
+            else {"value": record.source, "name": record.source_name},
             # The seq of the KEY_SHRED that shredded this record, or None
             # if it was not (or is not itself shreddable — a KEY_SHRED's
             # own target_seqs can name any record, so no kind is excluded

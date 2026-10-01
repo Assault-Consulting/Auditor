@@ -4,9 +4,10 @@
 /**
  * Filter chips resolved into the query `/records` understands (C-09b).
  *
- * Names pass straight through: `kind:`, `type:` and `tier:` become
- * `kind_name`, `type_name` and `tier`, and the sidecar matches them against
- * the names the package resolved. Nothing here knows which names exist.
+ * Names pass straight through: `kind:`, `type:`, `tier:` and `source:`
+ * become `kind_name`, `type_name`, `tier` and `source_name` (C-12), and the
+ * sidecar matches them against the names the package resolved. Nothing
+ * here knows which names exist.
  *
  * Ids do not pass straight through. The screen shows a boot or span as its
  * first eight hex characters, so that is what a person types, and the
@@ -27,6 +28,7 @@ export interface RecordFilters {
   typeName?: string;
   kindName?: string;
   tier?: string;
+  sourceName?: string;
   bootId?: string;
   spanId?: string;
 }
@@ -74,6 +76,9 @@ export function resolveChips(chips: Chip[], known: KnownIds): Resolution {
       case "tier":
         filters.tier = chip.value;
         break;
+      case "source":
+        filters.sourceName = chip.value;
+        break;
       case "boot":
       case "span": {
         const found = resolvePrefix(chip.key, chip.value, chip.key === "boot" ? known.boots : known.spans);
@@ -98,6 +103,7 @@ export function filtersKey(filters: RecordFilters): string {
     filters.typeName ?? null,
     filters.kindName ?? null,
     filters.tier ?? null,
+    filters.sourceName ?? null,
     filters.bootId ?? null,
     filters.spanId ?? null,
   ]);

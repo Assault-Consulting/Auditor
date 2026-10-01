@@ -701,6 +701,19 @@ class RecordView(BaseModel):
             "every record that carries none."
         )
     )
+    source: NamedValue | None = Field(
+        description=(
+            "On a TOOL_CALL or TOOL_RESULT: how the serving layer learned "
+            "of it (EVT_SOURCE, inference profile r5), with the package's "
+            "name — 'parsed-from-wire', the runtime's own observation of a "
+            "loop it mediated, or 'reported-by-client', the client's "
+            "assertion faithfully recorded. The chain proves a reported "
+            "call was reported, what it digested and when — NEVER THAT THE "
+            "TOOL ACTUALLY RAN. An evidence-quality mark, never a trust "
+            "upgrade. Null on every other record, where the mark has no "
+            "meaning; name null for a value this build cannot interpret."
+        )
+    )
     shredded_by: int | None = Field(
         description=(
             "Seq of the KEY_SHRED that shreds this record, resolved in "

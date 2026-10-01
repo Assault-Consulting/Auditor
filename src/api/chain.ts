@@ -325,6 +325,7 @@ export async function getRecords(
     typeName?: string;
     kindName?: string;
     tier?: string;
+    sourceName?: string;
   } = {},
 ): Promise<RecordPage> {
   const query = new URLSearchParams();
@@ -336,6 +337,7 @@ export async function getRecords(
   if (options.typeName !== undefined) query.set("type_name", options.typeName);
   if (options.kindName !== undefined) query.set("kind_name", options.kindName);
   if (options.tier !== undefined) query.set("tier", options.tier);
+  if (options.sourceName !== undefined) query.set("source_name", options.sourceName);
 
   const response = await fetch(
     url(session, `/session/${sessionId}/records?${query}`),

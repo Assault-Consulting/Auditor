@@ -17,6 +17,10 @@
  *   name-to-number table exists on this side. `boot` and `span` are hex
  *   prefixes, because the screen shows eight characters, never sixty-four;
  *   `api/filters.ts` resolves a prefix against the lists already loaded.
+ * - `source:` (C-12) — the evidence mark on tool calls and results, by
+ *   the package's own name. Lower-cased rather than upper-cased, for the
+ *   same reason the others are upper-cased: `reported-by-client` and
+ *   `parsed-from-wire` are how the package spells them.
  *
  * What it still does not read, and says so rather than ignoring:
  *
@@ -29,9 +33,9 @@
 import type { AdvisoryItemModel } from "./generated/types";
 
 /** The chip keys this build reads. */
-export type ChipKey = "kind" | "type" | "tier" | "boot" | "span";
+export type ChipKey = "kind" | "type" | "tier" | "boot" | "span" | "source";
 
-const CHIP_KEYS: readonly ChipKey[] = ["kind", "type", "tier", "boot", "span"];
+const CHIP_KEYS: readonly ChipKey[] = ["kind", "type", "tier", "boot", "span", "source"];
 
 /** One `key:value` token, normalised. */
 export interface Chip {
@@ -103,6 +107,8 @@ export function parseSearch(raw: string): SearchOutcome | null {
       if (!HEX.test(value)) {
         return unsupported(trimmed, `"${key}:${match[2]}" — a ${key} id is hexadecimal`);
       }
+    } else if (chipKey === "source") {
+      value = value.toLowerCase();
     } else {
       value = value.toUpperCase();
     }

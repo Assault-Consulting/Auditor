@@ -358,6 +358,15 @@ def build_app(token: str | None = None) -> FastAPI:
                 "post-hoc by a witness record, never by a header."
             ),
         ),
+        source_name: str | None = Query(
+            default=None,
+            description=(
+                "Keep only tool calls and results whose evidence mark the "
+                "package names this: 'reported-by-client' or "
+                "'parsed-from-wire'. No other record carries the mark, so "
+                "none matches."
+            ),
+        ),
     ) -> RecordPage:
         """A window onto the records, as structure rather than content.
 
@@ -377,6 +386,7 @@ def build_app(token: str | None = None) -> FastAPI:
                 type_name=type_name,
                 kind_name=kind_name,
                 tier=tier,
+                source_name=source_name,
             )
         )
 

@@ -76,3 +76,20 @@ group("filtersKey", () => {
     expect(filtersKey({ kindName: "X" })).not.toBe(filtersKey({ typeName: "X" }));
   });
 });
+
+group("the source filter (C-12)", () => {
+  it("passes the mark's name straight through, like the other names", () => {
+    const resolved = resolveChips([{ key: "source", value: "reported-by-client" }], {
+      boots: null,
+      spans: null,
+    });
+    expect(resolved).toEqual({ kind: "resolved", filters: { sourceName: "reported-by-client" } });
+  });
+
+  it("is part of the question the cursor resets on", () => {
+    expect(filtersKey({ sourceName: "reported-by-client" })).not.toBe(filtersKey({}));
+    expect(filtersKey({ sourceName: "reported-by-client" })).not.toBe(
+      filtersKey({ sourceName: "parsed-from-wire" }),
+    );
+  });
+});

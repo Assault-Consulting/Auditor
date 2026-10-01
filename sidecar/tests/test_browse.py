@@ -919,6 +919,93 @@ def test_ack_latency_is_not_computed_across_a_boot(
     assert candidate["ack_latency_ns"] is None
 
 
+# --- client-reported provenance (C-12) --------------------------------------
+#
+# EVT_SOURCE, inference profile r5: a tool call or result the serving layer
+# parsed from the wire it mediated, or one a client reported through the
+# ingestion surface. The chain proves a report happened, what it digested
+# and when — never that the tool ran. The mark is passed through as the
+# package decoded it; this side adds nothing to it.
+
+
+@pytest.fixture
+def sourced_chain(tmp_path):
+    from palimpsests.audit.pala_writer import (
+        OUTCOME_OK,
+        SOURCE_REPORTED_BY_CLIENT,
+        PalaWriter,
+    )
+
+    path = tmp_path / "sourced.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    wire_hash = w.tool_call("search")  # seq 2, no tag: parsed-from-wire
+    w.tool_result(2, wire_hash, OUTCOME_OK)  # seq 3
+    reported_hash = w.tool_call("shell", source=SOURCE_REPORTED_BY_CLIENT)  # seq 4
+    w.tool_result(4, reported_hash, OUTCOME_OK, source=SOURCE_REPORTED_BY_CLIENT)  # seq 5
+    w.close()
+    return path
+
+
+def test_a_wire_parsed_call_says_so_rather_than_nothing(
+    open_client: TestClient, sourced_chain
+) -> None:
+    """No tag on the wire, and still a mark: the package decodes absence as
+    parsed-from-wire on kinds 8/9, calling it "a claim, not the absence of
+    one". Null here would erase the distinction the profile draws."""
+    sid = _open(open_client, sourced_chain)
+    call = open_client.get(f"/session/{sid}/record/2").json()
+
+    assert call["source"] == {"value": 0, "name": "parsed-from-wire"}
+
+
+def test_a_client_reported_call_and_its_result_are_marked(
+    open_client: TestClient, sourced_chain
+) -> None:
+    sid = _open(open_client, sourced_chain)
+    call = open_client.get(f"/session/{sid}/record/4").json()
+    result = open_client.get(f"/session/{sid}/record/5").json()
+
+    assert call["source"] == {"value": 1, "name": "reported-by-client"}
+    assert result["source"] == {"value": 1, "name": "reported-by-client"}
+
+
+def test_a_record_that_cannot_carry_the_mark_reports_null(
+    open_client: TestClient, sourced_chain
+) -> None:
+    """GENESIS, BOOT, SAFETY: the mark has no meaning there. Null, not
+    parsed-from-wire — a record that was never a tool call was not observed
+    on any wire."""
+    sid = _open(open_client, sourced_chain)
+    for seq in (0, 1):
+        assert open_client.get(f"/session/{sid}/record/{seq}").json()["source"] is None
+
+
+def test_a_source_filter_keeps_only_that_mark(
+    open_client: TestClient, sourced_chain
+) -> None:
+    sid = _open(open_client, sourced_chain)
+    reported = open_client.get(
+        f"/session/{sid}/records?source_name=reported-by-client"
+    ).json()
+    wire = open_client.get(f"/session/{sid}/records?source_name=parsed-from-wire").json()
+
+    assert [r["seq"] for r in reported["records"]] == [4, 5]
+    assert [r["seq"] for r in wire["records"]] == [2, 3]
+
+
+def test_a_source_filter_never_matches_an_unmarked_record(
+    open_client: TestClient, chain_path
+) -> None:
+    """chain_path has no tool calls at all — so neither name matches anything,
+    and in particular parsed-from-wire does not sweep in every record."""
+    sid = _open(open_client, chain_path)
+    page = open_client.get(f"/session/{sid}/records?source_name=parsed-from-wire").json()
+
+    assert page["total"] == 0
+
+
 def test_a_shredded_record_reports_its_shredder(
     open_client: TestClient, tmp_path
 ) -> None:

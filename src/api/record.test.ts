@@ -13,7 +13,7 @@
 
 import { describe as group, expect, it } from "vitest";
 
-import { recordCard } from "./record";
+import { PARSED_FROM_WIRE_NOTE, recordCard, REPORTED_BY_CLIENT_NOTE } from "./record";
 import type { RecordView } from "./generated/types";
 
 function view(over: Partial<RecordView> = {}): RecordView {
@@ -46,6 +46,7 @@ function view(over: Partial<RecordView> = {}): RecordView {
     ack_latency_ns: null,
     operator_id: null,
     disposition: null,
+    source: null,
     ...over,
   };
 }
@@ -295,5 +296,45 @@ group("ack latency says whose clock, and when it cannot be said", () => {
     );
     expect(card.ackLatency?.text).toContain("writer's clock");
     expect(card.ackLatency?.text.toLowerCase()).not.toContain("proved");
+  });
+});
+
+// --- client-reported provenance (C-12) ---------------------------------------
+
+group("the evidence mark on a tool call or result", () => {
+  it("is absent on a record that cannot carry one", () => {
+    expect(recordCard(view({ source: null })).source).toBeNull();
+  });
+
+  it("carries the profile's own sentence for a reported call, verbatim", () => {
+    const card = recordCard(view({ source: { value: 1, name: "reported-by-client" } }));
+    expect(card.source?.kind).toBe("reported");
+    expect(card.source?.label).toBe("reported by client");
+    expect(card.source?.note).toBe(REPORTED_BY_CLIENT_NOTE);
+    // The boundary is the whole reason the mark exists.
+    expect(card.source?.note).toContain("never that the tool actually ran");
+  });
+
+  it("names a wire-parsed call as the serve's observation, not as nothing", () => {
+    const card = recordCard(view({ source: { value: 0, name: "parsed-from-wire" } }));
+    expect(card.source?.kind).toBe("wire");
+    expect(card.source?.note).toBe(PARSED_FROM_WIRE_NOTE);
+  });
+
+  it("keeps an unknown value's number and guesses neither way", () => {
+    // Guessing "wire" would upgrade a claim; guessing "reported" would
+    // downgrade an observation.
+    const card = recordCard(view({ source: { value: 7, name: null } }));
+    expect(card.source?.kind).toBe("unknown");
+    expect(card.source?.value).toBe(7);
+    expect(card.source?.note).toBe("chain-checked, not interpretable by this verifier version");
+  });
+
+  it("never calls a reported call verified, observed or proved", () => {
+    const card = recordCard(view({ source: { value: 1, name: "reported-by-client" } }));
+    const text = `${card.source?.label} ${card.source?.note}`.toLowerCase();
+    for (const claim of ["verified", "observed", "proved", "proven"]) {
+      expect(text).not.toContain(claim);
+    }
   });
 });
