@@ -462,6 +462,8 @@ export interface RecordView {
   operator_id: string | null;
   /** For an OVERSIGHT_ACK: the disposition the writer recorded, with the package's name for it (e.g. DISMISSED). Null for every record that carries none. */
   disposition: NamedValue | null;
+  /** On a TOOL_CALL or TOOL_RESULT: how the serving layer learned of it (EVT_SOURCE, inference profile r5), with the package's name — 'parsed-from-wire', the runtime's own observation of a loop it mediated, or 'reported-by-client', the client's assertion faithfully recorded. The chain proves a reported call was reported, what it digested and when — NEVER THAT THE TOOL ACTUALLY RAN. An evidence-quality mark, never a trust upgrade. Null on every other record, where the mark has no meaning; name null for a value this build cannot interpret. */
+  source: NamedValue | null;
   /** Seq of the KEY_SHRED that shreds this record, resolved in the chain and key_id-matched (U15, released 0.11.0), or null when it is not currently shredded. A KEY_SHRED's own target_seqs can name any record, so no kind is excluded structurally — null here means 'not shredded', not 'not shreddable'. */
   shredded_by: number | null;
   /** EVT_DETAIL, decoded generically for any record type that carries one — EVENT and SAFETY bodies, the same scope `kind` already has (U12, released 0.11.0). Null when the record carries no detail at all, never an empty string. */
