@@ -30,6 +30,11 @@
  * the writer's clock twice, subtracted: Recorded, never proved, and
  * withheld across a boot (see `AckLatency`).
  *
+ * C-12: `source`, the evidence mark on tool calls and results (EVT_SOURCE,
+ * inference profile r5). Carried with the profile's own sentences rather
+ * than ours: what a reader may *claim* changes with it, and that is the
+ * profile's statement to make, not this shell's.
+ *
  * C-07b: `detail` (EVT_DETAIL, U12) and `recurrenceCount` (how many
  * SAFETY records share this record's detail text, F8's own framing) —
  * both released 0.11.0, both wired through now.
@@ -159,6 +164,8 @@ export interface RecordCard {
   operatorId: string | null;
   /** On an ack: the recorded disposition, named by the package when it can. */
   disposition: NamedValue | null;
+  /** On a tool call or result: how the serving layer learned of it. */
+  source: SourceMark | null;
   /**
    * Seq of the KEY_SHRED that shreds this record, resolved in the chain
    * and key_id-matched (U15), or null when it is not currently
@@ -205,6 +212,43 @@ const UNRECOGNISED_NOTE = "chain-checked, not interpretable by this verifier ver
 export type AckLatency =
   | { kind: "measured"; ns: number; text: string }
   | { kind: "cross-boot"; text: string };
+
+/**
+ * The inference profile's own words for each evidence mark (§3, r5,
+ * "Source marking"), carried verbatim. Quoting rather than paraphrasing
+ * is the point: the profile defines what a reader may claim from each,
+ * and a shell that reworded it would be making a second, weaker claim.
+ */
+export const REPORTED_BY_CLIENT_NOTE =
+  "the client's assertion, faithfully recorded — the chain proves the report happened, what it digested, and when, never that the tool actually ran";
+export const PARSED_FROM_WIRE_NOTE =
+  "the serving layer's own observation of a loop it mediated";
+
+/**
+ * How the serving layer learned of a tool call or result.
+ *
+ * Three states, not two. `reported` and `wire` are the two values the
+ * profile defines; `unknown` is a value this build cannot interpret,
+ * shown with its number and F7's sentence rather than guessed into either
+ * — guessing `wire` would upgrade a claim, guessing `reported` would
+ * downgrade an observation, and neither is this shell's to decide.
+ */
+export type SourceMark =
+  | { kind: "reported"; value: number; label: string; note: string }
+  | { kind: "wire"; value: number; label: string; note: string }
+  | { kind: "unknown"; value: number; label: string; note: string };
+
+function sourceOf(view: RecordView): SourceMark | null {
+  const s = view.source;
+  if (s === null) return null;
+  if (s.name === "reported-by-client") {
+    return { kind: "reported", value: s.value, label: "reported by client", note: REPORTED_BY_CLIENT_NOTE };
+  }
+  if (s.name === "parsed-from-wire") {
+    return { kind: "wire", value: s.value, label: "parsed from the wire", note: PARSED_FROM_WIRE_NOTE };
+  }
+  return { kind: "unknown", value: s.value, label: `source ${s.value}, unknown`, note: UNRECOGNISED_NOTE };
+}
 
 function spanText(ns: number): string {
   const s = Math.round(Math.abs(ns) / 1e9);
@@ -259,6 +303,7 @@ export function recordCard(view: RecordView): RecordCard {
     ackLatency: ackLatencyOf(view),
     operatorId: view.operator_id,
     disposition: view.disposition,
+    source: sourceOf(view),
     shredded: view.shredded_by,
     detail: view.detail,
     recurrenceCount: view.recurrence_count,
