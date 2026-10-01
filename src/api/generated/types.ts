@@ -450,8 +450,18 @@ export interface RecordView {
   body_tlv_types: Array<number> | null;
   /** Encryption key identifier, or null when the body is not encrypted. */
   key_id: number | null;
-  /** For an INCIDENT_CANDIDATE: whether a hash-verified OVERSIGHT_ACK names it (U13, released 0.11.0). Null for every other kind — 'not acknowledged' and 'not the kind of record that gets acknowledged' are different facts, and collapsing them to false would claim something about a record that never made the claim. Membership only: which ack, and its own operator or disposition, is not carried here yet — that needs a richer upstream shape, released but not yet in a package release. */
+  /** For an INCIDENT_CANDIDATE: whether a hash-verified OVERSIGHT_ACK names it (U13, released 0.11.0). Null for every other kind — 'not acknowledged' and 'not the kind of record that gets acknowledged' are different facts, and collapsing them to false would claim something about a record that never made the claim. Which ack is `acknowledged_by`. */
   acknowledged: boolean | null;
+  /** For an INCIDENT_CANDIDATE: the seq of the OVERSIGHT_ACK that acknowledges it, from the package's hash-verified resolution (acknowledged_candidates(), 0.12.0). Null when not acknowledged, and for every other kind. An ack whose reference does not verify never appears here; the advisory channel names it instead. */
+  acknowledged_by: number | null;
+  /** For an OVERSIGHT_ACK: the seq of the candidate it verifiably acknowledges — the same resolution read backwards. Null for an ack whose reference does not verify, which must not look like it acknowledges anything, and for every other kind. */
+  acknowledges: number | null;
+  /** For an acknowledged INCIDENT_CANDIDATE: wall_clock(ack) − wall_clock(candidate), a RECORDED figure — two claims of the writer's clock subtracted, never proved. Computed only when both records are in the same boot: across a restart the clock may have been set, and a number would span a period nobody observed. acknowledged_by non-null with this null means exactly that — a cross-boot pair. Can be negative, when the writer's clock went backwards; shown as it is rather than clamped. */
+  ack_latency_ns: number | null;
+  /** For an OVERSIGHT_ACK: the operator id the writer recorded, hex. Pseudonymous by design (16 bytes the writer chose); this application never resolves it to a person. Null for every record that carries none. */
+  operator_id: string | null;
+  /** For an OVERSIGHT_ACK: the disposition the writer recorded, with the package's name for it (e.g. DISMISSED). Null for every record that carries none. */
+  disposition: NamedValue | null;
   /** Seq of the KEY_SHRED that shreds this record, resolved in the chain and key_id-matched (U15, released 0.11.0), or null when it is not currently shredded. A KEY_SHRED's own target_seqs can name any record, so no kind is excluded structurally — null here means 'not shredded', not 'not shreddable'. */
   shredded_by: number | null;
   /** EVT_DETAIL, decoded generically for any record type that carries one — EVENT and SAFETY bodies, the same scope `kind` already has (U12, released 0.11.0). Null when the record carries no detail at all, never an empty string. */

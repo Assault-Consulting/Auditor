@@ -13,10 +13,9 @@
  *
  * `detail` and its recurrence count are on now (U12, released 0.11.0;
  * C-07b) — carried straight through by `recordCard`, nothing recomputed
- * here. Still not here: which ack acknowledged a candidate, and that
- * ack's own operator or deadline — `acknowledged` on each `RecordCard`
- * is membership only (C-07c, partial; `record.ts`'s own docstring has
- * the full account).
+ * here. So is the oversight loop (C-07c): which ack, the ack's operator
+ * and disposition, and latency by the writer's clock within one boot —
+ * `record.ts`'s own docstring has the full account.
  *
  * What grouping itself needs — kind, already resolved per record — was
  * always free; this module's own job is the grouping, not decoding.

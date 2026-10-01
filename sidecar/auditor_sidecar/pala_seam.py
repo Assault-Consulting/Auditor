@@ -27,6 +27,7 @@ import threading
 from .keychain import KeychainUnavailable
 from .keychain import read as keychain_read
 from collections import Counter
+from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _dist_version
 from palimpsests.audit.anchors import (
@@ -298,6 +299,15 @@ class NotAChain(Exception):
     opened, browsed and diagnosed — inspecting broken evidence is half the
     job. This is the other case: there is nothing here to inspect.
     """
+
+
+@dataclass(frozen=True)
+class _AckContext:
+    """The oversight loop as ``_record_view`` needs it — see ``_ack_context``."""
+
+    ack_of: dict[int, int]
+    candidate_of: dict[int, int]
+    latency_ns: dict[int, int]
 
 
 def package_version() -> str:
@@ -632,9 +642,10 @@ class ChainHandle:
             acknowledged = self._reader.acknowledged_candidates()
             shredded = self._reader.shredded_targets()
         detail_counts = self._detail_counts(records)
+        acks = self._ack_context(records, acknowledged)
         for record in records:
             if record.seq == seq:
-                return self._record_view(record, records, acknowledged, shredded, detail_counts)
+                return self._record_view(record, records, acks, shredded, detail_counts)
             if record.seq > seq:
                 break
         return None
@@ -707,6 +718,7 @@ class ChainHandle:
             acknowledged = self._reader.acknowledged_candidates()
             shredded = self._reader.shredded_targets()
         detail_counts = self._detail_counts(records)
+        acks = self._ack_context(records, acknowledged)
         for record in records:
             if not self._matches(
                 record, record_type, boot_id, span_id, type_name, kind_name, tier
@@ -718,7 +730,7 @@ class ChainHandle:
             matched_at_or_past_offset += 1
             if len(window) < limit:
                 window.append(
-                    self._record_view(record, records, acknowledged, shredded, detail_counts)
+                    self._record_view(record, records, acks, shredded, detail_counts)
                 )
 
         return {
@@ -764,7 +776,7 @@ class ChainHandle:
         self,
         record,
         records: list,
-        acknowledged,
+        acks: _AckContext,
         shredded: dict[int, int],
         detail_counts: Counter,
     ) -> dict[str, object]:
@@ -776,10 +788,11 @@ class ChainHandle:
 
         ``records`` is the full decoded list this record came from — needed
         to resolve ``prev_seq`` (below), not to re-derive anything about
-        this record itself. ``acknowledged``, ``shredded`` and
-        ``detail_counts`` are the package's own resolutions (U13, U15, U12
-        — all released 0.11.0), computed once per caller and passed in
-        rather than recomputed per record.
+        this record itself. ``acks``, ``shredded`` and ``detail_counts``
+        are built once per caller from the package's own resolutions
+        (U13/#236, U15, U12) and passed in rather than recomputed per
+        record — see ``_ack_context`` for the one subtraction this side
+        does on top of them.
         """
         header = record.header
         return {
@@ -842,13 +855,33 @@ class ChainHandle:
             # other kind — "not acknowledged" and "not the kind of record
             # that gets acknowledged" are different facts, and collapsing
             # them to False would say something about a GENESIS record
-            # that GENESIS never claimed. `in` is membership on the
-            # dict[candidate_seq, ack_seq] 0.12.0 returns (Palimpsests
-            # #236) exactly as it was on 0.11.0's set — this field needs
-            # only membership; which ack is C-07c's remainder.
-            "acknowledged": (record.seq in acknowledged)
+            # that GENESIS never claimed.
+            "acknowledged": (record.seq in acks.ack_of)
             if record.kind == KIND_INCIDENT_CANDIDATE
             else None,
+            # Which ack — the package's own hash-verified resolution
+            # (acknowledged_candidates(), a dict since 0.12.0, #236). An
+            # ack whose reference does not verify is not here at all;
+            # the advisory channel names it instead.
+            "acknowledged_by": acks.ack_of.get(record.seq)
+            if record.kind == KIND_INCIDENT_CANDIDATE
+            else None,
+            # The same resolution read backwards, on the ack itself: the
+            # candidate it verifiably acknowledges, or None — including
+            # for an ack whose reference is broken, which must not look
+            # like it acknowledges anything.
+            "acknowledges": acks.candidate_of.get(record.seq),
+            # See _ack_context: the writer's clock, same boot only.
+            "ack_latency_ns": acks.latency_ns.get(record.seq)
+            if record.kind == KIND_INCIDENT_CANDIDATE
+            else None,
+            # The ack's own fields (U15, released 0.11.0), carried as the
+            # package decoded them. Pseudonymous by design: 16 bytes the
+            # writer chose, shown as hex, never resolved to a person here.
+            "operator_id": None if record.operator_id is None else record.operator_id.hex(),
+            "disposition": None
+            if record.disposition is None
+            else {"value": record.disposition, "name": record.disposition_name},
             # The seq of the KEY_SHRED that shredded this record, or None
             # if it was not (or is not itself shreddable — a KEY_SHRED's
             # own target_seqs can name any record, so no kind is excluded
@@ -1170,12 +1203,13 @@ class ChainHandle:
         since this view is a filtered read of the same thing, not a
         second one.
 
-        **What `acknowledged` does not yet carry: which ack, or its own
-        operator and disposition.** This view says *whether*, not *by
-        whom* or *when*. Everything needed to say the rest is now in the
-        package — the `candidate_seq → ack_seq` mapping (0.12.0,
-        Palimpsests#236) and the ack's own `operator_id`/`disposition`
-        (0.11.0) — and wiring it through is C-07c's remainder.
+        **The oversight loop in full (C-07c).** A candidate says whether
+        it is acknowledged, by which ack, and — within one boot — how long
+        after, by the writer's clock; the ack says which candidate it
+        verifiably acknowledges, its pseudonymous operator and its
+        disposition. All of it is the package's resolution
+        (`acknowledged_candidates()`, 0.12.0) and the package's decode
+        (`operator_id`, `disposition`, 0.11.0), read through here.
 
         The response has the exact shape of `records()`'s window, reused
         rather than given a shape of its own: `total` counts SAFETY
@@ -1189,13 +1223,14 @@ class ChainHandle:
             acknowledged = self._reader.acknowledged_candidates()
             shredded = self._reader.shredded_targets()
         detail_counts = self._detail_counts(records)
+        acks = self._ack_context(records, acknowledged)
         for record in records:
             if record.record_type != RT_SAFETY:
                 continue
             total += 1
             if len(window) < limit:
                 window.append(
-                    self._record_view(record, records, acknowledged, shredded, detail_counts)
+                    self._record_view(record, records, acks, shredded, detail_counts)
                 )
         return {
             "records": window,
@@ -1235,6 +1270,42 @@ class ChainHandle:
                 {r.header.time_trust for r in records}, time_trust_name
             ),
         }
+
+    @staticmethod
+    def _ack_context(records: list, acknowledged: dict[int, int]) -> _AckContext:
+        """The oversight loop, resolved once per caller (C-07c).
+
+        ``acknowledged`` is the package's own ``candidate_seq → ack_seq``
+        mapping, hash-verified (0.12.0, Palimpsests#236). Nothing here
+        re-resolves a reference; this only reads that mapping both ways
+        and does the one subtraction the package deliberately leaves to
+        its consumer (U15's own row: "an Auditor-side subtraction").
+
+        **Latency is the writer's clock, and only within one boot.**
+        ``wall(ack) − wall(candidate)`` is two Recorded claims subtracted,
+        so it is at most as good as the clock that wrote them. Across a
+        boot boundary it is worse than that: the machine restarted in
+        between, the clock may have been set, and a number would silently
+        span a period nobody observed — the same reason the Chronoscope
+        removes its ruler inside a wall gap. So a cross-boot pair gets no
+        latency at all, and ``acknowledged_by`` non-null with
+        ``ack_latency_ns`` null says exactly that.
+        """
+        by_seq = {r.seq: r for r in records}
+        latency: dict[int, int] = {}
+        for candidate_seq, ack_seq in acknowledged.items():
+            candidate = by_seq.get(candidate_seq)
+            ack = by_seq.get(ack_seq)
+            if candidate is None or ack is None:
+                continue
+            if candidate.header.boot_id != ack.header.boot_id:
+                continue
+            latency[candidate_seq] = ack.header.wall_clock_ns - candidate.header.wall_clock_ns
+        return _AckContext(
+            ack_of=dict(acknowledged),
+            candidate_of={ack: cand for cand, ack in acknowledged.items()},
+            latency_ns=latency,
+        )
 
     @staticmethod
     def _detail_counts(records: list) -> Counter:

@@ -402,10 +402,10 @@ def build_app(token: str | None = None) -> FastAPI:
         inferred from a length that matches the cap by coincidence.
 
         Detail text and its recurrence count are on in full (C-07b,
-        U12, released 0.11.0). Acknowledged state and shred resolution
-        are (C-07c, partial) — membership only; which ack, and its
-        own operator or disposition, needs a richer upstream shape
-        not yet released.
+        U12). So is the oversight loop (C-07c): which ack acknowledged
+        a candidate, the candidate an ack verifiably acknowledges, the
+        ack's operator and disposition, and — within one boot only — the
+        latency between them by the writer's clock.
         """
         session = _session_or_404(app, session_id)
         _assert_still_the_subject(session)

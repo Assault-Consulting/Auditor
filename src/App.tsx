@@ -307,10 +307,9 @@ export default function App() {
 
         {/* F8: "SAFETY is a first-class list, not a filter — it is what
             an auditor reads first." Placed ahead of the Chronoscope for
-            that reason. Acknowledged state (C-07c, partial) is on now —
-            which ack, and its own operator or disposition, still is not
-            (needs a richer upstream shape not yet released). Detail text
-            and its recurrence count are on in full (C-07b, U12). Grouped
+            that reason. The oversight loop is on in full (C-07c): which
+            ack, and the ack's own operator and disposition, on the card.
+            Detail text and its recurrence count too (C-07b, U12). Grouped
             by kind, on what a SAFETY record already resolves. */}
         {openedOf(chain) !== null && (
           <section className="safety" aria-labelledby="safety-title">
@@ -328,9 +327,9 @@ export default function App() {
               <>
                 <p className="safety-note">
                   Grouped by kind, with detail text and its recurrence
-                  count (C-07b). Acknowledged state is shown for
-                  INCIDENT_CANDIDATE records (C-07c, partial) — which ack,
-                  and its own operator or disposition, is not yet.
+                  count. Open a record for its acknowledgement: which ack,
+                  the operator and disposition it recorded, and how long
+                  after — by the writer's clock.
                 </p>
                 <ol className="safety-groups">
                   {safety.value.map((g) => (
@@ -359,7 +358,9 @@ export default function App() {
                                   className="safety-ack-state"
                                   data-acknowledged={r.acknowledged}
                                 >
-                                  {r.acknowledged ? "acknowledged" : "not yet acknowledged"}
+                                  {r.acknowledged
+                                    ? `acknowledged by #${r.acknowledgedBy}`
+                                    : "not yet acknowledged"}
                                 </span>
                               )}
                               {r.detail !== null && (
@@ -778,11 +779,77 @@ export default function App() {
                   {record.value.acknowledged !== null && (
                     <div>
                       <dt>Ack</dt>
-                      {/* Membership only (C-07c, partial) — which ack, and
-                          its own operator or disposition, waits on a
-                          richer upstream shape not yet released. */}
+                      {/* C-07c. The ack is a jump; the latency beside it is
+                          the writer's clock subtracted — ochre, Recorded —
+                          and withheld across a boot rather than guessed. */}
                       <dd data-acknowledged={record.value.acknowledged}>
-                        {record.value.acknowledged ? "acknowledged" : "not yet acknowledged"}
+                        {(() => {
+                          const { acknowledgedBy, ackLatency } = record.value;
+                          if (acknowledgedBy === null) return "not yet acknowledged";
+                          return (
+                            <>
+                              <button
+                                type="button"
+                                className="record-jump-link"
+                                onClick={() => select(acknowledgedBy)}
+                              >
+                                by #{acknowledgedBy}
+                              </button>
+                              {ackLatency !== null && (
+                                <span className="record-ack-latency" data-kind={ackLatency.kind}>
+                                  {" "}
+                                  · {ackLatency.text}
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </dd>
+                    </div>
+                  )}
+                  {record.value.kindLabel.has &&
+                    record.value.kindLabel.named &&
+                    record.value.kindLabel.name === "OVERSIGHT_ACK" && (
+                      <div>
+                        <dt>Acknowledges</dt>
+                        {/* The package's hash-verified resolution read
+                            backwards. An ack whose reference does not
+                            verify acknowledges nothing, and says so — the
+                            advisory lane names why. */}
+                        <dd>
+                          {(() => {
+                            const target = record.value.acknowledges;
+                            if (target === null)
+                              return "no candidate it verifiably names — see the advisory lane";
+                            return (
+                              <button
+                                type="button"
+                                className="record-jump-link"
+                                onClick={() => select(target)}
+                              >
+                                #{target}
+                              </button>
+                            );
+                          })()}
+                        </dd>
+                      </div>
+                    )}
+                  {record.value.operatorId !== null && (
+                    <div>
+                      <dt>Operator</dt>
+                      {/* Pseudonymous by design, and Recorded: the writer
+                          chose these bytes. Never resolved to a person. */}
+                      <dd className="record-recorded">
+                        {record.value.operatorId.slice(0, 16)}… (pseudonymous)
+                      </dd>
+                    </div>
+                  )}
+                  {record.value.disposition !== null && (
+                    <div>
+                      <dt>Disposition</dt>
+                      <dd className="record-recorded">
+                        {record.value.disposition.name ??
+                          `value ${record.value.disposition.value}, unknown`}
                       </dd>
                     </div>
                   )}
