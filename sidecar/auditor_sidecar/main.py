@@ -36,6 +36,7 @@ from .models import (
     HealthResponse,
     KeychainSeedRequest,
     KeychainStatus,
+    NearestRecord,
     OriginState,
     RecordPage,
     RecordView,
@@ -367,6 +368,29 @@ def build_app(token: str | None = None) -> FastAPI:
                 "none matches."
             ),
         ),
+        record_hash: str | None = Query(
+            default=None,
+            description=(
+                "Keep only the record whose own hash is this (hex, exact). "
+                "How the anchor button finds the record a verified anchor "
+                "names; a head that names nothing here is an empty answer."
+            ),
+        ),
+        wall_from_ns: int | None = Query(
+            default=None,
+            description=(
+                "Keep only records whose writer's clock reads at or after "
+                "this instant. A RECORDED bound: it filters on the writer's "
+                "claim, not on proved order."
+            ),
+        ),
+        wall_to_ns: int | None = Query(
+            default=None,
+            description=(
+                "Keep only records whose writer's clock reads before this "
+                "instant (exclusive)."
+            ),
+        ),
     ) -> RecordPage:
         """A window onto the records, as structure rather than content.
 
@@ -387,8 +411,36 @@ def build_app(token: str | None = None) -> FastAPI:
                 kind_name=kind_name,
                 tier=tier,
                 source_name=source_name,
+                record_hash=record_hash,
+                wall_from_ns=wall_from_ns,
+                wall_to_ns=wall_to_ns,
             )
         )
+
+    @app.get("/session/{session_id}/nearest", response_model=NearestRecord)
+    def session_nearest(
+        session_id: str,
+        wall_ns: int = Query(
+            description=(
+                "The instant to look near, in nanoseconds since the epoch, "
+                "UTC. Required: there is no default instant a caller could "
+                "have meant."
+            ),
+        ),
+    ) -> NearestRecord:
+        """The record nearest an instant by the writer's clock (C-09c).
+
+        Always answered with the qualifiers attached — `basis`,
+        `time_trust`, `wall_follows_seq`, `boot_clock_stepped`,
+        `equally_near` — because the answer is a statement about a
+        Recorded clock and must not travel without saying so.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        found = session.nearest(wall_ns)
+        if found is None:  # pragma: no cover - open_chain refuses empty files
+            raise HTTPException(status_code=404, detail="this container holds no records")
+        return NearestRecord(**found)
 
     @app.get("/session/{session_id}/safety", response_model=RecordPage)
     def session_safety(session_id: str) -> RecordPage:
