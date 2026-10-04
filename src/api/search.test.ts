@@ -168,3 +168,58 @@ group("the source chip (C-12)", () => {
     if (outcome?.kind === "unsupported") expect(outcome.reason).toContain("source:");
   });
 });
+
+// --- time jump and date range (C-09c) ----------------------------------------
+
+group("a time jump", () => {
+  it("reads an instant in UTC and carries it as exact nanoseconds", () => {
+    expect(parseSearch("@2026-08-06T22:41Z")).toEqual({
+      kind: "time",
+      ns: "1786056060000000000",
+      iso: "2026-08-06T22:41:00.000Z",
+    });
+  });
+
+  it("reads no zone as UTC — the application's one zone — rather than local", () => {
+    const zoned = parseSearch("@2026-08-06T22:41Z");
+    const bare = parseSearch("@2026-08-06T22:41");
+    expect(bare).toEqual(zoned);
+  });
+
+  it("honours an explicit offset", () => {
+    const outcome = parseSearch("@2026-08-07T01:41+03:00");
+    expect(outcome?.kind === "time" && outcome.ns).toBe("1786056060000000000");
+  });
+
+  it("is exact past 2^53 — the nanosecond string is not a rounded number", () => {
+    const outcome = parseSearch("@2026-08-06T22:41:07Z");
+    expect(outcome?.kind === "time" && outcome.ns).toBe("1786056067000000000");
+  });
+
+  it("refuses a day that does not exist rather than rolling it over", () => {
+    expect(parseSearch("@2026-02-31T10:00Z")).toMatchObject({ kind: "unsupported" });
+  });
+
+  it("refuses a malformed instant and shows the form it wants", () => {
+    const outcome = parseSearch("@yesterday");
+    expect(outcome?.kind === "unsupported" && outcome.reason).toContain("@2026-08-06T22:41Z");
+  });
+});
+
+group("date range chips", () => {
+  it("reads from: and to: as days, with the other chips", () => {
+    expect(parseSearch("from:2026-08-06 to:2026-08-07 kind:INCIDENT_CANDIDATE")).toEqual({
+      kind: "filters",
+      chips: [
+        { key: "from", value: "2026-08-06" },
+        { key: "to", value: "2026-08-07" },
+        { key: "kind", value: "INCIDENT_CANDIDATE" },
+      ],
+    });
+  });
+
+  it("refuses a date that is not a real UTC day", () => {
+    expect(parseSearch("from:2026-13-01")).toMatchObject({ kind: "unsupported" });
+    expect(parseSearch("to:06.08.2026")).toMatchObject({ kind: "unsupported" });
+  });
+});

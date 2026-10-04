@@ -28,6 +28,8 @@ import { backwards, compress, compressionLine, density } from "./api/chronoscope
 import { diagnosisCard } from "./api/diagnosis";
 import { provenance, provenanceSummary } from "./api/provenance";
 import { type RecordFilters, resolveChips } from "./api/filters";
+import { getNearest, getRecords } from "./api/chain";
+import { type NearestLine, nearestLine } from "./api/nearest";
 import { type Chip, chipLabel, nextWarning, parseSearch } from "./api/search";
 import { safetyGroupKey } from "./api/safety";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords, useSafety } from "./state";
@@ -80,11 +82,35 @@ export default function App() {
   // and why it is not here yet.
   const [searchField, setSearchField] = useState("");
   const [searchNote, setSearchNote] = useState<string | null>(null);
+  // C-09c: what a time jump found, with every qualifier the sidecar sent.
+  // Cleared by any other search, so a stale answer never sits beside a
+  // record it was not about.
+  const [jump, setJump] = useState<NearestLine | null>(null);
+  const opened = openedOf(chain);
+  const sessionOf = () =>
+    probe.kind === "ready" && opened !== null
+      ? { session: probe.session, id: opened.session_id }
+      : null;
 
   const runSearch = (e: FormEvent) => {
     e.preventDefault();
     const outcome = parseSearch(searchField);
     if (outcome === null) return;
+    setJump(null);
+    if (outcome.kind === "time") {
+      const s = sessionOf();
+      if (s === null) return;
+      setSearchNote(null);
+      void getNearest(s.session, s.id, outcome.ns)
+        .then((n) => {
+          // The instant is printed back as UTC, by name: a bare
+          // "@2026-08-06T22:41" was read as UTC, and the line says so.
+          setJump(nearestLine(n, outcome.iso.replace(".000Z", " UTC").replace("T", " ")));
+          select(n.seq);
+        })
+        .catch((err: unknown) => setSearchNote(err instanceof Error ? err.message : String(err)));
+      return;
+    }
     if (outcome.kind === "seq") {
       setSearchNote(null);
       select(outcome.seq);
@@ -124,11 +150,33 @@ export default function App() {
   // remove.
   const advisory = chain.kind === "verified" ? chain.result.advisory : null;
 
-  // Two of F10's three quick buttons. The third, anchor, needs a record's
-  // own hash to know which record a configured anchor names — not
-  // available on this side of the seam yet (U10, C-06c) — so it is left
-  // out rather than built to point at the wrong thing.
+  // F10's three quick buttons. The anchor button (C-09c) finds the record
+  // whose own hash is the verified anchor's head — and when no record in
+  // this file has it, says so. It never falls back to the last record:
+  // "the anchor names nothing here" is the finding question two reports
+  // as replaced_or_rolled_back or unanchored_tail, and a button that
+  // jumped somewhere anyway would hide it.
   const firstSeq = openedOf(chain)?.subject.first_seq ?? null;
+  const anchoredHead =
+    chain.kind === "verified" && chain.result.anchor !== null ? chain.result.anchor.head : null;
+  const jumpToAnchor = () => {
+    const s = sessionOf();
+    if (s === null || anchoredHead === null) return;
+    setJump(null);
+    void getRecords(s.session, s.id, { recordHash: anchoredHead, limit: 1 })
+      .then((page) => {
+        const found = page.records[0];
+        if (found === undefined) {
+          setSearchNote(
+            `The anchored head ${anchoredHead.slice(0, 8)} names no record in this file — see question two.`,
+          );
+        } else {
+          setSearchNote(null);
+          select(found.seq);
+        }
+      })
+      .catch((err: unknown) => setSearchNote(err instanceof Error ? err.message : String(err)));
+  };
   const nextWarningSeq = advisory !== null ? nextWarning(advisory.items, selectedSeq) : null;
 
   // Bar widths, computed once and keyed by date.
@@ -678,7 +726,7 @@ export default function App() {
                 <span className="search-hint">search</span>
                 <input
                   onChange={(e) => setSearchField(e.target.value)}
-                  placeholder="#1447  or  kind:INCIDENT_CANDIDATE source:reported-by-client"
+                  placeholder="#1447  ·  @2026-08-06T22:41Z  ·  kind:INCIDENT_CANDIDATE from:2026-08-06"
                   type="text"
                   value={searchField}
                 />
@@ -702,7 +750,31 @@ export default function App() {
               >
                 next warning
               </button>
+              {/* Dimmed until an anchor answered a verification: before
+                  that there is no head to look for. */}
+              <button
+                disabled={anchoredHead === null}
+                onClick={jumpToAnchor}
+                title={anchoredHead === null ? "verify against an anchor first" : undefined}
+                type="button"
+              >
+                anchor
+              </button>
             </div>
+
+            {/* C-09c. The jump's answer, in ochre — a Recorded statement
+                about the writer's clock — with every qualifier beneath it.
+                Not a footnote: a caution dropped here is the overclaim. */}
+            {jump !== null && (
+              <div className="jump-result">
+                <p className="jump-line">{jump.text}</p>
+                {jump.cautions.map((c) => (
+                  <p className="jump-caution" key={c}>
+                    {c}
+                  </p>
+                ))}
+              </div>
+            )}
 
             {record.kind === "failed" && (
               /* The sidecar's own sentence — a 404 here means this segment

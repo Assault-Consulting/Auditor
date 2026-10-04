@@ -19,6 +19,7 @@
 import type {
   AnchorProfile,
   BootView,
+  NearestRecord,
   OriginState,
   RecordPage,
   RecordView,
@@ -326,6 +327,10 @@ export async function getRecords(
     kindName?: string;
     tier?: string;
     sourceName?: string;
+    /** Decimal nanosecond strings — exact past 2^53, unlike a number. */
+    wallFromNs?: string;
+    wallToNs?: string;
+    recordHash?: string;
   } = {},
 ): Promise<RecordPage> {
   const query = new URLSearchParams();
@@ -338,6 +343,9 @@ export async function getRecords(
   if (options.kindName !== undefined) query.set("kind_name", options.kindName);
   if (options.tier !== undefined) query.set("tier", options.tier);
   if (options.sourceName !== undefined) query.set("source_name", options.sourceName);
+  if (options.wallFromNs !== undefined) query.set("wall_from_ns", options.wallFromNs);
+  if (options.wallToNs !== undefined) query.set("wall_to_ns", options.wallToNs);
+  if (options.recordHash !== undefined) query.set("record_hash", options.recordHash);
 
   const response = await fetch(
     url(session, `/session/${sessionId}/records?${query}`),
@@ -346,6 +354,25 @@ export async function getRecords(
   // A 422 here is about the query (an out-of-range limit), not the file.
   if (!response.ok) await raise(response, (d) => new RefusedError(d));
   return (await response.json()) as RecordPage;
+}
+
+/**
+ * The record nearest an instant, by the writer's clock (C-09c).
+ *
+ * `wallNs` is a decimal string so the instant arrives exactly as typed —
+ * see `api/search.ts`. The answer carries its own qualifiers; render them.
+ */
+export async function getNearest(
+  session: Session,
+  sessionId: string,
+  wallNs: string,
+): Promise<NearestRecord> {
+  const response = await fetch(
+    url(session, `/session/${sessionId}/nearest?wall_ns=${encodeURIComponent(wallNs)}`),
+    { headers: headers(session) },
+  );
+  if (!response.ok) await raise(response, (d) => new RefusedError(d));
+  return (await response.json()) as NearestRecord;
 }
 
 /**

@@ -93,3 +93,39 @@ group("the source filter (C-12)", () => {
     );
   });
 });
+
+group("the date range (C-09c)", () => {
+  const known = { boots: null, spans: null };
+
+  it("turns from: into that day's UTC midnight and to: into the next one", () => {
+    // to: names the last day kept, so the exclusive bound is the midnight
+    // after it — the same whole days the rail draws.
+    expect(
+      resolveChips(
+        [
+          { key: "from", value: "2026-08-06" },
+          { key: "to", value: "2026-08-06" },
+        ],
+        known,
+      ),
+    ).toEqual({
+      kind: "resolved",
+      filters: { wallFromNs: "1785974400000000000", wallToNs: "1786060800000000000" },
+    });
+  });
+
+  it("refuses a range that holds no day, rather than showing an empty list", () => {
+    const r = resolveChips(
+      [
+        { key: "from", value: "2026-08-07" },
+        { key: "to", value: "2026-08-06" },
+      ],
+      known,
+    );
+    expect(r.kind === "refused" && r.reason).toContain("from: is after to:");
+  });
+
+  it("is part of the question the cursor resets on", () => {
+    expect(filtersKey({ wallFromNs: "1" })).not.toBe(filtersKey({ wallToNs: "1" }));
+  });
+});

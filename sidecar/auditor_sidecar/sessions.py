@@ -144,6 +144,9 @@ class Session:
         kind_name: str | None = None,
         tier: str | None = None,
         source_name: str | None = None,
+        record_hash: str | None = None,
+        wall_from_ns: int | None = None,
+        wall_to_ns: int | None = None,
     ) -> dict:
         """A window onto the records. Deliberately uncached — see above."""
         return self.chain.records(
@@ -156,7 +159,16 @@ class Session:
             kind_name=kind_name,
             tier=tier,
             source_name=source_name,
+            record_hash=record_hash,
+            wall_from_ns=wall_from_ns,
+            wall_to_ns=wall_to_ns,
         )
+
+    def nearest(self, wall_ns: int) -> dict | None:
+        """The record nearest an instant by the writer's clock. Uncached:
+        every instant is a different question, the same reason record
+        windows are not cached."""
+        return self.chain.nearest(wall_ns)
 
     def subject(self) -> dict[str, object]:
         """Identity plus structure, as one payload."""

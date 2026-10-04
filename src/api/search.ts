@@ -21,21 +21,33 @@
  *   the package's own name. Lower-cased rather than upper-cased, for the
  *   same reason the others are upper-cased: `reported-by-client` and
  *   `parsed-from-wire` are how the package spells them.
+ * - **Date range** (C-09c): `from:YYYY-MM-DD` and `to:YYYY-MM-DD`, whole
+ *   UTC days, `to:` inclusive — the same days the date rail draws. A filter
+ *   on the writer's clock, so a Recorded bound.
+ * - **Time jump** (C-09c): `@2026-08-06T22:41Z`, alone, like `#seq`. An
+ *   explicit offset (`+03:00`) is honoured; no zone at all is read as UTC,
+ *   the application's one time zone, and the answer says "UTC" so the
+ *   reading is never silent.
  *
  * What it still does not read, and says so rather than ignoring:
  *
  * - Free text over `detail` — `FUNCTIONALITY.md` §22.3's open question.
  *   The data exists since C-07b; the product decision does not.
- * - Date range and time jump (C-09c) — both are about the writer's wall
- *   clock, and belong together.
+ *
+ * Instants are carried as **decimal nanosecond strings**, never numbers:
+ * a 2026 instant in nanoseconds is ~1.8e18, past the 2^53 a JavaScript
+ * number holds exactly, and a rounded instant would ask the sidecar about
+ * a moment nobody typed.
  */
 
 import type { AdvisoryItemModel } from "./generated/types";
 
 /** The chip keys this build reads. */
-export type ChipKey = "kind" | "type" | "tier" | "boot" | "span" | "source";
+export type ChipKey = "kind" | "type" | "tier" | "boot" | "span" | "source" | "from" | "to";
 
-const CHIP_KEYS: readonly ChipKey[] = ["kind", "type", "tier", "boot", "span", "source"];
+const CHIP_KEYS: readonly ChipKey[] = [
+  "kind", "type", "tier", "boot", "span", "source", "from", "to",
+];
 
 /** One `key:value` token, normalised. */
 export interface Chip {
@@ -46,15 +58,33 @@ export interface Chip {
 /** What the bar was asked to do, once parsed. */
 export type SearchOutcome =
   | { kind: "seq"; seq: number }
+  /** A time jump. `ns` is a decimal string — see the module docstring. */
+  | { kind: "time"; ns: string; iso: string }
   | { kind: "filters"; chips: Chip[] }
   | { kind: "unsupported"; raw: string; reason: string };
 
 const SEQ_SYNTAX = /^#(\d+)$/;
 const CHIP_SYNTAX = /^([a-z]+):(\S+)$/i;
 const HEX = /^[0-9a-f]+$/;
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_SYNTAX = /^@(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}(?::\d{2})?)(Z|[+-]\d{2}:\d{2})?$/i;
 
-const NOT_YET =
-  "free text, date range and time jump are not built yet (F10, C-09c/C-09d)";
+const NOT_YET = "free text over detail is not built yet (F10, C-09d)";
+
+/** Milliseconds since the epoch as a decimal nanosecond string, exactly. */
+export function msToNs(ms: number): string {
+  return (BigInt(ms) * 1_000_000n).toString();
+}
+
+/** A UTC day as the nanosecond instant of its midnight, or null if invalid. */
+export function dayStartNs(day: string, plusDays = 0): string | null {
+  if (!DAY.test(day)) return null;
+  const ms = Date.parse(`${day}T00:00:00Z`);
+  if (Number.isNaN(ms)) return null;
+  // Date.parse rolls 2026-02-31 into March; refuse rather than reinterpret.
+  if (new Date(ms).toISOString().slice(0, 10) !== day) return null;
+  return msToNs(ms + plusDays * 86_400_000);
+}
 
 function unsupported(raw: string, reason: string): SearchOutcome {
   return { kind: "unsupported", raw, reason };
@@ -77,6 +107,20 @@ export function parseSearch(raw: string): SearchOutcome | null {
 
   const seq = SEQ_SYNTAX.exec(trimmed);
   if (seq) return { kind: "seq", seq: Number(seq[1]) };
+
+  if (trimmed.startsWith("@")) {
+    const t = TIME_SYNTAX.exec(trimmed);
+    if (!t) {
+      return unsupported(trimmed, `"${trimmed}" is not a time jump — write @2026-08-06T22:41Z`);
+    }
+    const day = t[1]!;
+    const zone = t[3] === undefined ? "Z" : t[3].toUpperCase();
+    const ms = Date.parse(`${day}T${t[2]}${zone}`);
+    if (Number.isNaN(ms) || dayStartNs(day) === null) {
+      return unsupported(trimmed, `"${trimmed}" is not a real instant`);
+    }
+    return { kind: "time", ns: msToNs(ms), iso: new Date(ms).toISOString() };
+  }
 
   const chips: Chip[] = [];
   for (const token of trimmed.split(/\s+/)) {
@@ -109,6 +153,10 @@ export function parseSearch(raw: string): SearchOutcome | null {
       }
     } else if (chipKey === "source") {
       value = value.toLowerCase();
+    } else if (chipKey === "from" || chipKey === "to") {
+      if (dayStartNs(value) === null) {
+        return unsupported(trimmed, `"${key}:${value}" — a date is YYYY-MM-DD, a real UTC day`);
+      }
     } else {
       value = value.toUpperCase();
     }
