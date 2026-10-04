@@ -350,6 +350,35 @@ export interface NamedValue {
 }
 
 /**
+ * The record nearest an instant, by the writer's clock (C-09c).
+ *
+ * Every field that qualifies the answer travels with it. "Nearest to
+ * 22:41" is decided by `wall_clock_ns`, a Recorded claim, so the answer is
+ * a statement about the writer's clock, never about when something
+ * happened.
+ */
+export interface NearestRecord {
+  /** The record found. */
+  seq: number;
+  /** Its writer's clock reading. */
+  wall_clock_ns: number;
+  /** The instant asked about, as received. */
+  asked_ns: number;
+  /** wall_clock_ns − asked_ns. Signed: negative means the record's clock reads before the instant asked about. */
+  delta_ns: number;
+  /** Always 'recorded'. Carried rather than implied, so no consumer can present this as a proved position in the history. */
+  basis: string;
+  /** The writer's own status for its clock at that record. */
+  time_trust: NamedValue;
+  /** Whether the writer's clock is non-decreasing along proved order across the file. FALSE MEANS 'NEAREST' IS A STATEMENT ABOUT THE CLOCK ONLY: records far apart in the chain can sit next to each other in wall time, and a UI must say so. */
+  wall_follows_seq: boolean;
+  /** Whether the package's step catalogue reports a clock step in this record's boot — a stepped boot measures two clocks. */
+  boot_clock_stepped: boolean;
+  /** How many OTHER records sit at exactly the same distance. Ties resolve to the lowest seq; the count makes that choice visible rather than silent. */
+  equally_near: number;
+}
+
+/**
  * What was running when a record was written.
  *
  * Every field is a **Recorded** claim: the writer declared it, and nothing
