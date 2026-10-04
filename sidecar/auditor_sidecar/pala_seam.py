@@ -661,6 +661,9 @@ class ChainHandle:
         kind_name: str | None = None,
         tier: str | None = None,
         source_name: str | None = None,
+        record_hash: str | None = None,
+        wall_from_ns: int | None = None,
+        wall_to_ns: int | None = None,
     ) -> dict[str, object]:
         """A window onto the records, with the header fields for each.
 
@@ -701,6 +704,17 @@ class ChainHandle:
         `parsed-from-wire`, as the package names them. Every other record
         carries no mark at all, so it never matches either name.
 
+        `record_hash` (C-09c) matches a record's own hash exactly — the
+        package's `record_hash`, hex. It is how the anchor button finds the
+        record a verified anchor names, and a head that names nothing in
+        this file is an empty answer, never a fallback to the last record.
+
+        `wall_from_ns` / `wall_to_ns` (C-09c) bound the writer's clock,
+        from inclusive, to exclusive. They filter on a **Recorded** claim,
+        and say nothing about proved order: where the writer's clock went
+        backwards, the records inside a wall range need not be contiguous
+        in the chain. The window is still drawn in proved order.
+
         Body TLVs are reported as **type and length, not content**. Bodies
         may be encrypted, and a records list is a structural view; showing
         what is inside a record is C-06d's job (`DEVELOPMENT-PLAN.md`, §5)
@@ -728,7 +742,7 @@ class ChainHandle:
         for record in records:
             if not self._matches(
                 record, record_type, boot_id, span_id, type_name, kind_name, tier,
-                source_name,
+                source_name, record_hash, wall_from_ns, wall_to_ns,
             ):
                 continue
             matched += 1
@@ -764,6 +778,9 @@ class ChainHandle:
         kind_name: str | None = None,
         tier: str | None = None,
         source_name: str | None = None,
+        record_hash: str | None = None,
+        wall_from_ns: int | None = None,
+        wall_to_ns: int | None = None,
     ) -> bool:
         """Whether a record passes the filters, all of which are ANDed."""
         if record_type is not None and record.record_type != record_type:
@@ -779,6 +796,13 @@ class ChainHandle:
         if tier is not None and assurance_tier_name(record.header.assurance_tier) != tier:
             return False
         if source_name is not None and record.source_name != source_name:
+            return False
+        if record_hash is not None and record.record_hash.hex() != record_hash:
+            return False
+        wall = record.header.wall_clock_ns
+        if wall_from_ns is not None and wall < wall_from_ns:
+            return False
+        if wall_to_ns is not None and wall >= wall_to_ns:
             return False
         return True
 
@@ -1145,6 +1169,67 @@ class ChainHandle:
                 {r.header.time_trust for r in records}, time_trust_name
             ),
             "steps": steps,
+        }
+
+    def nearest(self, wall_ns: int) -> dict[str, object] | None:
+        """The record whose writer's clock is nearest to an instant (C-09c).
+
+        **This answers a question about the writer's clock, and says so.**
+        "Nearest to 22:41" is decided entirely by `wall_clock_ns`, a
+        Recorded claim. Nothing here can say the record *happened* nearest
+        to 22:41 — only that the writer's clock said so. The response
+        carries what qualifies that:
+
+        * `time_trust` of the record found — the writer's own status for
+          that clock at that moment;
+        * `wall_follows_seq` — whether the writer's clock is monotonic
+          along proved order across the whole file. When it is not, two
+          records far apart in the chain can sit near each other in wall
+          time, and "the nearest" is a statement about the clock, not about
+          where in the history to look;
+        * `boot_clock_stepped` — whether the package's own step catalogue
+          reports a step in that record's boot; a stepped clock measures
+          two different clocks inside one boot;
+        * `equally_near` — how many *other* records sit at exactly the
+          same distance. Ties resolve to the lowest seq, deterministically,
+          and the count is carried so the choice is visible rather than
+          silent.
+
+        `delta_ns` is signed: negative means the record's clock reads
+        before the instant asked about.
+
+        None for a container with no records — which `open_chain` already
+        refuses, so it is unreachable through a session; kept as an answer
+        rather than an exception for the same reason `timeline()` does.
+        """
+        with self._lock:
+            records = list(self._reader.records())
+        if not records:
+            return None
+
+        def distance(r) -> int:
+            return abs(r.header.wall_clock_ns - wall_ns)
+
+        best = min(records, key=lambda r: (distance(r), r.seq))
+        best_distance = distance(best)
+        equally_near = sum(1 for r in records if distance(r) == best_distance) - 1
+
+        walls = [r.header.wall_clock_ns for r in sorted(records, key=lambda r: r.seq)]
+        follows = all(a <= b for a, b in zip(walls, walls[1:], strict=False))
+
+        with self._lock:
+            stepped_boots = {step.boot_id for step in step_catalog(self._reader)}
+
+        return {
+            "seq": best.seq,
+            "wall_clock_ns": best.header.wall_clock_ns,
+            "asked_ns": wall_ns,
+            "delta_ns": best.header.wall_clock_ns - wall_ns,
+            "basis": "recorded",
+            "time_trust": self._named({best.header.time_trust}, time_trust_name)[0],
+            "wall_follows_seq": follows,
+            "boot_clock_stepped": best.header.boot_id in stepped_boots,
+            "equally_near": equally_near,
         }
 
     def origin(self, seq: int) -> dict[str, object]:
