@@ -1006,6 +1006,143 @@ def test_a_source_filter_never_matches_an_unmarked_record(
     assert page["total"] == 0
 
 
+# --- time jump, date range, anchor (C-09c) -----------------------------------
+#
+# All three are about the writer's clock or the anchor, and each answer has
+# to carry what qualifies it. "Nearest to 22:41" is a statement about a
+# Recorded clock; a date range filters on the same claim; the anchor button
+# finds the record a head names, or finds nothing — never the last record.
+
+#: 2026-08-06T22:41:00Z, the instant Phase 2's exit criterion asks about.
+_AUG_6_22_41 = 1_786_056_060_000_000_000
+_MINUTE = 60_000_000_000
+
+
+@pytest.fixture
+def evening_chain(tmp_path, monkeypatch):
+    """A boot that runs across 22:41 on 6 Aug, one record a minute, with
+    the SAFETY record written at exactly 22:41 by the writer's clock."""
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    _controlled_clock(monkeypatch, _AUG_6_22_41 - 3 * _MINUTE, _MINUTE)
+    path = tmp_path / "evening.pala"
+    w = PalaWriter(path)
+    w.genesis()  # 22:38
+    w.boot()  # 22:39
+    w.model_load(b"\x11" * 32, b"\x22" * 32)  # 22:40
+    w.incident_candidate(category=1, severity=2, detail="guard tripped")  # 22:41, seq 3
+    w.anchor()  # 22:42
+    w.close()
+    return path
+
+
+def test_the_phase_2_exit_criterion_question_is_answerable(
+    open_client: TestClient, evening_chain
+) -> None:
+    """"What happened at 22:41 on 6 Aug": the nearest record by the writer's
+    clock is the SAFETY record written then, and the answer says whose
+    clock it was."""
+    sid = _open(open_client, evening_chain)
+    near = open_client.get(f"/session/{sid}/nearest?wall_ns={_AUG_6_22_41}").json()
+
+    assert near["seq"] == 3
+    assert near["delta_ns"] == 0
+    assert near["basis"] == "recorded"
+    assert near["time_trust"]["name"] == "UNSYNCED"
+    record = open_client.get(f"/session/{sid}/record/{near['seq']}").json()
+    assert record["kind_name"] == "INCIDENT_CANDIDATE"
+
+
+def test_nearest_reports_a_signed_distance(open_client: TestClient, evening_chain) -> None:
+    sid = _open(open_client, evening_chain)
+    # 22:41:20 — nearer to the 22:41 record than to 22:42; it reads 20 s before.
+    near = open_client.get(
+        f"/session/{sid}/nearest?wall_ns={_AUG_6_22_41 + 20_000_000_000}"
+    ).json()
+
+    assert near["seq"] == 3
+    assert near["delta_ns"] == -20_000_000_000
+
+
+def test_a_tie_resolves_to_the_lower_seq_and_says_there_was_one(
+    open_client: TestClient, evening_chain
+) -> None:
+    """Exactly between 22:41 and 22:42: two records equally near. The lower
+    seq wins deterministically, and the count makes that visible."""
+    sid = _open(open_client, evening_chain)
+    near = open_client.get(
+        f"/session/{sid}/nearest?wall_ns={_AUG_6_22_41 + 30_000_000_000}"
+    ).json()
+
+    assert near["seq"] == 3
+    assert near["equally_near"] == 1
+
+
+def test_nearest_says_when_the_writers_clock_ran_backwards(
+    open_client: TestClient, tmp_path, monkeypatch
+) -> None:
+    """The clock jumps back an hour mid-chain. "Nearest" is still answered —
+    but the answer carries wall_follows_seq false, so no UI can present it
+    as a position in proved order."""
+    from palimpsests.audit.pala_writer import PalaWriter
+
+    clock = _controlled_clock(monkeypatch, _AUG_6_22_41, _MINUTE)
+    path = tmp_path / "backwards.pala"
+    w = PalaWriter(path)
+    w.genesis()
+    w.boot()
+    w.model_load(b"\x11" * 32, b"\x22" * 32)
+    clock["now"] -= 60 * _MINUTE
+    w.incident_candidate(category=1, severity=2, detail="after the step")
+    w.close()
+
+    sid = _open(open_client, path)
+    near = open_client.get(f"/session/{sid}/nearest?wall_ns={_AUG_6_22_41}").json()
+
+    assert near["wall_follows_seq"] is False
+
+
+def test_nearest_requires_an_instant(open_client: TestClient, chain_path) -> None:
+    sid = _open(open_client, chain_path)
+    assert open_client.get(f"/session/{sid}/nearest").status_code == 422
+
+
+def test_a_wall_range_keeps_records_whose_clock_reads_inside_it(
+    open_client: TestClient, evening_chain
+) -> None:
+    """From inclusive, to exclusive: 22:40 up to (not including) 22:42."""
+    sid = _open(open_client, evening_chain)
+    page = open_client.get(
+        f"/session/{sid}/records?wall_from_ns={_AUG_6_22_41 - _MINUTE}"
+        f"&wall_to_ns={_AUG_6_22_41 + _MINUTE}"
+    ).json()
+
+    assert [r["seq"] for r in page["records"]] == [2, 3]
+
+
+def test_a_record_hash_filter_finds_exactly_that_record(
+    open_client: TestClient, chain_path
+) -> None:
+    """How the anchor button finds the record a verified head names."""
+    sid = _open(open_client, chain_path)
+    head = open_client.get(f"/session/{sid}/verify").json()["chain"]["head"]
+    page = open_client.get(f"/session/{sid}/records?record_hash={head}").json()
+
+    assert page["total"] == 1
+    assert page["records"][0]["record_hash"] == head
+
+
+def test_a_head_that_names_nothing_here_is_an_empty_answer(
+    open_client: TestClient, chain_path
+) -> None:
+    """Never the last record, never the nearest one: a head this file does
+    not contain is a finding, and the empty list is how it is reported."""
+    sid = _open(open_client, chain_path)
+    page = open_client.get(f"/session/{sid}/records?record_hash={'ab' * 32}").json()
+
+    assert page["total"] == 0
+
+
 def test_a_shredded_record_reports_its_shredder(
     open_client: TestClient, tmp_path
 ) -> None:
@@ -1112,7 +1249,9 @@ def test_safety_and_records_agree_on_the_same_record(
 # --- the same refusals the rest of the surface makes ------------------------
 
 
-BROWSE_VIEWS = ["boots", "spans", "records", "record/0", "origin?seq=0", "safety"]
+BROWSE_VIEWS = [
+    "boots", "spans", "records", "record/0", "origin?seq=0", "safety", "nearest?wall_ns=0",
+]
 
 
 @pytest.mark.parametrize("view", BROWSE_VIEWS)
