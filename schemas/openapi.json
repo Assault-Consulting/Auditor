@@ -862,6 +862,68 @@
         "title": "NamedValue",
         "type": "object"
       },
+      "NearestRecord": {
+        "description": "The record nearest an instant, by the writer's clock (C-09c).\n\nEvery field that qualifies the answer travels with it. \"Nearest to\n22:41\" is decided by `wall_clock_ns`, a Recorded claim, so the answer is\na statement about the writer's clock, never about when something\nhappened.",
+        "properties": {
+          "asked_ns": {
+            "description": "The instant asked about, as received.",
+            "title": "Asked Ns",
+            "type": "integer"
+          },
+          "basis": {
+            "description": "Always 'recorded'. Carried rather than implied, so no consumer can present this as a proved position in the history.",
+            "title": "Basis",
+            "type": "string"
+          },
+          "boot_clock_stepped": {
+            "description": "Whether the package's step catalogue reports a clock step in this record's boot \u2014 a stepped boot measures two clocks.",
+            "title": "Boot Clock Stepped",
+            "type": "boolean"
+          },
+          "delta_ns": {
+            "description": "wall_clock_ns \u2212 asked_ns. Signed: negative means the record's clock reads before the instant asked about.",
+            "title": "Delta Ns",
+            "type": "integer"
+          },
+          "equally_near": {
+            "description": "How many OTHER records sit at exactly the same distance. Ties resolve to the lowest seq; the count makes that choice visible rather than silent.",
+            "title": "Equally Near",
+            "type": "integer"
+          },
+          "seq": {
+            "description": "The record found.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "time_trust": {
+            "$ref": "#/components/schemas/NamedValue",
+            "description": "The writer's own status for its clock at that record."
+          },
+          "wall_clock_ns": {
+            "description": "Its writer's clock reading.",
+            "title": "Wall Clock Ns",
+            "type": "integer"
+          },
+          "wall_follows_seq": {
+            "description": "Whether the writer's clock is non-decreasing along proved order across the file. FALSE MEANS 'NEAREST' IS A STATEMENT ABOUT THE CLOCK ONLY: records far apart in the chain can sit next to each other in wall time, and a UI must say so.",
+            "title": "Wall Follows Seq",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "seq",
+          "wall_clock_ns",
+          "asked_ns",
+          "delta_ns",
+          "basis",
+          "time_trust",
+          "wall_follows_seq",
+          "boot_clock_stepped",
+          "equally_near"
+        ],
+        "title": "NearestRecord",
+        "type": "object"
+      },
       "OriginModel": {
         "description": "What was running when a record was written.\n\nEvery field is a **Recorded** claim: the writer declared it, and nothing\nin the chain proves the process was actually running that model. The\ndigests let a reader compare against an artifact they hold; they do not\nestablish what produced the records.",
         "properties": {
@@ -2128,6 +2190,57 @@
         "summary": "Session Boots"
       }
     },
+    "/session/{session_id}/nearest": {
+      "get": {
+        "description": "The record nearest an instant by the writer's clock (C-09c).\n\nAlways answered with the qualifiers attached \u2014 `basis`,\n`time_trust`, `wall_follows_seq`, `boot_clock_stepped`,\n`equally_near` \u2014 because the answer is a statement about a\nRecorded clock and must not travel without saying so.",
+        "operationId": "session_nearest_session__session_id__nearest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The instant to look near, in nanoseconds since the epoch, UTC. Required: there is no default instant a caller could have meant.",
+            "in": "query",
+            "name": "wall_ns",
+            "required": true,
+            "schema": {
+              "description": "The instant to look near, in nanoseconds since the epoch, UTC. Required: there is no default instant a caller could have meant.",
+              "title": "Wall Ns",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NearestRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session Nearest"
+      }
+    },
     "/session/{session_id}/origin": {
       "get": {
         "description": "What was running when a record was written \u2014 three states.\n\n**`state` carries the distinction a bare null could not.**\n`origin_at()` alone returns null for two different facts:\nnothing has been declared yet (\"not_stated\"), and something was\ndeclared and then explicitly ended by a MODEL_UNLOAD\n(\"unloaded\") \u2014 both left its running state at null before U11\n(released 0.11.0) added `unloaded_at()` to tell them apart. A UI\nmust render each as its own sentence, never as one empty card\nthat reads as \"nothing was running\" regardless of which is true.\n\nAlways 200. The question is always answered; `state` says which\nanswer it is, `origin` carries the declared fields only when\n`state` is `\"active\"`.",
@@ -2393,6 +2506,60 @@
               ],
               "description": "Keep only tool calls and results whose evidence mark the package names this: 'reported-by-client' or 'parsed-from-wire'. No other record carries the mark, so none matches.",
               "title": "Source Name"
+            }
+          },
+          {
+            "description": "Keep only the record whose own hash is this (hex, exact). How the anchor button finds the record a verified anchor names; a head that names nothing here is an empty answer.",
+            "in": "query",
+            "name": "record_hash",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep only the record whose own hash is this (hex, exact). How the anchor button finds the record a verified anchor names; a head that names nothing here is an empty answer.",
+              "title": "Record Hash"
+            }
+          },
+          {
+            "description": "Keep only records whose writer's clock reads at or after this instant. A RECORDED bound: it filters on the writer's claim, not on proved order.",
+            "in": "query",
+            "name": "wall_from_ns",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep only records whose writer's clock reads at or after this instant. A RECORDED bound: it filters on the writer's claim, not on proved order.",
+              "title": "Wall From Ns"
+            }
+          },
+          {
+            "description": "Keep only records whose writer's clock reads before this instant (exclusive).",
+            "in": "query",
+            "name": "wall_to_ns",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep only records whose writer's clock reads before this instant (exclusive).",
+              "title": "Wall To Ns"
             }
           }
         ],
