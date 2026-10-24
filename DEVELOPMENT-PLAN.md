@@ -94,17 +94,20 @@ schedule rather than this project's.
 | ✓ U12 | `detail` decoded from `EVT_DETAIL` onto `DecodedRecord`, the same way `origin_at()` already decodes named TLV fields into `OriginView` rather than leaving them as raw bytes. Confirmed present and readable: the reader's own `body_tlvs` already carries `(type, value)` pairs for a cleartext body, and `EVT_DETAIL = 4` is a published constant — nothing to discover, only to expose. Blocks F8's detail text and its recurrence count, and separately unblocks half of C-09d (free text still needs §22.3 decided). | 1 | C-07b, C-09d(b) |
 | ✓ U13 | Acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records — `AuditReader.acknowledged_candidates()`, hash-verified through the same resolution `_check_reference` already used for the *broken*-reference advisory codes. **Released in 0.11.0** (Assault-Consulting/Palimpsests#199). The `U10` dependency in the original scoping was wrong, confirmed by actually building this: the package resolves a target's hash from the raw header bytes it already holds (`self._headers`), never from a `DecodedRecord.record_hash` field — U10 remains needed only for showing a record's own hash in Auditor's UI (C-06c), not for this resolution. | 1 | C-07c(a) |
 | ✓ U15 | The rest of the r2 oversight loop `U13`'s original scope named but did not build: an `OVERSIGHT_ACK`'s `operator_id` and disposition, and `KEY_SHRED` target resolution (`shredded_targets()`). **Released in 0.11.0** (Assault-Consulting/Palimpsests#203). "Deadline delta" from the original scoping was never a wire field — confirmed while building this: no `EVT_DEADLINE` constant exists anywhere in the writer. It is `wall_clock_ns(ack) − wall_clock_ns(candidate)`, both already readable once a caller knows which ack resolves to which candidate (`acknowledged_candidates()`) — an Auditor-side subtraction, not something upstream was missing. | 1 | C-07c(b) |
-| ◐ U14 | Record-decode and verify performance at the scale §19 itself targets. `AuditReader.records()`'s underlying `_decoded_records()` is not the incremental generator its `yield from` syntax suggests — it is an eager list comprehension over every header, computed in full before the first item is yielded, cached afterward. Measured, not assumed: on a synthetic 100k-record / 22.4 MB chain, `open_chain` plus `ChainHandle.verify` (header verify plus `build_report`'s body-digest walk) together cost 4.9 s and reached a peak RSS of 460 MB — roughly 20.6× the file's own size. At 224 MB / 1,000,004 records — a chain slightly *larger* than §19's own "100 MB / ~1M-record" target — the same flow exceeded 3.9 GB of RAM and was killed by the OS before finishing. One partial mitigation is **released in 0.11.0** (Assault-Consulting/Palimpsests#198) and **wired into `ChainHandle.container()` on this side** (§5 below): `build_report()` accepts an already-open reader, so a caller who already paid the decode once does not pay it a second time inside `build_report`'s own separately-opened reader — only reachable, per `build_report`'s own docstring, when no anchor override is requested; `container()`'s anchor-override path still opens its own reader by necessity. The actual cause — `_decoded_records()`'s eager cache — remains as it was on `main` at 17 Oct. **No work on it is in flight:** every `u14-*` branch in Palimpsests (nine of them, harness, results and the PR-6/8/9 changes) is merged, and no upstream document decides between keeping it eager and making it lazy. This plan does not need that decision: with sparse access (U16) a consumer need not walk the eager path for a window, a single record or a count. **U14 closes with U16 and U23**, not with U16 alone — found while building U16: `shredded_targets()` and the origin methods still materialise the chain on first call, and Auditor's seam calls both for every record card — rather than with a lazy rewrite nobody has scoped. `docs/U14-decode-performance.md` (revision -01) has the full six-finding account. **0.12.0, measured here** on a 1M-record / 250 MB chain: `verify()` + `build_report(reader=)` 11.3 s / 421 MB (100k: 1.12 s / 61 MB against 0.11.0's 2.74 s / 284 MB) — the verify half of §19 met at the package level; `records()` still eager, 16.9 s / 1.9 GB, and that is the path left. New cheap paths: `safety_records()` (1.6 s at 1M) and `structure()`. | ? | C-10b |
-| ◐ U16 | Public sparse access on `AuditReader`: `record_at(index)`, `record_by_seq(seq) -> DecodedRecord \| None`, `header_at(index) -> Header` (no body decode) and `record_count`. All four exist privately (`_record_at`, `_LazyRecords.at`/`get`, `_headers`); `bootstats` and `timehealth` already read `reader._headers` this way. Without it the seam must call the eager `records()` for any window, timeline or subject count; with it, C-10b's browse half is buildable. Small and additive. **In review** (Assault-Consulting/Palimpsests#294); measured at 200,002 records / 49 MB: 0.07 s and 95 MB peak RSS against 3.35 s and 413 MB for `records()`. Not enough on its own for the record card — see U23. | 1–2 | C-10b(b) |
-| U23 | Bounded `shredded_targets()` and origin methods (`origin_at`, `unloaded_at`, `origin_state_at`). Both still call `_decoded_records()` — the whole chain on first call — while `acknowledged_candidates()` already finds its records by header type and decodes only those. The same shape fits both: `KEY_SHRED` records by header type, their targets by seq; origin by an in-place kind probe over EVENT headers up to `seq`. Found while building U16 and named in its PR and in `docs/INTEGRATION-SURFACE.md`. Without it, opening one record card on a 1M-record chain still pays the full decode, because the seam asks for shreds and origin on every card. | 1 | C-10b(b) |
-| U17 | The segments manifest as a field: `Verification.manifest` with the path read, `matches` / `contradicts` / `declared_only`, and the SHA-256 of the bytes read in that same read. On `main` the 0.13 continuation diagnosis depends on `<stem>.segments.json` beside the file, but says so only inside `narrative` — a consumer cannot name, hash or re-check the second file its verdict rests on, and Auditor's subject digest and change check cover the `.pala` alone. **Before the 0.13 tag**: after it, the field's shape is something 1.0 must keep. | 1 | C-13 |
-| U18 | Verify a segment set — the manifest plus every segment — as one answer. With rotation in 0.13 every segment after the first opens with a `SEGMENT_CONTINUATION`, so verifying one file reports a violation by design (D1). **A design decision for Palimpsests, not a scoped PR**: carried as a named open item and deliberately not a condition for closing Track U. | ? | — |
-| U19 | Consumer exports: `VerifyResult`, `Header`, `Advisory`, `AdvisoryItem`, `boot_statistics`, `step_catalog` and the record-type, kind, outcome, source, disposition, tier and time-trust constants re-exported from `reader`; `NO_SPAN` / `NO_PREDECESSOR` aliases for `ZERO16` / `ZERO32`; `KIND_*` moved out of `pala_writer` into a neutral module. Against Palimpsests' own `docs/INTEGRATION-SURFACE.md` — the documented contract, seven channels, Auditor named as first consumer — the seam reaches two undeclared paths: `pala.codec` (sentinels, `RT_SAFETY`, `FORMAT_VERSION`) and `pala_writer` (a kind constant), the second a reader-side consumer importing the writer. **Waits on agreement** of the consumer public-surface proposal. | 0.5 | — |
-| U20 | A contract test enumerating the consumer surface — symbols, fields, and the open vocabularies (9 diagnosis patterns, 17 advisory codes on `main`) — and `docs/INTEGRATION-SURFACE.md`'s Reading channel brought up to date from the same list (it still names `origin_at`/`unloaded_at` and not `structure`, `safety_records`, `origin_state_at` or the continuation views). Makes "stable" a CI check. With U19. | 1 | — |
-| U21 | `container_check() -> ContainerCheck`: the body-digest walk, typed. Today it is reachable as `build_report(...).data["container"]` — schema-backed (the report is the public channel 2, `pala-verification-report/1`), but a document section rather than a typed call, and it costs a report build. Convenience, lowest of these. | 0.5 | — |
-| U22 | `NotAContainer(ValueError)` from `open` / `from_bytes`, so a consumer stops telling "not a chain" from a disk error by catching two built-ins. | 0.5 | — |
+| ✓ U14 | Record-decode and verify performance at the scale §19 itself targets. `AuditReader.records()`'s underlying `_decoded_records()` is not the incremental generator its `yield from` syntax suggests — it is an eager list comprehension over every header, computed in full before the first item is yielded, cached afterward. Measured, not assumed: on a synthetic 100k-record / 22.4 MB chain, `open_chain` plus `ChainHandle.verify` (header verify plus `build_report`'s body-digest walk) together cost 4.9 s and reached a peak RSS of 460 MB — roughly 20.6× the file's own size. At 224 MB / 1,000,004 records — a chain slightly *larger* than §19's own "100 MB / ~1M-record" target — the same flow exceeded 3.9 GB of RAM and was killed by the OS before finishing. One partial mitigation is **released in 0.11.0** (Assault-Consulting/Palimpsests#198) and **wired into `ChainHandle.container()` on this side** (§5 below): `build_report()` accepts an already-open reader, so a caller who already paid the decode once does not pay it a second time inside `build_report`'s own separately-opened reader — only reachable, per `build_report`'s own docstring, when no anchor override is requested; `container()`'s anchor-override path still opens its own reader by necessity. The actual cause — `_decoded_records()`'s eager cache — remains as it was on `main` at 17 Oct. **No work on it is in flight:** every `u14-*` branch in Palimpsests (nine of them, harness, results and the PR-6/8/9 changes) is merged, and no upstream document decides between keeping it eager and making it lazy. This plan does not need that decision: with sparse access (U16) a consumer need not walk the eager path for a window, a single record or a count. **Closed in 0.13.0**: U14 closes with U16 and U23, both released, not with U16 alone — found while building U16: `shredded_targets()` and the origin methods still materialise the chain on first call, and Auditor's seam calls both for every record card — rather than with a lazy rewrite nobody has scoped. `docs/U14-decode-performance.md` (revision -01) has the full six-finding account. **0.12.0, measured here** on a 1M-record / 250 MB chain: `verify()` + `build_report(reader=)` 11.3 s / 421 MB (100k: 1.12 s / 61 MB against 0.11.0's 2.74 s / 284 MB) — the verify half of §19 met at the package level; `records()` still eager, 16.9 s / 1.9 GB, and that is the path left. New cheap paths: `safety_records()` (1.6 s at 1M) and `structure()`. | ? | C-10b |
+| ✓ U16 | Public sparse access on `AuditReader`: `record_count`, `record_at`, `record_by_seq`, `header_at`. **Released in 0.13.0** (Assault-Consulting/Palimpsests#294). Measured at 200,002 records: 0.07 s / 95 MB against 3.35 s / 413 MB for `records()`. | — | C-10b(b) |
+| ✓ U23 | Bounded `shredded_targets()` and origin methods. **Released in 0.13.0** (Assault-Consulting/Palimpsests#295). At 1M records: first origin question 2.7 s, each after it under 1 ms, shreds 0.6 s, against 20.6 s / 1.99 GB. | — | C-10b(b) |
+| ✓ U17 | `Verification.manifest`: the segments manifest a verdict consulted — path, status, SHA-256 of the bytes read. **Released in 0.13.0** (Assault-Consulting/Palimpsests#296). | — | C-13 |
+| ✓ U22 | `not_a_container` diagnosis for a file whose byte 0 is not the record magic (it was diagnosed `truncated_tail`). The `NotAContainer` exception first proposed was set aside. **Released in 0.13.0** (Assault-Consulting/Palimpsests#297). | — | C-13 |
+| ✓ U25 | `INTEGRATION-SURFACE.md` refreshed for what 0.13 promises; `CONSUMER-SURFACE.md` r2 beside it. **Done before the 0.13 tag.** | — | — |
+| U19 + U20 | Re-exports into `reader.__all__`, inference-profile constants in `audit/profiles/inference.py`, and the contract test — one PR. **Next in Palimpsests.** | — | C-13, C-14, C-16 |
+| U24 | Violation codes parallel to `violations`; `Diagnosis.code` for `record_violation`. **Required before 1.0.** | — | C-13 (codes rendered once released; until then reasons verbatim) |
+| U26 | `empty_container` diagnosis; the verdict raised as core clarification C-8 (Palimpsests' position: `violation`). | — | C-13 |
+| U21 | `container_check() -> ContainerCheck`. | — | the seam's `container()` |
+| U18 | `verify_segment_set(manifest_path)`, a function, in 0.14. | — | Phase 5 segment sequences |
+| U27 | `docs/WRITER-SURFACE.md` — the writer's own contract. **Before 1.0.** | — | C-15 (fixtures that must stay on the writer) |
 
-**Track U total: ~21.5 days plus U14 and U15, and ~6 for U16–U23 (U18 unquantified)** (~17.5 without U8, which
+**Track U total: ~21.5 days plus U14 and U15; U16 onward is Palimpsests' work, planned and costed there** (~17.5 without U8, which
 blocks only Phase 4). U14 and U15 carry no number: neither is a feature
 to scope but an investigation whose shape is not yet known — inventing
 a duration would be the same overclaim C-06d's `?` already refuses to
@@ -127,21 +130,21 @@ reader (F4, #261) — and releases #236, `acknowledged_candidates()` as a
 verify is bounded, `records()` is not. U16 is the one upstream
 item C-10b still needs.
 
-**Status against `main` (17 Oct, untagged 0.13; 152 commits after
-0.12.0).** Only `reader.py` and `pala_writer.py` changed among the modules
-the seam imports, and only by addition: Auditor's whole sidecar suite
-passes against `main` (324 passed, 6 skipped — PKCS#11). The pin
-`<0.13` is the one thing the tag breaks. What 0.13 adds to the reader —
-the `declared_continuation` and `continuation_contradicts_manifest`
-diagnoses, six `continuation_*` advisory codes, `outcome`/`outcome_name`
-on tool results (r6, including 4 `unobserved`), `ContinuationView`,
-`origin_state_at()` — is rendered by C-13 and C-14 (§5), and the pin
-moves only after both. U17–U22 come from the consumer public-surface
-proposal (under agreement with Palimpsests): a 1.0 revision of the
-package's own `docs/INTEGRATION-SURFACE.md`, not a second contract beside
-it. Closing order: U16 (#294), U23 and U17 now; U19–U20
-once the proposal is agreed; U21–U22 in 0.13.x or 0.14; U18 stays a
-named design decision.
+**Track U from U16 on is Palimpsests' work (from 22 Oct).** The plan for
+it is `docs/CONSUMER-SURFACE.md` in Palimpsests — proposal r2, agreed: the
+reading surface from 0.13 to the 1.0 contract, with the six open questions
+decided and a work plan. Its definitions, order and decisions are the
+source; the rows above keep only status and which item on this side each
+one blocks, so the two documents cannot disagree about what an item is.
+Auditor follows r2 and works the C track.
+
+**Status against 0.13.0** (tag `v0.13.0`). U16, U17, U22 and U23 are
+released, and U25 is done. Two r2 decisions land on this side: rules 4–7
+(semantics and vocabularies) apply from 0.13, so a consumer pinned to 0.13
+may rely on what its patterns, codes and names mean; and the writer is not
+promised as test support before its own contract (U27), so fixtures move
+to the published vectors where they can (C-15). The pin stays `<0.13`
+until C-13 and C-14 render what 0.13 adds (§5).
 
 Also in 0.12.0, and accounted for where each lands: `EVT_SOURCE` —
 client-reported tool calls, `source`/`source_name` on `DecodedRecord` — as
@@ -255,7 +258,7 @@ run.
 | C-09d | Free text over `detail`. Blocked only on `FUNCTIONALITY.md` §22.3 now, an open product question this plan has no authority to answer — the data half is done: every record carries `detail` since C-07b. | ? | §22.3 decided |
 | ✓ C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
 | ✓ C-10a | The three claims §19 bundled as one line, taken apart. "Off-thread verify, window never blocks" — already true, confirmed with a concurrency test rather than left as an assumption. The opening screen's own state model already had an `"opening"` variant `chainLine` rendered correctly; the Open button just never read it, so a slow open looked identical to a stuck one and a second click started a second one — fixed. "Record table virtualised" — C-11's ≤50-row pagination already bounds render cost independent of chain size; a literal virtual-scroll would add nothing this screen does not already have, and reads worse for a forensic review tool than paging does (§C-10 prose below). | 0.5 | C-03, C-11 |
-| C-10b | §19's size envelope. **Re-scoped after measuring 0.12.0**: the package's verify path now meets it (U14 row); what misses it is this repository's seam, which calls the eager `records()` for `record()`, `records()`, `safety()`, `timeline()`, `subject()` and `open_chain()`'s emptiness check. (a) Move what 0.12.0 already allows onto cheap paths — `safety()` to `safety_records()` (16.9 s → 1.6 s at 1M), boots and spans to one `structure()` — and add a 1M benchmark script whose numbers go in this row. (b) The rest needs U16 and U23. | 1.5 + 1 | (a) none · (b) U16, U23 |
+| C-10b | §19's size envelope. **Re-scoped after measuring 0.12.0**: the package's verify path now meets it (U14 row); what misses it is this repository's seam, which calls the eager `records()` for `record()`, `records()`, `safety()`, `timeline()`, `subject()` and `open_chain()`'s emptiness check. (a) Move what 0.12.0 already allows onto cheap paths — `safety()` to `safety_records()` (16.9 s → 1.6 s at 1M), boots and spans to one `structure()` — and add a 1M benchmark script whose numbers go in this row. (b) The rest moves the seam onto `record_at`, `record_by_seq`, `record_count` and the bounded shreds and origin (U16, U23 — both released in 0.13.0), and lands with the pin bump to 0.13, which follows C-13 and C-14. | 1.5 + 1 | (a) none · (b) the 0.13 pin |
 | ✓ C-12 | Client-reported provenance. **Merged** (Assault-Consulting/Auditor#72). `source` on `RecordView` as the package names it; the card carries the label and the inference profile's own sentence, verbatim (§3, r5: the chain proves the report happened, what it digested and when — never that the tool ran); the records list marks a reported call on its row; `source:` chip. An unknown value is guessed into neither mark. **Scope corrected while building:** the mark cannot appear in the SAFETY list — `EVT_SOURCE` exists only on TOOL_CALL / TOOL_RESULT, which are EVENT records. | 1 | 0.12.0 |
 | ✓ B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra. **Merged** (Assault-Consulting/Auditor#66); see the B-12 notes below for the PIN finding it surfaced upstream. | 1 | `anchors_pkcs11` *released* |
 
@@ -276,14 +279,22 @@ newly scoped upstream performance item (U14).
 interactive, and "what happened at 22:41 on 6 Aug" is answerable in under
 five interactions.
 
-**0.13 follow-up, not counted in Phase 2.** Two items render what the 0.13
-reader adds; both are built against `main` and merged with the pin bump,
-after the tag.
+**0.13 follow-up, not counted in Phase 2.** Four items: two render what
+the 0.13 reader adds, two are this side's commitments in
+`CONSUMER-SURFACE.md` r2. In r2's order, C-13 and C-14 come after U19
+lands in Palimpsests; the pin moves to `>=0.13,<0.14` with them, and
+C-10b(b) follows the pin.
 
 | PR | Content | Days | Needs |
 |---|---|---|---|
-| C-13 | Segments and continuation: guidance for `declared_continuation` (the explained case — a prefix removed under a declared policy; calm, the package's sentence) and `continuation_contradicts_manifest` (among the most serious diagnoses; never generic); wording for the six `continuation_*` advisory codes; `ContinuationView` fields on a kind-11 card; the manifest in the subject digest and change check once U17 names it; `origin_state_at()` in place of two calls; a hint in the open dialog that segment files (`*.pala.00001`) sit under "All files". | 2 | 0.13, U17 |
-| C-14 | Tool outcome on a TOOL_RESULT card, with the profile's sentence (r6): `ok` means returned to generation, not a confirmed effect; `unobserved` means the recording vantage could not see failure. Same shape as C-12. | 1 | 0.13 |
+| C-13 | What 0.13 says that this build cannot yet render: guidance for `declared_continuation` (the explained case — a prefix removed under a declared policy; calm, the package's sentence), `continuation_contradicts_manifest` (among the most serious diagnoses; never generic) and `not_a_container` (the file is not a chain — never "interrupted write"); wording for the six `continuation_*` advisory codes; `ContinuationView` fields on a kind-11 card; `Verification.manifest` in the subject digest and change check, so a verdict resting on two files names both; `origin_state_at()` in place of two calls; a hint in the open dialog that segment files (`*.pala.00001`) sit under "All files". Violation codes (U24) and `empty_container` (U26) join when released. | 2 | U19 |
+| C-14 | Tool outcome on a TOOL_RESULT card, with the profile's sentence (r6): `ok` means returned to generation, not a confirmed effect; `unobserved` means the recording vantage could not see failure. Same shape as C-12. | 1 | U19 |
+| C-15 | Test fixtures onto the published vectors where a vector carries the case (r2 decision 5). Fixtures that need the writer stay on it, and a writer change that breaks them is read from Palimpsests' own writer changelog block until the writer has a contract (U27). | 1 | — (now, on 0.12) |
+| C-16 | r2's two commitments on this side: `check_no_wire_parsing.sh` fails on any `palimpsests` import outside the consumer `__all__`, and a CI job runs the sidecar suite against Palimpsests `main`, non-blocking (Palimpsests decides whether it runs on their PRs). | 0.5 | U19 |
+
+**Order on this side.** Now, on 0.12: C-10b(a), C-15. When U19 lands: C-13
+and C-14, then the pin to `>=0.13,<0.14`, then C-10b(b), then C-16.
+C-06d and C-09d stay deferred as named.
 
 ### Three upstream changes since 0.10.0 that this phase has to account for
 
@@ -679,7 +690,7 @@ yet.
 
 Built as C-10a: the concurrency test, the Open-button fix, and this
 section's documented case for pagination over virtual-scroll. C-10b —
-the actual scale target — waits on U14.
+the actual scale target — waited on U14, closed in 0.13.0 (§2).
 
 ### U14 was investigated past the point of scoping it, into building part of it
 
@@ -775,7 +786,7 @@ C-07b, C-07c, C-08, C-09a, C-09b, C-09c, C-10a, C-11, C-12 and B-12. (PR
 #73's description said eighteen; it miscounted.) The twenty-two counts the
 four splits (C-06 into four, C-09 into four, C-07 into three, C-10 into
 two) and C-12, added after 0.12.0. Three remain: C-06d (unstarted design),
-C-09d (§22.3) and C-10b (mostly this side's work, the rest on U16 and U23).
+C-09d (§22.3) and C-10b ((a) now, on 0.12; (b) after the pin moves to 0.13).
 
 **The exit criterion is half met, and the half that is not is C-10b.**
 "What happened at 22:41 on 6 Aug" is answerable in three interactions and
