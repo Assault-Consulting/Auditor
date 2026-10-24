@@ -15,11 +15,11 @@ Run it from an environment where the sidecar is installed (``pip install -e
 sidecar``): every call goes through ``auditor_sidecar.pala_seam``, and the
 table names the ``palimpsests`` version that environment resolved.
 
-``build`` writes a chain with the package's own writer — tool calls and
-results, a model load, a SAFETY candidate and its acknowledgement every
-thousand calls, an anchor every five thousand — and a ``.meta.json`` beside
-it with a mid-chain seq and wall-clock instant, so ``run`` does not have to
-decode the chain to choose what to ask.
+``build`` has ``sidecar/tests/bench_chain.py`` write the chain with the
+package's own writer — the fixture lives there because only the seam and
+the tests may import the package — then writes a ``.meta.json`` beside it
+with a mid-chain seq and wall-clock instant, chosen through the seam, so
+``run`` does not have to decode the chain to choose what to ask.
 
 ``run`` prints a Markdown table: for each call, the open (which the seam
 pays on every session) and the call itself, separately, and the process's
@@ -53,26 +53,13 @@ CALLS = [
 
 def build(path: Path, n: int) -> None:
     from auditor_sidecar.pala_seam import open_chain
-    from palimpsests.audit.pala_writer import PalaWriter
 
-    if path.exists():
-        raise SystemExit(f"{path} exists; refusing to overwrite")
-    w = PalaWriter(path)
-    w.genesis()
-    w.boot()
-    w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
-    i = 0
-    while w.seq < n:
-        call = w.tool_call("tool", args_digest=i.to_bytes(32, "little"))
-        w.tool_result(w.seq - 1, call, 0, result_digest=b"\x02" * 32)
-        i += 1
-        if i % 1000 == 0:
-            cand_seq = w.seq
-            cand = w.incident_candidate(1, 2, detail="guard refusals exceeded")
-            w.oversight_ack(cand_seq, cand, 0, b"\x07" * 16)  # DISP_ACKNOWLEDGED
-        if i % 5000 == 0:
-            w.anchor()
-    w.close()
+    # The chain is written by the package's writer, which only the seam and
+    # sidecar/tests/ may import (ADR-0001's guard); the fixture builder lives
+    # there and runs as its own process. This script measures; it never
+    # writes PALA-1 itself.
+    builder = Path(__file__).resolve().parent.parent / "sidecar" / "tests" / "bench_chain.py"
+    subprocess.run([sys.executable, str(builder), str(path), str(n)], check=True)
     # Chosen through the seam, as everything else here is; paid once, at build.
     h = open_chain(path)
     subject = h.subject()
