@@ -14,6 +14,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- C-13b — what palimpsests 0.13 says, rendered. Guidance for the three new
+  diagnosis patterns: `declared_continuation` explains why question one
+  still answers no for a segment on its own — the ordinary shape of a
+  rotated chain — and points at the manifest and the declared retention
+  floor; `continuation_contradicts_manifest` asks whether the manifest
+  belongs to this chain; `not_a_container` never describes an interrupted
+  write. Under the diagnosis, the segments manifest a verdict rested on is
+  named with the digest of the bytes the verifier judged and the package's
+  reason, verbatim. Wording for the five `continuation_*` advisory codes
+  and for `tool_target_not_a_call`, emitted since 0.12 without words here;
+  the two continuation mismatches join the notable weight, for the reason
+  `reference_hash_mismatch` has it. A SEGMENT_CONTINUATION's card shows
+  what it declares — segment, retention floor, predecessor head, prior
+  root — under the profile's framing that a declaration is not evidence.
+  The open screen says that rotated segments (`chain.pala.00001`) are
+  listed under "All files" in the dialog.
+
 - C-13a — what palimpsests 0.13 says about segments, through the seam.
   `GET /session/{id}/verify` carries `manifest` (path, status, the SHA-256
   of the bytes the package judged, its reason), null when the verdict
