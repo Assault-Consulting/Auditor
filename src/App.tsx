@@ -26,6 +26,7 @@ import { choiceLine, footnoteFor, panelsFor, rowsFor } from "./api/bootScreen";
 import { chainLine, openedOf } from "./api/chainState";
 import { backwards, compress, compressionLine, density } from "./api/chronoscope";
 import { diagnosisCard } from "./api/diagnosis";
+import { manifestLine } from "./api/manifest";
 import { provenance, provenanceSummary } from "./api/provenance";
 import { type RecordFilters, resolveChips } from "./api/filters";
 import { getNearest, getRecords } from "./api/chain";
@@ -143,6 +144,9 @@ export default function App() {
   // Present only when the verifier produced a diagnosis, which is only when
   // something failed.
   const failure = chain.kind === "verified" ? diagnosisCard(chain.result.diagnosis) : null;
+  // The second file the verdict rests on, when there is one (C-13). Null for
+  // every verdict that consulted no segments manifest.
+  const manifest = chain.kind === "verified" ? manifestLine(chain.result.manifest) : null;
 
   // Shown after any check, including when it is empty. Hiding the lane when
   // there is nothing in it would be ambiguous between "no advisory items"
@@ -304,6 +308,14 @@ export default function App() {
             </select>
           </label>
         </div>
+        {/* C-13. A rotated chain arrives as numbered files (chain.pala.00001),
+            whose extension the dialog's PALA-1 filter does not match. Said
+            here rather than by widening the filter: a filter on "anything
+            ending in digits" would offer files that are not chains. */}
+        <p className="choose-hint segment-hint">
+          Segments of a rotated chain end in a number (<code>chain.pala.00001</code>) — in the
+          open dialog they are listed under “All files”.
+        </p>
 
         {failure !== null && (
           <section className="diagnosis" aria-labelledby="diagnosis-title">
@@ -350,6 +362,25 @@ export default function App() {
                 <li key={line}>{line}</li>
               ))}
             </ol>
+
+            {/* C-13, U17. When the verdict also read a segments manifest, the
+                file is named with the digest of the bytes the verifier
+                judged — half the evidence's identity. The session stops
+                answering if it changes, so the line says that too. */}
+            {manifest !== null && (
+              <div className="diagnosis-manifest" data-unrecognised={manifest.unrecognised}>
+                <p>{manifest.text}</p>
+                {manifest.detail !== null && (
+                  <p className="diagnosis-manifest-detail">{manifest.detail}</p>
+                )}
+                {manifest.sha256 !== null && (
+                  <p className="diagnosis-manifest-digest">
+                    sha256 <code>{manifest.sha256}</code> — this session stops answering if that
+                    file changes.
+                  </p>
+                )}
+              </div>
+            )}
           </section>
         )}
 
@@ -947,6 +978,25 @@ export default function App() {
                       <dd className="record-source" data-source={record.value.source.kind}>
                         {record.value.source.label}
                         <span className="record-source-note">{record.value.source.note}</span>
+                      </dd>
+                    </div>
+                  )}
+                  {record.value.continuation !== null && (
+                    <div>
+                      <dt>Continues</dt>
+                      {/* C-13, r6. What the writer declared at the cut, then
+                          the profile's framing of it: a declaration, never
+                          evidence of the records it describes. */}
+                      <dd className="record-continuation">
+                        segment {record.value.continuation.segmentIndex}, retention floor{" "}
+                        {record.value.continuation.retention}
+                        <span className="record-continuation-field">
+                          predecessor head <code>{record.value.continuation.predecessorHead}</code>
+                        </span>
+                        <span className="record-continuation-field">
+                          prior root <code>{record.value.continuation.priorRoot}</code>
+                        </span>
+                        <span className="record-source-note">{record.value.continuation.note}</span>
                       </dd>
                     </div>
                   )}
