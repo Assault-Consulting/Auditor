@@ -94,6 +94,38 @@ const GUIDANCE: Record<string, Guidance> = {
       "The anchor's own cadence: if it lags routinely, this is the normal state of the system rather than an event.",
     ],
   },
+  // palimpsests 0.13 (U22). Auditor refuses such a file at open — it holds
+  // no PALA-1 records — so this card is for a verdict that reaches the
+  // screen another way; the guidance exists ahead of that, as
+  // record_violation's does.
+  not_a_container: {
+    title: "This file does not begin with a PALA-1 record",
+    whereToLook: [
+      "Whether the right file was opened — its first bytes are not the record magic, so nothing at the start of it was written by a PALA-1 writer.",
+      "Whether the chain is inside something else: an archive, an export, or a transfer that added a header of its own.",
+    ],
+  },
+  // palimpsests 0.13, inference profile r6: a segment that declares where it
+  // begins. Question one still answers no — a file that starts mid-chain
+  // cannot prove its own beginning (D1) — and the card says why that is the
+  // expected shape of a rotated chain rather than an event.
+  declared_continuation: {
+    title: "A later segment, by its own first record's declaration",
+    whereToLook: [
+      "Why question one still answers no: this file starts after the chain's beginning, and a file taken on its own cannot prove what came before it. For a rotated chain that is its ordinary shape.",
+      "The segments manifest named under this card — whether it was found, and whether it names the same predecessor the first record declares.",
+      "The declared retention floor on the first record: a prefix removed under a declared retention policy is expected; one removed sooner than the floor is worth asking about.",
+      "The earlier segments themselves, if this review needs the whole history — the first record says how many records came before it.",
+    ],
+  },
+  continuation_contradicts_manifest: {
+    title: "The segment's declaration and the manifest beside it disagree",
+    whereToLook: [
+      "Whether the manifest belongs to this chain — one copied from another deployment, or from another rotation of the same one, disagrees in exactly this way.",
+      "Where this file and the manifest each came from, and when; the manifest's path and the digest of the bytes the verifier read are named under this card.",
+      "The previous segment itself, if it is still held: the hash of its last record is what both the declaration and the manifest claim to name.",
+    ],
+  },
   replaced_or_rolled_back: {
     title: "The anchored head is not in this chain",
     whereToLook: [
