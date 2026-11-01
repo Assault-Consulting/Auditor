@@ -270,6 +270,20 @@ export interface ContainerCheck {
 }
 
 /**
+ * What a SEGMENT_CONTINUATION declares (inference profile r6, §3.2).
+ */
+export interface ContinuationModel {
+  /** SEG_INDEX; the GENESIS segment is 0. */
+  segment_index: number;
+  /** SEG_PREDECESSOR_HEAD, hex — the head the previous segment ended at. */
+  predecessor_head: string;
+  /** SEG_RETENTION_S — the declared retention floor in seconds; 0 is none. */
+  retention_s: number;
+  /** SEG_PRIOR_ROOT, hex — the derived root of every record before this one, as the writer declared it. */
+  prior_root: string;
+}
+
+/**
  * What the failure looks like, rather than that there was one.
  *
  * The pattern is the machine-readable part and a consumer may key visuals
@@ -278,7 +292,7 @@ export interface ContainerCheck {
  * the report stops saying what the verifier said.
  */
 export interface DiagnosisModel {
-  /** One of: truncated_tail, prefix_absent, seq_gap, chain_break, record_violation, unanchored_tail, replaced_or_rolled_back. */
+  /** The package's pattern, an open vocabulary (a newer verifier may add one; a consumer renders an unknown one with the narrative). As of 0.13: not_a_container, truncated_tail, declared_continuation, continuation_contradicts_manifest, prefix_absent, seq_gap, chain_break, record_violation, unanchored_tail, replaced_or_rolled_back. */
   pattern: string;
   /** Where, when the pattern has a location. */
   at_seq: number | null;
@@ -331,6 +345,25 @@ export interface KeychainStatus {
   available: boolean;
   /** What to do about it, when there is something to do. */
   detail: string;
+}
+
+/**
+ * The segments manifest a verdict consulted (U17, palimpsests 0.13).
+ *
+ * A segment whose first record declares a continuation is diagnosed
+ * against `<stem>.segments.json` beside it. That second file is part of
+ * what the verdict is about, so it is named and fingerprinted here, and
+ * the session refuses to answer once either file has changed.
+ */
+export interface ManifestReadingModel {
+  /** The manifest looked for; null when there was no path to derive it from (the file is not named <stem>.<digits>). */
+  path: string | null;
+  /** matches / contradicts / declared_only — as the diagnosis used it. */
+  status: string;
+  /** Hex SHA-256 of the bytes the package read and judged; null when no file was read. */
+  sha256: string | null;
+  /** The package's reason, when the status is not plain. Verbatim. */
+  detail: string | null;
 }
 
 /**
@@ -497,6 +530,8 @@ export interface RecordView {
   shredded_by: number | null;
   /** EVT_DETAIL, decoded generically for any record type that carries one — EVENT and SAFETY bodies, the same scope `kind` already has (U12, released 0.11.0). Null when the record carries no detail at all, never an empty string. */
   detail: string | null;
+  /** On a SEGMENT_CONTINUATION (kind 11): what the writer declared at the cut, as the package decodes it. Null on every other record, and on a kind-11 record that is not well formed (the advisory channel reports that). A declaration, never evidence that the records it describes exist. */
+  continuation?: ContinuationModel | null;
   /** How many SAFETY records in this container carry this exact detail text, this one included (F8: 'detail text and a recurrence count for identical details'). Scoped to SAFETY the way `acknowledged` is scoped to INCIDENT_CANDIDATE: null for a non-SAFETY record (not applicable) and for a SAFETY record with no detail (nothing to count) — never 0, since a detail that exists recurs at least once, itself. */
   recurrence_count: number | null;
 }
@@ -653,6 +688,8 @@ export interface VerificationResponse {
   anchor_attempts: Array<AnchorAttemptModel>;
   /** Present only when something failed. */
   diagnosis: DiagnosisModel | null;
+  /** The second file this verdict rests on, when there is one: the segments manifest a continuation diagnosis was decided against. Null when the verdict consulted no manifest. */
+  manifest?: ManifestReadingModel | null;
   advisory: AdvisoryModel;
 }
 

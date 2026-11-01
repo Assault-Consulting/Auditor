@@ -14,6 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- C-13a — what palimpsests 0.13 says about segments, through the seam.
+  `GET /session/{id}/verify` carries `manifest` (path, status, the SHA-256
+  of the bytes the package judged, its reason), null when the verdict
+  consulted no second file; a session that verified against a segments
+  manifest refuses to answer (409) once that manifest is edited, removed,
+  or appears where it was absent — a verdict that read two files is about
+  both. `RecordView.continuation` carries what a SEGMENT_CONTINUATION
+  declares (segment index, predecessor head, retention floor, prior root),
+  the package's own decode, null elsewhere. `/origin` answers from one
+  `origin_state_at()` call. The diagnosis pattern is documented as an open
+  vocabulary, with 0.13's three new patterns. Requires `palimpsests`
+  `>=0.13.1,<0.14`; the guidance and wording that render the new patterns
+  and codes are C-13b.
+
 - C-10a — the three claims §19 bundled as one performance line, taken
   apart. "Verify runs off the UI thread; the window never blocks" was
   already true (every route is a plain `def`, which Starlette threadpools;
