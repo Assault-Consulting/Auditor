@@ -227,7 +227,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-14, windows-latest]
+        # macos-15, not macos-14: GitHub retires the macOS 14 image on
+        # 2 November 2026, and from 1 November jobs on it were cancelled
+        # without a runner (no steps, runner_id 0). Pinned rather than
+        # macos-latest so an image change is a reviewed edit here, not a
+        # silent move on GitHub's schedule.
+        os: [ubuntu-22.04, macos-15, windows-latest]
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -285,7 +290,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-22.04, macos-14, windows-latest]
+        # macos-15 for the same reason as the test matrix above.
+        platform: [ubuntu-22.04, macos-15, windows-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
