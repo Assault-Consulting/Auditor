@@ -110,6 +110,39 @@ const WORDING: Record<string, Wording> = {
     note: "The shred claims a key that the named record does not use.",
     weight: "notable",
   },
+  // r3: a tool result must bind to its call. Emitted since 0.12; this build
+  // had no words for it until 0.13 was read against the list in full.
+  tool_target_not_a_call: {
+    title: "A tool result or loop guard names a record that is not a tool call",
+    note: "The reference resolves, and its hash matches, but the record it names is of another kind than the result or guard expects.",
+  },
+  // Segment continuation, inference profile r6 (palimpsests 0.13). The two
+  // mismatches are notable for the reason reference_hash_mismatch is: each
+  // is two things that should agree and do not — a declared predecessor
+  // against the record's own prev_hash, a declared root against the root
+  // recomputed from the records themselves.
+  continuation_malformed: {
+    title: "A segment continuation record is missing a declared field",
+    note: "A SEGMENT_CONTINUATION should carry four declarations at fixed widths. This one does not, so nothing it declares is shown.",
+  },
+  continuation_predecessor_mismatch: {
+    title: "A continuation declares a predecessor its own header does not name",
+    note: "The declared previous head and the record's own prev_hash should be the same value. They are not.",
+    weight: "notable",
+  },
+  continuation_index_not_increasing: {
+    title: "Segment indices do not increase",
+    note: "Each continuation declares its segment's place in the chain; a later one declares the same place or an earlier one.",
+  },
+  continuation_index_gap: {
+    title: "Segment indices skip a number",
+    note: "With the whole chain present from its beginning, consecutive continuations should declare consecutive segment numbers. These do not.",
+  },
+  continuation_prior_root_mismatch: {
+    title: "A continuation declares a root the records before it do not produce",
+    note: "The reader recomputed the root of every record before the continuation, and it differs from the root the writer declared at the cut.",
+    weight: "notable",
+  },
 };
 
 /**
