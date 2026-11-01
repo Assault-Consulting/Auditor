@@ -693,6 +693,39 @@
         "title": "ContainerCheck",
         "type": "object"
       },
+      "ContinuationModel": {
+        "description": "What a SEGMENT_CONTINUATION declares (inference profile r6, \u00a73.2).",
+        "properties": {
+          "predecessor_head": {
+            "description": "SEG_PREDECESSOR_HEAD, hex \u2014 the head the previous segment ended at.",
+            "title": "Predecessor Head",
+            "type": "string"
+          },
+          "prior_root": {
+            "description": "SEG_PRIOR_ROOT, hex \u2014 the derived root of every record before this one, as the writer declared it.",
+            "title": "Prior Root",
+            "type": "string"
+          },
+          "retention_s": {
+            "description": "SEG_RETENTION_S \u2014 the declared retention floor in seconds; 0 is none.",
+            "title": "Retention S",
+            "type": "integer"
+          },
+          "segment_index": {
+            "description": "SEG_INDEX; the GENESIS segment is 0.",
+            "title": "Segment Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "segment_index",
+          "predecessor_head",
+          "retention_s",
+          "prior_root"
+        ],
+        "title": "ContinuationModel",
+        "type": "object"
+      },
       "DiagnosisModel": {
         "description": "What the failure looks like, rather than that there was one.\n\nThe pattern is the machine-readable part and a consumer may key visuals\noff it. The narrative is the package's own sentence, carried verbatim:\na shell may show a localised sentence beside it, never instead of it, or\nthe report stops saying what the verifier said.",
         "properties": {
@@ -726,7 +759,7 @@
             "type": "string"
           },
           "pattern": {
-            "description": "One of: truncated_tail, prefix_absent, seq_gap, chain_break, record_violation, unanchored_tail, replaced_or_rolled_back.",
+            "description": "The package's pattern, an open vocabulary (a newer verifier may add one; a consumer renders an unknown one with the narrative). As of 0.13: not_a_container, truncated_tail, declared_continuation, continuation_contradicts_manifest, prefix_absent, seq_gap, chain_break, record_violation, unanchored_tail, replaced_or_rolled_back.",
             "title": "Pattern",
             "type": "string"
           }
@@ -832,6 +865,60 @@
           "detail"
         ],
         "title": "KeychainStatus",
+        "type": "object"
+      },
+      "ManifestReadingModel": {
+        "description": "The segments manifest a verdict consulted (U17, palimpsests 0.13).\n\nA segment whose first record declares a continuation is diagnosed\nagainst `<stem>.segments.json` beside it. That second file is part of\nwhat the verdict is about, so it is named and fingerprinted here, and\nthe session refuses to answer once either file has changed.",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's reason, when the status is not plain. Verbatim.",
+            "title": "Detail"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The manifest looked for; null when there was no path to derive it from (the file is not named <stem>.<digits>).",
+            "title": "Path"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hex SHA-256 of the bytes the package read and judged; null when no file was read.",
+            "title": "Sha256"
+          },
+          "status": {
+            "description": "matches / contradicts / declared_only \u2014 as the diagnosis used it.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "status",
+          "sha256",
+          "detail"
+        ],
+        "title": "ManifestReadingModel",
         "type": "object"
       },
       "NamedValue": {
@@ -1116,6 +1203,17 @@
             "description": "Hex boot identifier.",
             "title": "Boot Id",
             "type": "string"
+          },
+          "continuation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContinuationModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On a SEGMENT_CONTINUATION (kind 11): what the writer declared at the cut, as the package decodes it. Null on every other record, and on a kind-11 record that is not well formed (the advisory channel reports that). A declaration, never evidence that the records it describes exist."
           },
           "detail": {
             "anyOf": [
@@ -1785,6 +1883,17 @@
               }
             ],
             "description": "Present only when something failed."
+          },
+          "manifest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManifestReadingModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The second file this verdict rests on, when there is one: the segments manifest a continuation diagnosis was decided against. Null when the verdict consulted no manifest."
           },
           "session_id": {
             "description": "The session this answer is about.",
