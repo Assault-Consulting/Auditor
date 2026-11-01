@@ -233,8 +233,12 @@ class DiagnosisModel(BaseModel):
 
     pattern: str = Field(
         description=(
-            "One of: truncated_tail, prefix_absent, seq_gap, chain_break, "
-            "record_violation, unanchored_tail, replaced_or_rolled_back."
+            "The package's pattern, an open vocabulary (a newer verifier may "
+            "add one; a consumer renders an unknown one with the narrative). "
+            "As of 0.13: not_a_container, truncated_tail, "
+            "declared_continuation, continuation_contradicts_manifest, "
+            "prefix_absent, seq_gap, chain_break, record_violation, "
+            "unanchored_tail, replaced_or_rolled_back."
         )
     )
     at_seq: int | None = Field(description="Where, when the pattern has a location.")
@@ -416,6 +420,37 @@ class AnchorReadingModel(BaseModel):
     head: str = Field(description="The hex head this check was made against.")
 
 
+class ManifestReadingModel(BaseModel):
+    """The segments manifest a verdict consulted (U17, palimpsests 0.13).
+
+    A segment whose first record declares a continuation is diagnosed
+    against `<stem>.segments.json` beside it. That second file is part of
+    what the verdict is about, so it is named and fingerprinted here, and
+    the session refuses to answer once either file has changed.
+    """
+
+    path: str | None = Field(
+        description=(
+            "The manifest looked for; null when there was no path to derive "
+            "it from (the file is not named <stem>.<digits>)."
+        )
+    )
+    status: str = Field(
+        description=(
+            "matches / contradicts / declared_only — as the diagnosis used it."
+        )
+    )
+    sha256: str | None = Field(
+        description=(
+            "Hex SHA-256 of the bytes the package read and judged; null when "
+            "no file was read."
+        )
+    )
+    detail: str | None = Field(
+        description="The package's reason, when the status is not plain. Verbatim."
+    )
+
+
 class VerificationResponse(BaseModel):
     """The verifier's answer, passed through rather than summarised.
 
@@ -458,6 +493,14 @@ class VerificationResponse(BaseModel):
     )
     diagnosis: DiagnosisModel | None = Field(
         description="Present only when something failed."
+    )
+    manifest: ManifestReadingModel | None = Field(
+        default=None,
+        description=(
+            "The second file this verdict rests on, when there is one: the "
+            "segments manifest a continuation diagnosis was decided against. "
+            "Null when the verdict consulted no manifest."
+        ),
     )
     advisory: AdvisoryModel
 
@@ -546,6 +589,24 @@ class SpanView(BaseModel):
     )
     record_count: int = Field(description="Records carrying this span id.")
     record_seqs: list[int] = Field(description="Their sequence numbers.")
+
+
+class ContinuationModel(BaseModel):
+    """What a SEGMENT_CONTINUATION declares (inference profile r6, §3.2)."""
+
+    segment_index: int = Field(description="SEG_INDEX; the GENESIS segment is 0.")
+    predecessor_head: str = Field(
+        description="SEG_PREDECESSOR_HEAD, hex — the head the previous segment ended at."
+    )
+    retention_s: int = Field(
+        description="SEG_RETENTION_S — the declared retention floor in seconds; 0 is none."
+    )
+    prior_root: str = Field(
+        description=(
+            "SEG_PRIOR_ROOT, hex — the derived root of every record before "
+            "this one, as the writer declared it."
+        )
+    )
 
 
 class RecordView(BaseModel):
@@ -731,6 +792,16 @@ class RecordView(BaseModel):
             "`kind` already has (U12, released 0.11.0). Null when the "
             "record carries no detail at all, never an empty string."
         )
+    )
+    continuation: ContinuationModel | None = Field(
+        default=None,
+        description=(
+            "On a SEGMENT_CONTINUATION (kind 11): what the writer declared at "
+            "the cut, as the package decodes it. Null on every other record, "
+            "and on a kind-11 record that is not well formed (the advisory "
+            "channel reports that). A declaration, never evidence that the "
+            "records it describes exist."
+        ),
     )
     recurrence_count: int | None = Field(
         description=(

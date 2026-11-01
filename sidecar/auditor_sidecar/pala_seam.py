@@ -46,7 +46,7 @@ from palimpsests.audit.bootstats import boot_statistics
 from palimpsests.audit.names import assurance_tier_name, time_trust_name
 from palimpsests.audit.pala.codec import FORMAT_VERSION, RT_SAFETY, ZERO16, ZERO32
 from palimpsests.audit.pala_writer import KIND_INCIDENT_CANDIDATE
-from palimpsests.audit.reader import AuditReader
+from palimpsests.audit.reader import AuditReader, decode_continuation
 from palimpsests.audit.report import build_report
 from palimpsests.audit.timehealth import step_catalog
 from pathlib import Path
@@ -546,6 +546,21 @@ class ChainHandle:
                 # the report stops saying what the verifier said.
                 "narrative": diagnosis.narrative,
             },
+            # The second file a verdict may rest on (U17, 0.13): the segments
+            # manifest a continuation diagnosis was decided against. Carried as
+            # the package read it — path, status, the digest of the bytes it
+            # judged — so the session can hold it to the same "still the same
+            # bytes" test as the container itself (sessions.assert_unchanged).
+            "manifest": None
+            if result.manifest is None
+            else {
+                "path": result.manifest.path,
+                "status": result.manifest.status,
+                "sha256": None
+                if result.manifest.sha256 is None
+                else result.manifest.sha256.hex(),
+                "detail": result.manifest.detail,
+            },
             "advisory": {
                 "count": len(result.advisory.items),
                 "items": [
@@ -940,6 +955,11 @@ class ChainHandle:
             # detail at all, not "" — the package's own distinction
             # (U12, released 0.11.0).
             "detail": record.detail,
+            # What a SEGMENT_CONTINUATION declares (inference profile r6): the
+            # package's own decode, null on every other record and on a
+            # kind-11 record that is not well formed — the advisory channel
+            # says so (continuation_malformed); this field never guesses.
+            "continuation": self._continuation(record),
             # How many SAFETY records in this container carry this
             # exact detail text, this one included — F8's own framing
             # ("detail text and a recurrence count for identical
@@ -1258,20 +1278,14 @@ class ChainHandle:
         reader can jump to the declaration rather than take this on
         trust — the same reason every other claim here names its source.
 
-        Two calls into the package when the answer is not `"active"`:
-        `origin_at()` then `unloaded_at()`, both routed through the
-        package's own shared `_origin_state_at()` internally, so the
-        tracking loop runs twice — the underlying decode is cached
-        after the first (U14), so this is an O(n) Python loop repeated,
-        not a second parse. Not worth a second public method upstream
-        for what is one call per record selection, not a hot path.
+        One call into the package: `origin_state_at()` (0.13) answers both
+        halves from one walk, and since 0.13 that walk is bounded — the
+        package keeps an index of the records that set origin state, so a
+        question costs a binary search and at most one decode (U23).
         """
         with self._lock:
-            view = self._reader.origin_at(seq)
-            if view is not None:
-                unloaded = False
-            else:
-                unloaded = self._reader.unloaded_at(seq)
+            state = self._reader.origin_state_at(seq)
+        view, unloaded = state.origin, state.unloaded
         if view is not None:
             return {
                 "state": "active",
@@ -1413,6 +1427,18 @@ class ChainHandle:
             candidate_of={ack: cand for cand, ack in acknowledged.items()},
             latency_ns=latency,
         )
+
+    @staticmethod
+    def _continuation(record) -> dict[str, object] | None:
+        view = decode_continuation(record)
+        if view is None:
+            return None
+        return {
+            "segment_index": view.segment_index,
+            "predecessor_head": view.predecessor_head.hex(),
+            "retention_s": view.retention_s,
+            "prior_root": view.prior_root.hex(),
+        }
 
     @staticmethod
     def _detail_counts(records: list) -> Counter:

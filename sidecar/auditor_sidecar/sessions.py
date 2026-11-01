@@ -74,6 +74,11 @@ class Session:
     _spans: list[dict] | None = None
     _safety: dict | None = None
     _timelines: dict[tuple[str, int, str | None], dict] = field(default_factory=dict)
+    #: The segments manifests a verdict in this session rested on, by path,
+    #: with the digest of the bytes the package judged (None: no file was
+    #: read there). A verdict that consulted a second file is about two
+    #: files; assert_unchanged holds both to the same test (U17, C-13).
+    _manifests: dict[str, str | None] = field(default_factory=dict)
 
     def verify(
         self, profile: str = "none", sources: list[dict[str, str]] | None = None
@@ -86,7 +91,11 @@ class Session:
         then pastes a head by hand has asked two questions, not corrected one.
         """
         if profile not in self.verifications:
-            self.verifications[profile] = self.chain.verify(sources)
+            result = self.chain.verify(sources)
+            manifest = result.get("manifest")
+            if manifest is not None and manifest["path"] is not None:
+                self._manifests[manifest["path"]] = manifest["sha256"]
+            self.verifications[profile] = result
         return self.verifications[profile]
 
     def boots(self) -> list[dict]:
@@ -199,6 +208,17 @@ class Session:
             raise SubjectChanged(
                 f"{self.path} has changed since this session was opened"
             )
+        # A manifest that was read must still be those bytes; one that was
+        # absent must still be absent — its appearing would change the
+        # diagnosis as surely as an edit would.
+        for manifest_path, judged in self._manifests.items():
+            path = Path(manifest_path)
+            now = file_sha256(path) if path.is_file() else None
+            if now != judged:
+                raise SubjectChanged(
+                    f"{manifest_path}, the segments manifest a verdict in this "
+                    "session rested on, has changed since it was read"
+                )
 
 
 class SessionStore:
