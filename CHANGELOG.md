@@ -25,7 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reason, verbatim. Wording for the five `continuation_*` advisory codes
   and for `tool_target_not_a_call`, emitted since 0.12 without words here;
   the two continuation mismatches join the notable weight, for the reason
-  `reference_hash_mismatch` has it. A SEGMENT_CONTINUATION's card shows
+  `reference_hash_mismatch` has it. (Five continuation codes, not the six
+  the plan row named: the sixth missing wording was `tool_target_not_a_call`,
+  which is not new.) A SEGMENT_CONTINUATION's card shows
   what it declares — segment, retention floor, predecessor head, prior
   root — under the profile's framing that a declaration is not evidence.
   The open screen says that rotated segments (`chain.pala.00001`) are
