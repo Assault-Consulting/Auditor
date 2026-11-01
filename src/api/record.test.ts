@@ -13,7 +13,7 @@
 
 import { describe as group, expect, it } from "vitest";
 
-import { PARSED_FROM_WIRE_NOTE, recordCard, REPORTED_BY_CLIENT_NOTE } from "./record";
+import { CONTINUATION_NOTE, PARSED_FROM_WIRE_NOTE, recordCard, REPORTED_BY_CLIENT_NOTE } from "./record";
 import type { RecordView } from "./generated/types";
 
 function view(over: Partial<RecordView> = {}): RecordView {
@@ -336,5 +336,42 @@ group("the evidence mark on a tool call or result", () => {
     for (const claim of ["verified", "observed", "proved", "proven"]) {
       expect(text).not.toContain(claim);
     }
+  });
+});
+
+group("a segment continuation (C-13, r6)", () => {
+  const declared = {
+    segment_index: 3,
+    predecessor_head: "ef".repeat(32),
+    retention_s: 15_552_000,
+    prior_root: "12".repeat(32),
+  };
+
+  it("is null on a record that declares nothing", () => {
+    expect(recordCard(view()).continuation).toBeNull();
+    expect(recordCard(view({ continuation: null })).continuation).toBeNull();
+  });
+
+  it("carries the declaration as the package decoded it", () => {
+    const c = recordCard(view({ kind: 11, kind_name: "SEGMENT_CONTINUATION", continuation: declared })).continuation;
+    expect(c?.segmentIndex).toBe(3);
+    expect(c?.predecessorHead).toBe(declared.predecessor_head);
+    expect(c?.priorRoot).toBe(declared.prior_root);
+  });
+
+  it("says the retention floor in days, and says none when none was declared", () => {
+    expect(recordCard(view({ continuation: declared })).continuation?.retention).toBe("180 days (15552000 s)");
+    expect(recordCard(view({ continuation: { ...declared, retention_s: 0 } })).continuation?.retention).toBe(
+      "none declared",
+    );
+    expect(recordCard(view({ continuation: { ...declared, retention_s: 90 } })).continuation?.retention).toBe(
+      "90 s",
+    );
+  });
+
+  it("is framed as a declaration, never as evidence", () => {
+    const note = recordCard(view({ continuation: declared })).continuation?.note ?? "";
+    expect(note).toBe(CONTINUATION_NOTE);
+    expect(note).toContain("not evidence");
   });
 });

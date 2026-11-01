@@ -167,6 +167,12 @@ export interface RecordCard {
   /** On a tool call or result: how the serving layer learned of it. */
   source: SourceMark | null;
   /**
+   * On a SEGMENT_CONTINUATION: what the writer declared at the cut, as the
+   * package decoded it (C-13). Null on every other record, and on a kind-11
+   * record that is not well formed — the advisory lane says so.
+   */
+  continuation: ContinuationCard | null;
+  /**
    * Seq of the KEY_SHRED that shreds this record, resolved in the chain
    * and key_id-matched (U15), or null when it is not currently
    * shredded. Not "not shreddable" — a KEY_SHRED's own target_seqs can
@@ -250,6 +256,41 @@ function sourceOf(view: RecordView): SourceMark | null {
   return { kind: "unknown", value: s.value, label: `source ${s.value}, unknown`, note: UNRECOGNISED_NOTE };
 }
 
+/**
+ * The inference profile's own framing of a continuation (§3.2, r6), kept
+ * with the fields so the card can never show them as findings.
+ */
+export const CONTINUATION_NOTE =
+  "declared by the writer at the cut — not evidence that the earlier records exist, or that they were the ones it names";
+
+export interface ContinuationCard {
+  segmentIndex: number;
+  predecessorHead: string;
+  /** The retention floor in words; "none declared" for zero. */
+  retention: string;
+  priorRoot: string;
+  note: string;
+}
+
+function retentionText(seconds: number): string {
+  if (seconds === 0) return "none declared";
+  const days = seconds / 86_400;
+  if (Number.isInteger(days)) return `${days} ${days === 1 ? "day" : "days"} (${seconds} s)`;
+  return `${seconds} s`;
+}
+
+export function continuationOf(view: RecordView): ContinuationCard | null {
+  const c = view.continuation ?? null;
+  if (c === null) return null;
+  return {
+    segmentIndex: c.segment_index,
+    predecessorHead: c.predecessor_head,
+    retention: retentionText(c.retention_s),
+    priorRoot: c.prior_root,
+    note: CONTINUATION_NOTE,
+  };
+}
+
 function spanText(ns: number): string {
   const s = Math.round(Math.abs(ns) / 1e9);
   if (s < 60) return `${s} s`;
@@ -304,6 +345,7 @@ export function recordCard(view: RecordView): RecordCard {
     operatorId: view.operator_id,
     disposition: view.disposition,
     source: sourceOf(view),
+    continuation: continuationOf(view),
     shredded: view.shredded_by,
     detail: view.detail,
     recurrenceCount: view.recurrence_count,
