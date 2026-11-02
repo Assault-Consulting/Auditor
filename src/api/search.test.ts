@@ -169,6 +169,31 @@ group("the source chip (C-12)", () => {
   });
 });
 
+group("the outcome chip (C-14)", () => {
+  it("lower-cases the value — the package spells outcomes that way", () => {
+    expect(parseSearch("outcome:Unobserved")).toEqual({
+      kind: "filters",
+      chips: [{ key: "outcome", value: "unobserved" }],
+    });
+  });
+
+  it("composes with the other chips", () => {
+    expect(parseSearch("kind:TOOL_RESULT outcome:error")).toEqual({
+      kind: "filters",
+      chips: [
+        { key: "kind", value: "TOOL_RESULT" },
+        { key: "outcome", value: "error" },
+      ],
+    });
+  });
+
+  it("is named in the list of chips this build reads", () => {
+    const outcome = parseSearch("colour:red");
+    expect(outcome?.kind).toBe("unsupported");
+    if (outcome?.kind === "unsupported") expect(outcome.reason).toContain("outcome:");
+  });
+});
+
 // --- time jump and date range (C-09c) ----------------------------------------
 
 group("a time jump", () => {
