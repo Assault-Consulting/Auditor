@@ -98,11 +98,15 @@ group("every known pattern is usable", () => {
     expect(card?.unrecognised).toBe(false);
   });
 
-  it("covers the seven the specification lists", () => {
-    // FUNCTIONALITY.md §8 names seven. A pattern arriving with no guidance
-    // is handled, but a pattern the specification already lists arriving
-    // with none would just be an omission.
-    expect(KNOWN_PATTERNS).toHaveLength(7);
+  it("covers the seven the specification lists and the three 0.13 added", () => {
+    // FUNCTIONALITY.md §8 names seven; palimpsests 0.13 adds three
+    // (CHANGELOG 0.13.0). A pattern arriving with no guidance is handled,
+    // but a pattern the package is already known to emit arriving with
+    // none would just be an omission.
+    expect(KNOWN_PATTERNS).toHaveLength(10);
+    for (const pattern of ["not_a_container", "declared_continuation", "continuation_contradicts_manifest"]) {
+      expect(KNOWN_PATTERNS).toContain(pattern);
+    }
   });
 
   it("covers every pattern the sidecar's mutation suite can produce", () => {
@@ -164,6 +168,34 @@ group("an unknown pattern is handled, not hidden", () => {
     const where = diagnosisCard(FUTURE)?.whereToLook.join(" ") ?? "";
     expect(where).toContain("authoritative");
     expect(where).toContain("older than the writer");
+  });
+});
+
+group("what 0.13 says about segments", () => {
+  const card = (pattern: string) =>
+    diagnosisCard({ pattern, at_seq: 400, expected: "a GENESIS record at position 0", narrative: "…" });
+
+  it("a declared continuation explains why question one still says no", () => {
+    // D1: the verdict stays a violation for a segment on its own. The card
+    // is where that stops reading as an alarm.
+    const where = card("declared_continuation")?.whereToLook.join(" ") ?? "";
+    expect(where).toContain("question one still answers no");
+    expect(where).toContain("ordinary shape");
+    expect(where).toContain("retention floor");
+  });
+
+  it("a contradicting manifest sends the reader to the manifest and the previous segment", () => {
+    const where = card("continuation_contradicts_manifest")?.whereToLook.join(" ") ?? "";
+    expect(where).toContain("belongs to this chain");
+    expect(where).toContain("previous segment");
+  });
+
+  it("a file that is not a chain is never described as an interrupted write", () => {
+    const c = card("not_a_container");
+    const ours = `${c?.title} ${c?.whereToLook.join(" ")}`.toLowerCase();
+    expect(ours).not.toContain("interrupt");
+    expect(ours).not.toContain("crash");
+    expect(c?.title).toBe("This file does not begin with a PALA-1 record");
   });
 });
 

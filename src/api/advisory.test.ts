@@ -67,15 +67,41 @@ group("one weight distinction, and only one", () => {
     expect(groups[0]?.count).toBe(1);
   });
 
-  it("is the only code marked notable besides the shred key mismatch", () => {
-    // Two notable codes, both about things that should agree and do not.
-    // This guards the most likely future edit: every code looks worth
-    // highlighting when examined on its own, and after a few reasonable
-    // decisions they would all be notable and the distinction would be gone.
+  it("marks notable only the codes about two things that should agree and do not", () => {
+    // Four notable codes, each a mismatch between two values that should be
+    // equal: a reference's hash and its target's, a shred's key and its
+    // target's, a continuation's declared predecessor and its own prev_hash,
+    // a continuation's declared root and the root recomputed from the
+    // records (0.13). This guards the most likely future edit: every code
+    // looks worth highlighting when examined on its own, and after a few
+    // reasonable decisions they would all be notable and the distinction
+    // would be gone. Adding one means arguing it belongs to this class.
     const notable = KNOWN_CODES.filter(
       (code) => advisoryGroups(advisory([item(code)]))[0]?.weight === "notable",
     );
-    expect(notable.sort()).toEqual(["reference_hash_mismatch", "shred_target_key_mismatch"]);
+    expect(notable.sort()).toEqual([
+      "continuation_predecessor_mismatch",
+      "continuation_prior_root_mismatch",
+      "reference_hash_mismatch",
+      "shred_target_key_mismatch",
+    ]);
+  });
+
+  it("has wording for every code palimpsests 0.13 emits", () => {
+    // Read from the package's own reader against 0.13.1, not from a
+    // document: seventeen codes, five of them new for segment continuation
+    // and one (tool_target_not_a_call, r3) emitted since 0.12 without words
+    // here until now.
+    const emitted = [
+      "anchor_never_written", "mid_boot_time_trust_change", "mono_regression_in_boot",
+      "wall_regression_in_boot", "span_unclosed", "span_unopened",
+      "reference_hash_mismatch", "reference_unresolved", "ack_target_not_a_candidate",
+      "tool_target_not_a_call", "shred_target_key_mismatch", "shred_target_unresolved",
+      "continuation_malformed", "continuation_predecessor_mismatch",
+      "continuation_index_not_increasing", "continuation_index_gap",
+      "continuation_prior_root_mismatch",
+    ];
+    expect([...KNOWN_CODES].sort()).toEqual([...emitted].sort());
   });
 });
 

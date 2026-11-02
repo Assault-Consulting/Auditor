@@ -362,6 +362,42 @@ body {
   margin: 0.4em 0;
 }
 
+/* C-13 — the second file a verdict rests on. Ruled off from the guidance
+   above it: this is a fact about the evidence, not a place to look. */
+.diagnosis-manifest {
+  margin-top: var(--step);
+  padding-top: var(--step);
+  border-top: 1px solid var(--rule);
+  color: var(--vellum-dim);
+}
+
+.diagnosis-manifest p {
+  margin: 0.3em 0;
+}
+
+.diagnosis-manifest[data-unrecognised="true"] {
+  color: var(--unchecked);
+}
+
+.diagnosis-manifest-detail {
+  font-style: italic;
+}
+
+.diagnosis-manifest-digest code,
+.record-continuation-field code {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  word-break: break-all;
+}
+
+.record-continuation-field {
+  display: block;
+}
+
+.segment-hint {
+  margin: 0.4em 0 0;
+}
+
 /* F8 — the SAFETY list. Ruled like .browse and .records: it groups and
    counts what a record already resolves, with the acknowledgement marker
    naming which ack (C-07c) — the ack's own operator, disposition and
