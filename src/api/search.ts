@@ -21,6 +21,9 @@
  *   the package's own name. Lower-cased rather than upper-cased, for the
  *   same reason the others are upper-cased: `reported-by-client` and
  *   `parsed-from-wire` are how the package spells them.
+ * - `outcome:` (C-14) — how a tool result ended, by the package's own name
+ *   (`ok`, `error`, `timeout`, `cancelled`, `unobserved`), lower-cased for
+ *   the reason `source:` is.
  * - **Date range** (C-09c): `from:YYYY-MM-DD` and `to:YYYY-MM-DD`, whole
  *   UTC days, `to:` inclusive — the same days the date rail draws. A filter
  *   on the writer's clock, so a Recorded bound.
@@ -43,10 +46,10 @@
 import type { AdvisoryItemModel } from "./generated/types";
 
 /** The chip keys this build reads. */
-export type ChipKey = "kind" | "type" | "tier" | "boot" | "span" | "source" | "from" | "to";
+export type ChipKey = "kind" | "type" | "tier" | "boot" | "span" | "source" | "outcome" | "from" | "to";
 
 const CHIP_KEYS: readonly ChipKey[] = [
-  "kind", "type", "tier", "boot", "span", "source", "from", "to",
+  "kind", "type", "tier", "boot", "span", "source", "outcome", "from", "to",
 ];
 
 /** One `key:value` token, normalised. */
@@ -151,7 +154,7 @@ export function parseSearch(raw: string): SearchOutcome | null {
       if (!HEX.test(value)) {
         return unsupported(trimmed, `"${key}:${match[2]}" — a ${key} id is hexadecimal`);
       }
-    } else if (chipKey === "source") {
+    } else if (chipKey === "source" || chipKey === "outcome") {
       value = value.toLowerCase();
     } else if (chipKey === "from" || chipKey === "to") {
       if (dayStartNs(value) === null) {
