@@ -1296,6 +1296,17 @@
             "description": "For an OVERSIGHT_ACK: the operator id the writer recorded, hex. Pseudonymous by design (16 bytes the writer chose); this application never resolves it to a person. Null for every record that carries none.",
             "title": "Operator Id"
           },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NamedValue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On a TOOL_RESULT: the outcome the writer recorded (EVT_OUTCOME), with the package's name \u2014 'ok', 'error', 'timeout', 'cancelled', or 'unobserved' (r6: the result returned and the recording vantage could not observe whether it failed). 'ok' IS A RETURN, NOT A CONFIRMED EFFECT (profile note 5), and a reader cannot treat it as 'the tool did not fail'. Null on every other record, and on a result missing the tag; name null for a value this build cannot interpret."
+          },
           "parent_span_id": {
             "anyOf": [
               {
@@ -2615,6 +2626,24 @@
               ],
               "description": "Keep only tool calls and results whose evidence mark the package names this: 'reported-by-client' or 'parsed-from-wire'. No other record carries the mark, so none matches.",
               "title": "Source Name"
+            }
+          },
+          {
+            "description": "Keep only tool results whose outcome the package names this: 'ok', 'error', 'timeout', 'cancelled' or 'unobserved'. No other record carries an outcome, so none matches. 'ok' is a return, not a confirmed effect.",
+            "in": "query",
+            "name": "outcome_name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep only tool results whose outcome the package names this: 'ok', 'error', 'timeout', 'cancelled' or 'unobserved'. No other record carries an outcome, so none matches. 'ok' is a return, not a confirmed effect.",
+              "title": "Outcome Name"
             }
           },
           {
