@@ -1,0 +1,1648 @@
+/*
+ * SPDX-FileCopyrightText: Assault Consulting
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Design tokens for the whole application, defined here once because the
+ * central distinction they encode is semantic, not decorative.
+ *
+ * PROVED / RECORDED / NOT CHECKED are the three truth-values this product
+ * deals in (FUNCTIONALITY.md, invariants L3 and L7). Chain order is proved.
+ * Wall-clock time is a claim the writer recorded. A completeness check with
+ * no anchor supplied is not checked, and must never be rendered as passed.
+ * Giving each one a token here means no view can quietly invent a fourth
+ * state or reuse the wrong colour for the wrong kind of fact.
+ *
+ * No web fonts, and none will be added. This application is air-gapped by
+ * construction; a stylesheet that reaches out for a font is a stylesheet
+ * that makes an outbound request. The stacks below are system faces only.
+ */
+
+:root {
+  /* Surface: ink and vellum. A dark ground because this tool is read for
+     long stretches beside a terminal, and because a bright page makes the
+     three state colours shout. */
+  --ink: #0f1319;
+  --ink-raised: #161b23;
+  --rule: #232b36;
+  --vellum: #e7e2d6;
+  --vellum-dim: #9aa2ad;
+
+  /* The three truth-values. Verdigris for proved — the colour copper takes
+     when it has been sitting still long enough to be trusted. Ochre for
+     recorded, a claim rather than a proof. Slate for not checked, which is
+     deliberately inert: absence should read as absence, never as failure
+     and never as success. */
+  --proved: #4fa38b;
+  --recorded: #c8963e;
+  --unchecked: #6b7683;
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+    Georgia, serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono",
+    "DejaVu Sans Mono", monospace;
+
+  --step: 0.6rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--vellum);
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--step) * 4);
+}
+
+.plate {
+  width: min(62ch, 100%);
+}
+
+/* Eyebrow: mono, wide-tracked, quiet. It states what the tool reads, which
+   is the first thing an auditor needs to know and the last thing a logo
+   would tell them. */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+.wordmark {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(2rem, 6vw, 3.1rem);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+.wordmark em {
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.thesis {
+  margin: calc(var(--step) * 1.5) 0 calc(var(--step) * 4);
+  max-width: 52ch;
+  color: var(--vellum-dim);
+}
+
+/* The three questions. Numbered because they genuinely are a sequence: you
+   cannot ask whether you hold all of it until you know what you hold is
+   consistent, and existence evidence is meaningless without both. */
+.questions {
+  list-style: none;
+  margin: 0 0 calc(var(--step) * 4);
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.question {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  gap: calc(var(--step) * 1.5);
+  padding: calc(var(--step) * 1.75) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.question-index {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--unchecked);
+  padding-top: 0.35em;
+  padding-left: calc(var(--step) * 0.9);
+}
+
+.question-text {
+  margin: 0;
+}
+
+.question-basis {
+  margin: 0.35em 0 0;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The four standings, and they are four rather than two on purpose. L6
+   keeps absent, unreadable and failed apart at the API; a stylesheet with a
+   green and a red would collapse them at the last step and waste that.
+
+   `unavailable` is deliberately the same inert slate as an unasked
+   question: a file carrying no witness is not a failure of the log — and,
+   at any tier, not a claim that none could exist — so nothing on the
+   screen should make it look like one. */
+.question[data-standing="answered-yes"] .question-basis {
+  color: var(--proved);
+}
+.question[data-standing="answered-no"] .question-basis {
+  color: var(--recorded);
+}
+.question[data-standing="not-checked"] .question-basis,
+.question[data-standing="unavailable"] .question-basis {
+  color: var(--unchecked);
+}
+
+/* Colour is never the only carrier — a rule on the index, so the standing
+   survives greyscale, a projector, and colour blindness. Solid for an
+   answer either way, dashed for asked-and-unanswered, dotted for nothing
+   that could answer it. */
+.question[data-standing="answered-yes"] .question-index {
+  border-left: 2px solid var(--proved);
+}
+.question[data-standing="answered-no"] .question-index {
+  border-left: 2px solid var(--recorded);
+}
+.question[data-standing="not-checked"] .question-index {
+  border-left: 2px dashed var(--unchecked);
+}
+.question[data-standing="unavailable"] .question-index {
+  border-left: 2px dotted var(--unchecked);
+}
+
+.question-answer {
+  margin: 0.45em 0 0;
+  color: var(--vellum);
+}
+
+/* The verifier's own sentence. Set in the serif and indented, so it reads as
+   quoted rather than as ours — the visual form of carrying it verbatim. */
+.question-narrative {
+  margin: 0.45em 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--rule);
+  color: var(--vellum-dim);
+  font-style: italic;
+}
+
+/* Build status. An empty screen is an invitation to act, so it names what
+   is wired and what is not, rather than showing a spinner over nothing. */
+.status {
+  background: var(--ink-raised);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.status-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+.status-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--step);
+  padding: 0.3rem 0;
+}
+
+.status-state {
+  color: var(--unchecked);
+}
+
+.status-state[data-live="true"] {
+  color: var(--proved);
+}
+
+/* The actions, deliberately plain. A filled accent button here would be the
+   loudest element on a screen whose whole claim is that it has decided
+   nothing on its own. */
+.choose {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+  margin-top: calc(var(--step) * 3);
+}
+
+.choose-button {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  color: var(--vellum);
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.9) calc(var(--step) * 2);
+  cursor: pointer;
+}
+
+.choose-button:hover:not(:disabled) {
+  border-color: var(--unchecked);
+}
+
+/* Dimmed rather than hidden. A Verify button that disappears until a chain
+   is open leaves the screen without saying what it will be able to do. */
+.choose-button:disabled {
+  color: var(--unchecked);
+  cursor: default;
+}
+
+.choose-hint {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
+.choose-profile {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.7);
+}
+
+.choose-profile select {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--vellum);
+  background: var(--ink-raised);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.5) var(--step);
+}
+
+.choose-profile select:disabled {
+  color: var(--unchecked);
+}
+
+/* The diagnosis. Ruled in ochre — the Recorded colour — because a failure is
+   a description of evidence, not a proof of anything, and it must not take
+   the green that means "proved". Nor the red a status pane would reach for:
+   this application does not have an alarm state, and a card that looked like
+   one would be making the accusation the wording refuses to make. */
+.diagnosis {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--recorded);
+  padding: calc(var(--step) * 2);
+}
+
+.diagnosis-title {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 1.15rem;
+}
+
+.diagnosis-facts {
+  margin: calc(var(--step) * 1.5) 0 0;
+  display: grid;
+  gap: calc(var(--step) * 0.5);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.diagnosis-facts > div {
+  display: flex;
+  gap: var(--step);
+}
+
+.diagnosis-facts dt {
+  color: var(--unchecked);
+  min-width: 7ch;
+}
+
+.diagnosis-facts dd {
+  margin: 0;
+  color: var(--vellum-dim);
+}
+
+.diagnosis-facts code {
+  font-family: var(--mono);
+  color: var(--recorded);
+}
+
+.diagnosis-lead {
+  margin: calc(var(--step) * 2) 0 calc(var(--step) * 0.75);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+}
+
+/* Numbered, because the order is the order worth checking in — the cheapest
+   and most likely explanation first. An unordered list would make three
+   equally weighted suggestions out of a deliberate sequence. */
+.diagnosis-where {
+  margin: 0;
+  padding-left: calc(var(--step) * 2.5);
+  color: var(--vellum-dim);
+}
+
+.diagnosis-where li {
+  margin: 0.4em 0;
+}
+
+/* C-13 — the second file a verdict rests on. Ruled off from the guidance
+   above it: this is a fact about the evidence, not a place to look. */
+.diagnosis-manifest {
+  margin-top: var(--step);
+  padding-top: var(--step);
+  border-top: 1px solid var(--rule);
+  color: var(--vellum-dim);
+}
+
+.diagnosis-manifest p {
+  margin: 0.3em 0;
+}
+
+.diagnosis-manifest[data-unrecognised="true"] {
+  color: var(--unchecked);
+}
+
+.diagnosis-manifest-detail {
+  font-style: italic;
+}
+
+.diagnosis-manifest-digest code,
+.record-continuation-field code {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  word-break: break-all;
+}
+
+.record-continuation-field {
+  display: block;
+}
+
+.segment-hint {
+  margin: 0.4em 0 0;
+}
+
+/* C-14 — a tool result that did not return cleanly, or whose failure the
+   recording vantage could not see. Marked like a reported call (C-12):
+   the same small, quiet chip, never a red alarm — an outcome is the
+   writer's claim, not this verifier's finding. */
+.records-outcome {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--recorded);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0 0.3em;
+}
+
+/* F8 — the SAFETY list. Ruled like .browse and .records: it groups and
+   counts what a record already resolves, with the acknowledgement marker
+   naming which ack (C-07c) — the ack's own operator, disposition and
+   latency are on the record card. Still not the fuller "loudest thing in
+   the UI" F8 reserves for an unacknowledged candidate: that is a design
+   decision, not a data gap, and belongs to D-03's wording audit. Detail
+   text and its recurrence count (C-07b, U12) — the writer's own claim,
+   ochre, beside a slate count this shell computed, never conflated as the
+   same kind of fact. */
+.safety {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.safety-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+.safety-empty {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--unchecked);
+}
+
+.safety-failed {
+  margin: 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+/* Named plainly rather than silently incomplete — the same discipline
+   .search-note keeps for what a slice does not read yet. */
+.safety-note {
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-size: 0.82rem;
+  color: var(--unchecked);
+}
+
+.safety-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.safety-group {
+  padding: calc(var(--step) * 0.8) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.safety-group:last-child {
+  border-bottom: none;
+}
+
+.safety-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+  margin: 0 0 calc(var(--step) * 0.5);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.safety-group-kind {
+  flex: 1;
+  color: var(--vellum);
+}
+
+.safety-group-count {
+  color: var(--unchecked);
+}
+
+.safety-record-list {
+  list-style: none;
+  margin: 0;
+  padding-left: calc(var(--step) * 1.5);
+}
+
+/* A row is a button, the same reason .records-row is: it selects the
+   record, and never navigates anywhere of its own. */
+.safety-record {
+  display: block;
+  width: 100%;
+  padding: 0.2em 0;
+  border: none;
+  background: none;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--vellum-dim);
+  text-align: left;
+  cursor: pointer;
+}
+
+.safety-record:hover {
+  color: var(--vellum);
+}
+
+/* Weight, not colour — the same choice .advisory-group[data-weight]
+   makes: an unacknowledged candidate reads with more presence, an
+   acknowledged one recedes, and neither takes on a colour that would
+   claim more than "a hash-verified ack is present, and which" (C-07c).
+   The ack's operator and disposition stay on the card, in ochre: they
+   are the writer's claims, not verdicts about the candidate. */
+.safety-ack-state {
+  margin-left: var(--step);
+  font-size: 0.7rem;
+}
+
+.safety-ack-state[data-acknowledged="false"] {
+  color: var(--vellum-dim);
+  font-weight: 600;
+}
+
+.safety-ack-state[data-acknowledged="true"] {
+  color: var(--unchecked);
+}
+
+/* The writer's own free text (C-07b, U12) — ochre, the same Recorded
+   colour every other writer claim in this app takes (.record-recorded),
+   never verdigris: nothing here is proved, only declared. The
+   recurrence count beside it is a different kind of fact — computed by
+   this shell over what the writer wrote, not a claim of its own — so it
+   takes the neutral slate every other count in this app already uses
+   (.advisory-count, .records-count, .safety-group-count). */
+.safety-detail {
+  margin-left: var(--step);
+  font-size: 0.7rem;
+  color: var(--recorded);
+}
+
+/* Ack latency (C-07c): ochre when measured — the writer's clock,
+   subtracted, a Recorded figure like every other wall time here. A
+   cross-boot pair is slate: nothing was computed, and the sentence says
+   why. */
+.record-ack-latency[data-kind="measured"] {
+  color: var(--recorded);
+}
+
+.record-ack-latency[data-kind="cross-boot"] {
+  color: var(--unchecked);
+}
+
+.safety-recurrence,
+.record-recurrence {
+  margin-left: 0.3em;
+  color: var(--unchecked);
+}
+
+/* The Chronoscope. Ruled like the provenance block rather than the
+   diagnosis card: this is structure, not a finding.
+
+   Everything in it is a RECORDED claim — dates exist only in the writer's
+   clock — so nothing here may take the Proved verdigris. The bars and the
+   date labels sit in the Recorded ochre family or in plain vellum, never in
+   the colour that means "the chain establishes this". */
+.rail {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.rail-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 0.5);
+}
+
+/* The watermark is permanent, not a state. It says whose clock the whole
+   view rests on, and it must be legible without being the loudest thing —
+   a warning nobody can stop reading gets ignored like any other. */
+.rail-watermark {
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--recorded);
+}
+
+/* Pinned caps: the first and last dates, before any interaction. */
+.rail-caps {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--vellum-dim);
+  padding-bottom: calc(var(--step) * 0.5);
+  border-bottom: 1px solid var(--rule);
+}
+
+.rail-days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rail-day {
+  display: grid;
+  grid-template-columns: 10ch 1fr 2ch;
+  align-items: center;
+  gap: var(--step);
+  padding: 0.15em 0;
+}
+
+.rail-date {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--vellum-dim);
+}
+
+/* Ochre, not verdigris: a density bar is drawn from the writer's clock. */
+.rail-bar {
+  height: 0.55em;
+  background: var(--recorded);
+  min-width: 0;
+}
+
+/* An empty day dims and its bar has no width at all. A visible minimum
+   would make a quiet day read as a busy one at a glance, which is the one
+   thing a density rail must not do. */
+.rail-day[data-empty="true"] .rail-date {
+  color: var(--unchecked);
+}
+
+/* A day the clock stepped inside is measuring two different clocks, so its
+   bar is hatched rather than solid: the width is not a quantity that can be
+   compared with its neighbours. */
+.rail-day[data-stepped="true"] .rail-bar {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--recorded),
+    var(--recorded) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+/* A compression mark. Ruled across rather than filled, so it reads as a
+   fold in the rail and not as a day with unusual content — a reader
+   scanning the dates must not have to check whether this row is one.
+
+   In the unchecked slate, not the Recorded ochre. The mark is a statement
+   about the DISPLAY — these rows were folded — and not about the writer's
+   clock. Giving it the colour of a recorded claim would make the folding
+   look like a finding about the log. */
+.rail-fold {
+  display: block;
+  padding: 0.35em 0;
+  border-top: 1px dashed var(--rule);
+  border-bottom: 1px dashed var(--rule);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  color: var(--unchecked);
+  text-align: center;
+}
+
+/* A fold the writer was down through keeps the same slate but gains the
+   dotted rule the provenance block uses for "never reached": both mean
+   there was nothing to observe, rather than something observed to be
+   absent. Still not ochre — being down is reported by the strip below,
+   where the gap has its own row and its own hatching. */
+.rail-fold[data-down="all"],
+.rail-fold[data-down="some"] {
+  border-top-style: dotted;
+  border-bottom-style: dotted;
+}
+
+.rail-safety {
+  font-size: 0.7rem;
+  color: var(--recorded);
+  text-align: center;
+}
+
+.rail-strip {
+  list-style: none;
+  margin: calc(var(--step) * 1.5) 0 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+}
+
+.rail-segment {
+  padding: calc(var(--step) * 0.6) var(--step);
+  border-left: 2px solid var(--rule);
+  color: var(--vellum-dim);
+}
+
+.rail-segment[data-kind="boot"] {
+  border-left-color: var(--vellum-dim);
+  color: var(--vellum);
+}
+
+/* The ruler disappears inside a gap. Hatched, dimmed, and with no border
+   colour of its own: there is no scale here to read, and drawing one would
+   claim a duration nobody observed. */
+.rail-segment[data-kind="gap"] {
+  border-left-style: dashed;
+  color: var(--unchecked);
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 5px,
+    var(--rule) 5px,
+    var(--rule) 6px
+  );
+}
+
+/* A gap the clock cannot account for — it ran backwards across the
+   boundary. Ochre because it is a fact about the writer's clock, never red:
+   this application has no alarm state. */
+.rail-segment[data-backwards="true"] {
+  border-left-color: var(--recorded);
+  color: var(--recorded);
+}
+
+.rail-pins {
+  margin: calc(var(--step) * 1.5) 0 0;
+  font-size: 0.86rem;
+  color: var(--unchecked);
+}
+
+/* Boots and spans. Structure, like the Chronoscope — ruled, not carded, and
+   with no colour that means a verdict.
+
+   The hardest rule in this block is what it must NOT look like. §F7 says an
+   unclosed span is "first-class evidence, styled as an unclosed bracket,
+   not an error", and that a recovered tail is "the honest marker of a
+   crash-recovered chain". Both are the kind of thing an interface reaches
+   for red to show. There is no red here and there will not be. */
+.browse {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.browse-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+.boot-list,
+.span-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.boot {
+  padding: calc(var(--step) * 0.8) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.boot:last-of-type {
+  border-bottom: none;
+}
+
+.boot-head {
+  display: flex;
+  gap: var(--step);
+  align-items: baseline;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.boot-id {
+  color: var(--vellum);
+}
+
+.boot-range {
+  flex: 1;
+  color: var(--unchecked);
+}
+
+/* The clock's trust, in ochre because it qualifies every wall-time claim in
+   the boot — and brighter when it changed partway through, because then no
+   single sentence about when things happened covers all of it. */
+.boot-clock {
+  color: var(--unchecked);
+  font-size: 0.72rem;
+}
+
+.boot-clock[data-changed="true"] {
+  color: var(--recorded);
+}
+
+/* A boot that recovered a truncated tail is marked, and marked in ochre
+   rather than in anything alarming. The writer noticed and said so; that is
+   the behaviour wanted, and it is the only reason a crash can be told from
+   a deletion. */
+.boot[data-recovered="true"] {
+  border-left: 2px solid var(--recorded);
+  padding-left: var(--step);
+}
+
+.boot-note {
+  margin: 0.3em 0 0;
+  font-size: 0.84rem;
+  color: var(--vellum-dim);
+}
+
+.span {
+  padding: calc(var(--step) * 0.6) 0 calc(var(--step) * 0.6) var(--step);
+  border-left: 2px solid var(--rule);
+}
+
+.span-head {
+  display: flex;
+  gap: var(--step);
+  align-items: baseline;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.span-id {
+  color: var(--vellum);
+}
+
+.span-range {
+  color: var(--unchecked);
+}
+
+/* The four extents, and the rule carries them so they survive greyscale.
+
+   An unclosed span takes a rule open at the bottom — a bracket that has not
+   been closed, which is what it is. Not dashed-as-broken, not red: the
+   operation was interrupted and the record of it is intact. */
+.span[data-extent="closed"] {
+  border-left-color: var(--vellum-dim);
+}
+
+.span[data-extent="unclosed"] {
+  border-left-color: var(--recorded);
+  border-bottom: 2px solid transparent;
+  border-top: 2px solid var(--recorded);
+}
+
+/* Began before this file: the bracket is open at the top instead. */
+.span[data-extent="began-earlier"] {
+  border-left-color: var(--recorded);
+  border-bottom: 2px solid var(--recorded);
+}
+
+/* Neither end here — no bracket at all, because this file shows the middle
+   of something and can say nothing about either end. */
+.span[data-extent="spans-the-file"] {
+  border-left-style: dotted;
+  border-left-color: var(--unchecked);
+}
+
+.span-note {
+  margin: 0.25em 0 0;
+  font-size: 0.84rem;
+  color: var(--vellum-dim);
+}
+
+/* An orphan sits at the top level and must not read as one. The dotted rule
+   says the same thing the provenance block's "never reached" does: there is
+   nothing here to observe, rather than something observed to be absent. */
+.span[data-placement="orphan"] {
+  border-left-style: dotted;
+}
+
+.span-orphan {
+  margin: 0.25em 0 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--unchecked);
+}
+
+/* "This container has none" and "the request failed" are different facts,
+   so they take different rules — the same distinction the provenance block
+   draws between absent and error. Empty is inert slate; a failure takes the
+   ochre of a Recorded claim, because the sentence in it comes from the
+   sidecar and is quoted, not ours. Neither is red. */
+.browse-empty {
+  margin: calc(var(--step) * 1.5) 0 0;
+  font-size: 0.86rem;
+  color: var(--unchecked);
+}
+
+.browse-failed {
+  margin: calc(var(--step) * 1.5) 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+/* The records list — C-11. Ruled like .browse for the same reason: a page
+   of records is structure to page through, not a finding. */
+.records {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.records-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+/* The chips the list below answers to (C-09b). Present whenever they
+   apply, because a narrowed list that did not say so would read as the
+   whole file. Slate, not a truth-value colour: a filter is the reader's
+   question, not a fact about the chain. */
+.records-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.6);
+  margin: 0 0 calc(var(--step) * 1.2);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
+.records-chip {
+  font-family: var(--mono);
+  color: var(--vellum);
+  border: 1px solid var(--rule);
+  padding: 0.05em 0.5em;
+}
+
+.records-filters button {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--vellum-dim);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.records-filters button:hover {
+  color: var(--vellum);
+}
+
+.records-empty {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--unchecked);
+}
+
+.records-failed {
+  margin: 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.records-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A row is a button, not a link styled to look like one — it selects the
+   same record the search bar and the origin jump already select, and
+   never navigates anywhere of its own. */
+.records-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+  width: 100%;
+  padding: calc(var(--step) * 0.5) 0;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--vellum-dim);
+  text-align: left;
+  cursor: pointer;
+}
+
+.records-list li:last-child .records-row {
+  border-bottom: none;
+}
+
+.records-row:hover {
+  color: var(--vellum);
+}
+
+.records-seq {
+  color: var(--vellum);
+  min-width: 6ch;
+}
+
+.records-type,
+.records-kind {
+  color: var(--unchecked);
+}
+
+.records-boot {
+  flex: 1;
+  color: var(--unchecked);
+  text-align: right;
+}
+
+/* C-12 — a call or result a client reported, marked on the row. Ochre,
+   because it is the client's assertion recorded, not the serve's
+   observation; boxed like a chip so it is seen while skimming. Never red:
+   a reported call is not a suspicious one, it is a differently-sourced
+   one, and the mark says which. */
+.records-source {
+  font-size: 0.7rem;
+  color: var(--recorded);
+  border: 1px solid var(--recorded);
+  padding: 0 0.4em;
+}
+
+.records-source[data-source="unknown"] {
+  color: var(--unchecked);
+  border-color: var(--rule);
+}
+
+/* Ochre — a Recorded claim, the same reason the record card's own Clock
+   line is (L3). */
+.records-clock {
+  color: var(--recorded);
+}
+
+.records-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--step);
+  margin-top: calc(var(--step) * 1.5);
+}
+
+.records-nav button {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--vellum-dim);
+  background: none;
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.4) calc(var(--step) * 1);
+  cursor: pointer;
+}
+
+.records-nav button:hover:not(:disabled) {
+  border-color: var(--unchecked);
+  color: var(--vellum);
+}
+
+.records-nav button:disabled {
+  color: var(--unchecked);
+  cursor: default;
+}
+
+.records-count {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
+/* The record card — F9's first slice (C-06a). Ruled like the browse block,
+   because a looked-up record is structure to inspect, not a finding: the
+   diagnosis card gets the ochre left border for a reason this one does not
+   share. */
+.record {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.record-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+/* F10's own bar — the seq-jump slice of it (C-09). Styled like .choose
+   rather than given its own language, because it is the same kind of
+   control: a field that goes and gets something, not a form with a
+   result of its own. */
+.search-bar {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+  margin-bottom: calc(var(--step) * 0.75);
+}
+
+.search-hint {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+  margin-right: calc(var(--step) * 0.6);
+}
+
+.search-bar input {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--vellum);
+  background: var(--ink-raised);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.5) var(--step);
+  /* Wide enough for a chip query or a time jump, not only a seq: `#1447`
+     fit in eight characters, `kind:INCIDENT_CANDIDATE from:2026-08-06`
+     does not (C-09b, C-09c). */
+  width: 44ch;
+  max-width: 100%;
+}
+
+.search-bar button {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--vellum);
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.5) calc(var(--step) * 1.5);
+  cursor: pointer;
+}
+
+.search-bar button:hover {
+  border-color: var(--unchecked);
+}
+
+/* Named plainly rather than silently swallowed — a filter chip or free
+   text typed into this bar today is not read yet, and the bar says so
+   instead of looking like it accepted and then did nothing. Not styled
+   as a failure: nothing here failed, this slice simply is not the whole
+   of F10. */
+.search-note {
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-size: 0.82rem;
+  color: var(--unchecked);
+}
+
+.search-quick {
+  display: flex;
+  gap: var(--step);
+  margin-bottom: calc(var(--step) * 1.5);
+}
+
+.search-quick button {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--vellum-dim);
+  background: none;
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.4) calc(var(--step) * 1);
+  cursor: pointer;
+}
+
+.search-quick button:hover:not(:disabled) {
+  border-color: var(--unchecked);
+  color: var(--vellum);
+}
+
+/* Dimmed rather than hidden, the same choice .choose-button makes for
+   Verify: a button that vanishes when there is nothing to jump to leaves
+   the screen without saying what it would otherwise do. */
+.search-quick button:disabled {
+  color: var(--unchecked);
+  cursor: default;
+}
+
+/* C-09c — a time jump's answer. Ochre: it is a statement about the
+   writer's clock, a Recorded claim, and must look like one. The cautions
+   beneath it are slate and plain — read, not alarmed at. */
+.jump-result {
+  margin: 0 0 calc(var(--step) * 1.5);
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+}
+
+.jump-line {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--recorded);
+}
+
+.jump-caution {
+  margin: 0.3em 0 0;
+  font-size: 0.82rem;
+  color: var(--vellum-dim);
+}
+
+.record-failed {
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.record-head {
+  display: flex;
+  gap: var(--step);
+  align-items: baseline;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+}
+
+.record-seq {
+  color: var(--vellum);
+}
+
+.record-index {
+  color: var(--unchecked);
+  font-size: 0.74rem;
+}
+
+.record-type {
+  color: var(--unchecked);
+}
+
+.record-kind {
+  color: var(--unchecked);
+}
+
+/* F7's exact sentence for a type this build cannot name — quoted, so it
+   takes the same ochre a quoted sidecar sentence takes everywhere else on
+   this screen (.browse-failed, .provenance-error). */
+.record-note {
+  margin: 0.4em 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.84rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.record-facts {
+  margin: calc(var(--step) * 1.5) 0 0;
+  display: grid;
+  gap: calc(var(--step) * 0.5);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.record-facts > div {
+  display: flex;
+  gap: var(--step);
+}
+
+.record-facts dt {
+  color: var(--unchecked);
+  min-width: 7ch;
+}
+
+.record-facts dd {
+  margin: 0;
+  color: var(--vellum-dim);
+}
+
+/* C-12 — the source line on the card. The label in its own colour, the
+   profile's sentence beneath it quoted (italic, ruled), the same form the
+   verifier's narrative takes: words carried, not ours. Reported is ochre —
+   an assertion recorded; wire-parsed is plain — the serve's own
+   observation, the profile's baseline; unknown is slate. */
+.record-source[data-source="reported"] {
+  color: var(--recorded);
+}
+
+.record-source[data-source="unknown"] {
+  color: var(--unchecked);
+}
+
+.record-source-note {
+  display: block;
+  margin-top: 0.2em;
+  padding-left: var(--step);
+  border-left: 1px solid var(--rule);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.82rem;
+  color: var(--vellum-dim);
+}
+
+/* The clock is a Recorded claim on every record, independent of that
+   record's own tier — the same ochre .boot-clock uses for the same
+   reason (L3). */
+.record-recorded {
+  color: var(--recorded);
+}
+
+.record-body {
+  margin: calc(var(--step) * 1.5) 0 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--unchecked);
+}
+
+/* Opaque is key_id's doing, not this reader declining to look — stated in
+   the same inert slate as .browse-empty, never in anything alarming. */
+.record-body[data-state="opaque"] {
+  color: var(--vellum-dim);
+}
+
+/* F9's origin card, nested inside the record card it answers "on any
+   selected record" for. Ruled off with a dashed top border rather than
+   its own box — it is a fact about the same record, not a separate
+   structure. */
+.origin {
+  margin-top: calc(var(--step) * 1.5);
+  padding-top: calc(var(--step) * 1.5);
+  border-top: 1px dashed var(--rule);
+}
+
+.origin-title {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--unchecked);
+  margin: 0 0 calc(var(--step) * 0.75);
+}
+
+.origin-none {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--unchecked);
+}
+
+.origin-failed {
+  margin: 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.origin-facts {
+  margin: 0;
+  display: grid;
+  gap: calc(var(--step) * 0.5);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.origin-facts > div {
+  display: flex;
+  gap: var(--step);
+}
+
+.origin-facts dt {
+  color: var(--unchecked);
+  min-width: 7ch;
+}
+
+.origin-facts dd {
+  margin: 0;
+  color: var(--vellum-dim);
+}
+
+/* One record's fields pointing at another: the record card's own prev-hash
+   link (C-06c) and the origin card's since_seq (both share this class, so
+   the two jumps read as the same kind of action rather than two styles
+   that happen to look alike). Underlined rather than boxed — quieter than
+   .search-bar's button, because this is navigation inside a record already
+   open, not a new action. Brightens on hover in plain vellum: neither
+   truth-value token applies to "this is clickable". */
+.record-jump-link {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--vellum-dim);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.record-jump-link:hover {
+  color: var(--vellum);
+}
+
+/* The advisory lane, and it is deliberately the quietest block on the page.
+   No ochre rule, no serif heading, nothing that echoes the diagnosis card.
+   L5 says these items change no verdict — and a lane that looked like a
+   finding would break that by presentation while the payload stayed exactly
+   correct. Quiet is the requirement, not the aesthetic. */
+.advisory {
+  margin-top: calc(var(--step) * 3);
+  border-top: 1px solid var(--rule);
+  padding-top: calc(var(--step) * 2);
+}
+
+.advisory-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 0.75);
+}
+
+.advisory-line {
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
+/* Collapsed by default. An item worth a glance should not cost a scroll,
+   and expanding is the reader deciding this one is worth their attention —
+   which is exactly the decision L5 reserves for them. */
+.advisory-group {
+  border-bottom: 1px solid var(--rule);
+}
+
+.advisory-group:last-of-type {
+  border-bottom: none;
+}
+
+.advisory-group summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+  padding: calc(var(--step) * 0.8) 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.advisory-count {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+  min-width: 2ch;
+  text-align: right;
+}
+
+.advisory-heading {
+  flex: 1;
+  color: var(--vellum-dim);
+}
+
+/* The one weight distinction §9 asks for, and it is a weight rather than a
+   colour: notable items read first and in the ordinary foreground. Giving
+   them ochre would put them in the same visual class as a diagnosis. */
+.advisory-group[data-weight="notable"] .advisory-heading {
+  color: var(--vellum);
+}
+
+.advisory-code {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--unchecked);
+}
+
+.advisory-note {
+  margin: 0 0 calc(var(--step) * 0.75);
+  padding-left: calc(var(--step) * 3);
+  font-size: 0.86rem;
+  color: var(--vellum-dim);
+}
+
+.advisory-items {
+  margin: 0 0 var(--step);
+  padding-left: calc(var(--step) * 3);
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
+.advisory-items li {
+  display: flex;
+  gap: var(--step);
+  padding: 0.15em 0;
+}
+
+.advisory-detail {
+  color: var(--vellum-dim);
+}
+
+/* The anchor chain, as walked. Four outcomes again, and again carried by
+   more than colour — this is the one screen where "empty" and "nobody asked"
+   must not look alike, and a reader in greyscale needs the difference too. */
+.provenance {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.provenance-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.5);
+}
+
+.provenance-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.provenance-link {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: var(--step);
+  padding: calc(var(--step) * 0.9) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.provenance-link:last-of-type {
+  border-bottom: none;
+}
+
+.provenance-order {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+  padding-left: calc(var(--step) * 0.7);
+}
+
+.provenance-link[data-outcome="answered"] .provenance-order {
+  border-left: 2px solid var(--proved);
+  color: var(--proved);
+}
+.provenance-link[data-outcome="absent"] .provenance-order {
+  border-left: 2px dashed var(--unchecked);
+}
+.provenance-link[data-outcome="error"] .provenance-order {
+  border-left: 2px solid var(--recorded);
+  color: var(--recorded);
+}
+/* Never reached is dotted and dimmed further: it is not a result at all,
+   and the row exists only so its absence is not mistaken for emptiness. */
+.provenance-link[data-outcome="not-reached"] .provenance-order {
+  border-left: 2px dotted var(--rule);
+}
+
+.provenance-source {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+.provenance-link[data-outcome="answered"] .provenance-source {
+  color: var(--vellum);
+}
+
+.provenance-link[data-outcome="not-reached"] .provenance-source,
+.provenance-link[data-outcome="absent"] .provenance-source {
+  color: var(--vellum-dim);
+}
+
+.provenance-note {
+  margin: 0.3em 0 0;
+  font-size: 0.86rem;
+  color: var(--vellum-dim);
+}
+
+/* The sidecar's own sentence, quoted like a diagnosis narrative. */
+.provenance-error {
+  margin: 0.3em 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.provenance-summary {
+  margin: calc(var(--step) * 1.5) 0 0;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
+.footnote {
+  margin: calc(var(--step) * 3) 0 0;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+  line-height: 1.6;
+}
+
+/* Two footnotes now stand together — what was chosen, and what the sidecar
+   is doing. The second inherits a top margin sized for a line standing
+   alone, which reads as two unrelated remarks rather than one pair. */
+.footnote + .footnote {
+  margin-top: var(--step);
+}
+
+/* One reveal on load, and nothing else. A forensic tool that animates while
+   you read it is a tool arguing with its own content. */
+@media (prefers-reduced-motion: no-preference) {
+  .plate {
+    animation: settle 420ms ease-out both;
+  }
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--proved);
+  outline-offset: 3px;
+}
