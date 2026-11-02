@@ -676,6 +676,7 @@ class ChainHandle:
         kind_name: str | None = None,
         tier: str | None = None,
         source_name: str | None = None,
+        outcome_name: str | None = None,
         record_hash: str | None = None,
         wall_from_ns: int | None = None,
         wall_to_ns: int | None = None,
@@ -719,6 +720,10 @@ class ChainHandle:
         `parsed-from-wire`, as the package names them. Every other record
         carries no mark at all, so it never matches either name.
 
+        `outcome_name` (C-14) filters TOOL_RESULT records by the outcome the
+        package names — `ok`, `error`, `timeout`, `cancelled`, `unobserved`
+        (r6). No other record carries an outcome, so none matches.
+
         `record_hash` (C-09c) matches a record's own hash exactly — the
         package's `record_hash`, hex. It is how the anchor button finds the
         record a verified anchor names, and a head that names nothing in
@@ -757,7 +762,7 @@ class ChainHandle:
         for record in records:
             if not self._matches(
                 record, record_type, boot_id, span_id, type_name, kind_name, tier,
-                source_name, record_hash, wall_from_ns, wall_to_ns,
+                source_name, outcome_name, record_hash, wall_from_ns, wall_to_ns,
             ):
                 continue
             matched += 1
@@ -793,6 +798,7 @@ class ChainHandle:
         kind_name: str | None = None,
         tier: str | None = None,
         source_name: str | None = None,
+        outcome_name: str | None = None,
         record_hash: str | None = None,
         wall_from_ns: int | None = None,
         wall_to_ns: int | None = None,
@@ -811,6 +817,8 @@ class ChainHandle:
         if tier is not None and assurance_tier_name(record.header.assurance_tier) != tier:
             return False
         if source_name is not None and record.source_name != source_name:
+            return False
+        if outcome_name is not None and record.outcome_name != outcome_name:
             return False
         if record_hash is not None and record.record_hash.hex() != record_hash:
             return False
@@ -943,6 +951,15 @@ class ChainHandle:
             "source": None
             if record.source is None
             else {"value": record.source, "name": record.source_name},
+            # EVT_OUTCOME on a TOOL_RESULT (r3; r6 adds 4, unobserved) — the
+            # package's value and name, passed through the way source is.
+            # None on every other record, and on a TOOL_RESULT missing the
+            # tag. An unknown value keeps its number and a null name.
+            # What `ok` does NOT mean (profile note 5) is the shell's to say,
+            # and it says it on the card; this field carries only the value.
+            "outcome": None
+            if record.outcome is None
+            else {"value": record.outcome, "name": record.outcome_name},
             # The seq of the KEY_SHRED that shredded this record, or None
             # if it was not (or is not itself shreddable — a KEY_SHRED's
             # own target_seqs can name any record, so no kind is excluded
