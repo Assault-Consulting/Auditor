@@ -77,6 +77,18 @@ group("filtersKey", () => {
   });
 });
 
+group("the outcome filter (C-14)", () => {
+  it("passes the outcome's name straight through", () => {
+    const resolved = resolveChips([{ key: "outcome", value: "unobserved" }], { boots: null, spans: null });
+    expect(resolved).toEqual({ kind: "resolved", filters: { outcomeName: "unobserved" } });
+  });
+
+  it("is part of the question the cursor resets on", () => {
+    expect(filtersKey({ outcomeName: "error" })).not.toBe(filtersKey({}));
+    expect(filtersKey({ outcomeName: "error" })).not.toBe(filtersKey({ outcomeName: "ok" }));
+  });
+});
+
 group("the source filter (C-12)", () => {
   it("passes the mark's name straight through, like the other names", () => {
     const resolved = resolveChips([{ key: "source", value: "reported-by-client" }], {

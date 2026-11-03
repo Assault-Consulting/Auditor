@@ -398,6 +398,19 @@ body {
   margin: 0.4em 0 0;
 }
 
+/* C-14 — a tool result that did not return cleanly, or whose failure the
+   recording vantage could not see. Marked like a reported call (C-12):
+   the same small, quiet chip, never a red alarm — an outcome is the
+   writer's claim, not this verifier's finding. */
+.records-outcome {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--recorded);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0 0.3em;
+}
+
 /* F8 — the SAFETY list. Ruled like .browse and .records: it groups and
    counts what a record already resolves, with the acknowledgement marker
    naming which ack (C-07c) — the ack's own operator, disposition and

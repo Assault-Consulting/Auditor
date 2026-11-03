@@ -35,6 +35,12 @@
  * than ours: what a reader may *claim* changes with it, and that is the
  * profile's statement to make, not this shell's.
  *
+ * C-14: `outcome`, how a TOOL_RESULT ended (EVT_OUTCOME, r3; r6 adds
+ * `unobserved`). The same discipline as C-12: the value is the package's,
+ * and what it does and does not let a reader claim is the profile's
+ * sentence, not ours — above all that `ok` is a return, never a confirmed
+ * effect (note 5).
+ *
  * C-07b: `detail` (EVT_DETAIL, U12) and `recurrenceCount` (how many
  * SAFETY records share this record's detail text, F8's own framing) —
  * both released 0.11.0, both wired through now.
@@ -166,6 +172,8 @@ export interface RecordCard {
   disposition: NamedValue | null;
   /** On a tool call or result: how the serving layer learned of it. */
   source: SourceMark | null;
+  /** On a tool result: how it ended, as the writer recorded it (C-14). */
+  outcome: OutcomeMark | null;
   /**
    * On a SEGMENT_CONTINUATION: what the writer declared at the cut, as the
    * package decoded it (C-13). Null on every other record, and on a kind-11
@@ -257,6 +265,51 @@ function sourceOf(view: RecordView): SourceMark | null {
 }
 
 /**
+ * The inference profile's own sentences for a tool result's outcome,
+ * §3.1 and note 5. `ok` above all: a reader counting successes from the
+ * chain would otherwise count returns, and the profile says in so many
+ * words that a reader cannot treat `ok` as "the tool did not fail".
+ * `error` and `timeout` get no gloss because the profile gives none — a
+ * sentence of ours there would be a second, unauthorised definition.
+ */
+export const OUTCOME_OK_NOTE =
+  "a result payload came back and re-entered generation — a return, not a confirmed effect; a reader cannot treat it as \"the tool did not fail\"";
+export const OUTCOME_UNOBSERVED_NOTE =
+  "the result returned and re-entered generation; whether it was a success is not stated — the recording vantage could not observe failure";
+export const OUTCOME_CANCELLED_NOTE =
+  "abandonment: session closed, loop preempted, or a guard refusing further dispatches";
+
+export interface OutcomeMark {
+  /** The package's name, or null for a value this build cannot interpret. */
+  name: string | null;
+  value: number;
+  label: string;
+  /** The profile's sentence, where it gives one. */
+  note: string | null;
+  /** False for `ok`, the baseline; true for everything a list should flag. */
+  flagged: boolean;
+}
+
+const OUTCOME_NOTES: Record<string, string | null> = {
+  ok: OUTCOME_OK_NOTE,
+  error: null,
+  timeout: null,
+  cancelled: OUTCOME_CANCELLED_NOTE,
+  unobserved: OUTCOME_UNOBSERVED_NOTE,
+};
+
+export function outcomeOf(view: RecordView): OutcomeMark | null {
+  const o = view.outcome ?? null;
+  if (o === null) return null;
+  if (o.name !== null && o.name in OUTCOME_NOTES) {
+    return { name: o.name, value: o.value, label: o.name, note: OUTCOME_NOTES[o.name] ?? null, flagged: o.name !== "ok" };
+  }
+  // A value this build cannot name keeps its number, says so, and is
+  // flagged — guessing it into "ok" would turn an unknown into a return.
+  return { name: null, value: o.value, label: `outcome ${o.value}, unknown`, note: UNRECOGNISED_NOTE, flagged: true };
+}
+
+/**
  * The inference profile's own framing of a continuation (§3.2, r6), kept
  * with the fields so the card can never show them as findings.
  */
@@ -345,6 +398,7 @@ export function recordCard(view: RecordView): RecordCard {
     operatorId: view.operator_id,
     disposition: view.disposition,
     source: sourceOf(view),
+    outcome: outcomeOf(view),
     continuation: continuationOf(view),
     shredded: view.shredded_by,
     detail: view.detail,

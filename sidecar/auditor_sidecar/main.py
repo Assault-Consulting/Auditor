@@ -368,6 +368,15 @@ def build_app(token: str | None = None) -> FastAPI:
                 "none matches."
             ),
         ),
+        outcome_name: str | None = Query(
+            default=None,
+            description=(
+                "Keep only tool results whose outcome the package names "
+                "this: 'ok', 'error', 'timeout', 'cancelled' or "
+                "'unobserved'. No other record carries an outcome, so none "
+                "matches. 'ok' is a return, not a confirmed effect."
+            ),
+        ),
         record_hash: str | None = Query(
             default=None,
             description=(
@@ -411,6 +420,7 @@ def build_app(token: str | None = None) -> FastAPI:
                 kind_name=kind_name,
                 tier=tier,
                 source_name=source_name,
+                outcome_name=outcome_name,
                 record_hash=record_hash,
                 wall_from_ns=wall_from_ns,
                 wall_to_ns=wall_to_ns,

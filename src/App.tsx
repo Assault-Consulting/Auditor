@@ -714,6 +714,16 @@ export default function App() {
                             {r.source.kind === "reported" ? "reported" : `source ${r.source.value}?`}
                           </span>
                         )}
+                        {/* C-14. Every outcome but ok is marked on the row,
+                            for the reason C-12 marks a reported call: ok is
+                            the baseline, and a list that marked every
+                            return would bury the result that did not
+                            return cleanly — or that nobody could see. */}
+                        {r.outcome !== null && r.outcome.flagged && (
+                          <span className="records-outcome" data-outcome={r.outcome.name ?? "unknown"}>
+                            {r.outcome.name ?? `outcome ${r.outcome.value}?`}
+                          </span>
+                        )}
                         <span className="records-boot">{r.bootId.slice(0, 8)}</span>
                         {/* Ochre — a Recorded claim, the same reason the
                             record card's own Clock line is (L3). */}
@@ -978,6 +988,21 @@ export default function App() {
                       <dd className="record-source" data-source={record.value.source.kind}>
                         {record.value.source.label}
                         <span className="record-source-note">{record.value.source.note}</span>
+                      </dd>
+                    </div>
+                  )}
+                  {record.value.outcome !== null && (
+                    <div>
+                      <dt>Outcome</dt>
+                      {/* C-14. The writer's value, then the profile's
+                          sentence for it where it gives one — for ok,
+                          that it is a return and never a confirmed
+                          effect (note 5). */}
+                      <dd className="record-source" data-outcome={record.value.outcome.name ?? "unknown"}>
+                        {record.value.outcome.label}
+                        {record.value.outcome.note !== null && (
+                          <span className="record-source-note">{record.value.outcome.note}</span>
+                        )}
                       </dd>
                     </div>
                   )}

@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- C-14 — how a tool result ended, with what that does and does not mean.
+  `RecordView.outcome` carries EVT_OUTCOME as the package names it (`ok`,
+  `error`, `timeout`, `cancelled`, and r6's `unobserved`), null on every
+  other record; `/records?outcome_name=` and the `outcome:` chip filter by
+  it. The card gives the profile's own sentence where it has one: `ok` is
+  a return, not a confirmed effect, and a reader cannot treat it as "the
+  tool did not fail" (note 5); `unobserved` says the recording vantage
+  could not see failure; `cancelled` names the three forms of
+  abandonment. `error` and `timeout` get no gloss, because the profile
+  gives none. The records list marks every outcome but `ok` — the
+  baseline, as `parsed-from-wire` is for C-12's mark — and an outcome this
+  build cannot name keeps its number and is never read as `ok`.
+
 - C-13b — what palimpsests 0.13 says, rendered. Guidance for the three new
   diagnosis patterns: `declared_continuation` explains why question one
   still answers no for a segment on its own — the ordinary shape of a

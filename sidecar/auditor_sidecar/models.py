@@ -775,6 +775,19 @@ class RecordView(BaseModel):
             "meaning; name null for a value this build cannot interpret."
         )
     )
+    outcome: NamedValue | None = Field(
+        default=None,
+        description=(
+            "On a TOOL_RESULT: the outcome the writer recorded (EVT_OUTCOME), "
+            "with the package's name — 'ok', 'error', 'timeout', 'cancelled', "
+            "or 'unobserved' (r6: the result returned and the recording "
+            "vantage could not observe whether it failed). 'ok' IS A RETURN, "
+            "NOT A CONFIRMED EFFECT (profile note 5), and a reader cannot "
+            "treat it as 'the tool did not fail'. Null on every other record, "
+            "and on a result missing the tag; name null for a value this "
+            "build cannot interpret."
+        ),
+    )
     shredded_by: int | None = Field(
         description=(
             "Seq of the KEY_SHRED that shreds this record, resolved in "
