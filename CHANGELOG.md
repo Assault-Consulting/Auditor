@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- C-09d — free text over `detail`, decided into the MVP (§22.3). A phrase
+  in double quotes searches every record's detail as a literal,
+  case-insensitive substring, ANDed with the chips (`kind:SAFETY "frame
+  magic"`); no pattern language, so a query finds the same records on
+  every desk. `/records?text=` (1–200 characters). A record with an
+  encrypted body cannot be searched: `RecordPage.unsearched` counts those
+  that passed every other filter, and the list says how many, so "no
+  match" never stands for "could not look". Unquoted words are still
+  refused, now with a reason that says to quote them. On 0.13 the search
+  decodes every record, as the other body filters do; three requests for
+  0.14 are in `docs/UPSTREAM-REQUESTS-0.14.md` (`detail` without a decode,
+  for this; a record's bytes as read and its TLV layout, for C-06d).
+
 - C-10b(b) — opening a large chain no longer decodes it. At 1M records a
   session opened in 21.6 s and 2.0 GB before the first answer; now the
   container opens in under a second at 272 MB, and the header index that
