@@ -32,10 +32,12 @@
  *   the application's one time zone, and the answer says "UTC" so the
  *   reading is never silent.
  *
- * What it still does not read, and says so rather than ignoring:
- *
- * - Free text over `detail` — `FUNCTIONALITY.md` §22.3's open question.
- *   The data exists since C-07b; the product decision does not.
+ * - **Free text** (C-09d, §22.3 decided: MVP): a phrase in double quotes,
+ *   `"frame magic"`, ANDed with the chips. A literal, case-insensitive
+ *   substring of a record's `detail`, matched by the sidecar; no pattern
+ *   language. One phrase per query. Words outside quotes are still
+ *   refused, with a reason that says to quote them — a mistyped chip must
+ *   not turn silently into a text search for the mistyped word.
  *
  * Instants are carried as **decimal nanosecond strings**, never numbers:
  * a 2026 instant in nanoseconds is ~1.8e18, past the 2^53 a JavaScript
@@ -46,7 +48,8 @@
 import type { AdvisoryItemModel } from "./generated/types";
 
 /** The chip keys this build reads. */
-export type ChipKey = "kind" | "type" | "tier" | "boot" | "span" | "source" | "outcome" | "from" | "to";
+export type ChipKey =
+  | "kind" | "type" | "tier" | "boot" | "span" | "source" | "outcome" | "from" | "to" | "text";
 
 const CHIP_KEYS: readonly ChipKey[] = [
   "kind", "type", "tier", "boot", "span", "source", "outcome", "from", "to",
@@ -72,7 +75,9 @@ const HEX = /^[0-9a-f]+$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_SYNTAX = /^@(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}(?::\d{2})?)(Z|[+-]\d{2}:\d{2})?$/i;
 
-const NOT_YET = "free text over detail is not built yet (F10, C-09d)";
+const QUOTE_IT = "to search detail text, put it in double quotes";
+const QUOTED = /"([^"]*)"/g;
+const MAX_TEXT = 200;
 
 /** Milliseconds since the epoch as a decimal nanosecond string, exactly. */
 export function msToNs(ms: number): string {
@@ -126,16 +131,33 @@ export function parseSearch(raw: string): SearchOutcome | null {
   }
 
   const chips: Chip[] = [];
-  for (const token of trimmed.split(/\s+/)) {
+  // The quoted phrase first, so its spaces are not read as token breaks.
+  const phrases = [...trimmed.matchAll(QUOTED)].map((m) => m[1]!);
+  const rest = trimmed.replace(QUOTED, " ");
+  if (rest.includes('"')) {
+    return unsupported(trimmed, "a quote is not closed — free text goes between two double quotes");
+  }
+  if (phrases.length > 1) {
+    return unsupported(trimmed, "one quoted phrase per search");
+  }
+  if (phrases.length === 1) {
+    const phrase = phrases[0]!.trim();
+    if (phrase === "") return unsupported(trimmed, "the quotes are empty — there is no text to search for");
+    if (phrase.length > MAX_TEXT) {
+      return unsupported(trimmed, `the quoted text is longer than ${MAX_TEXT} characters`);
+    }
+    chips.push({ key: "text", value: phrase });
+  }
+  for (const token of rest.split(/\s+/).filter((t) => t !== "")) {
     const match = CHIP_SYNTAX.exec(token);
     if (!match) {
       return unsupported(
         trimmed,
-        `"${token}" is not #<seq> or a filter chip — ${NOT_YET}`,
+        `"${token}" is not #<seq> or a filter chip — ${QUOTE_IT}`,
       );
     }
     const key = match[1]!.toLowerCase();
-    if (!(CHIP_KEYS as readonly string[]).includes(key)) {
+    if (key === "text" || !(CHIP_KEYS as readonly string[]).includes(key)) {
       return unsupported(
         trimmed,
         `"${key}:" is not a chip this build reads — it reads ${CHIP_KEYS.map((k) => `${k}:`).join(", ")}`,
@@ -170,7 +192,7 @@ export function parseSearch(raw: string): SearchOutcome | null {
 
 /** A chip, written back the way a person would type it. */
 export function chipLabel(chip: Chip): string {
-  return `${chip.key}:${chip.value}`;
+  return chip.key === "text" ? `"${chip.value}"` : `${chip.key}:${chip.value}`;
 }
 
 /**
