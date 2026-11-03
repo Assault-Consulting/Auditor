@@ -400,6 +400,17 @@ def build_app(token: str | None = None) -> FastAPI:
                 "instant (exclusive)."
             ),
         ),
+        text: str | None = Query(
+            default=None,
+            min_length=1,
+            max_length=200,
+            description=(
+                "Keep only records whose detail contains this text: a "
+                "literal substring, case-insensitive, no pattern language. "
+                "Records with an encrypted body cannot be searched and are "
+                "counted in `unsearched`, never silently left out."
+            ),
+        ),
     ) -> RecordPage:
         """A window onto the records, as structure rather than content.
 
@@ -424,6 +435,7 @@ def build_app(token: str | None = None) -> FastAPI:
                 record_hash=record_hash,
                 wall_from_ns=wall_from_ns,
                 wall_to_ns=wall_to_ns,
+                text=text,
             )
         )
 
