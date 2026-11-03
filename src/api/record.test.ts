@@ -13,7 +13,15 @@
 
 import { describe as group, expect, it } from "vitest";
 
-import { CONTINUATION_NOTE, PARSED_FROM_WIRE_NOTE, recordCard, REPORTED_BY_CLIENT_NOTE } from "./record";
+import {
+  CONTINUATION_NOTE,
+  OUTCOME_CANCELLED_NOTE,
+  OUTCOME_OK_NOTE,
+  OUTCOME_UNOBSERVED_NOTE,
+  PARSED_FROM_WIRE_NOTE,
+  recordCard,
+  REPORTED_BY_CLIENT_NOTE,
+} from "./record";
 import type { RecordView } from "./generated/types";
 
 function view(over: Partial<RecordView> = {}): RecordView {
@@ -373,5 +381,57 @@ group("a segment continuation (C-13, r6)", () => {
     const note = recordCard(view({ continuation: declared })).continuation?.note ?? "";
     expect(note).toBe(CONTINUATION_NOTE);
     expect(note).toContain("not evidence");
+  });
+});
+
+group("a tool result's outcome (C-14, r3/r6)", () => {
+  const outcome = (value: number, name: string | null) =>
+    recordCard(view({ kind: 9, kind_name: "TOOL_RESULT", outcome: { value, name } })).outcome;
+
+  it("is null on a record that carries none", () => {
+    expect(recordCard(view()).outcome).toBeNull();
+    expect(recordCard(view({ outcome: null })).outcome).toBeNull();
+  });
+
+  it("ok is a return, never a confirmed effect, and is not flagged", () => {
+    const ok = outcome(0, "ok");
+    expect(ok?.note).toBe(OUTCOME_OK_NOTE);
+    expect(ok?.note).toContain("not a confirmed effect");
+    expect(ok?.note).toContain("cannot treat it as");
+    expect(ok?.flagged).toBe(false);
+  });
+
+  it("unobserved says the vantage could not see failure, and is flagged", () => {
+    const u = outcome(4, "unobserved");
+    expect(u?.note).toBe(OUTCOME_UNOBSERVED_NOTE);
+    expect(u?.note).toContain("not stated");
+    expect(u?.flagged).toBe(true);
+  });
+
+  it("cancelled carries the profile's three forms of abandonment", () => {
+    expect(outcome(3, "cancelled")?.note).toBe(OUTCOME_CANCELLED_NOTE);
+  });
+
+  it("error and timeout carry no gloss the profile does not give, and are flagged", () => {
+    for (const [value, name] of [[1, "error"], [2, "timeout"]] as const) {
+      const o = outcome(value, name);
+      expect(o?.label).toBe(name);
+      expect(o?.note).toBeNull();
+      expect(o?.flagged).toBe(true);
+    }
+  });
+
+  it("an outcome this build cannot name keeps its number and is never read as ok", () => {
+    const u = outcome(7, null);
+    expect(u?.name).toBeNull();
+    expect(u?.label).toBe("outcome 7, unknown");
+    expect(u?.flagged).toBe(true);
+    expect(u?.note).not.toBe(OUTCOME_OK_NOTE);
+  });
+
+  it("never claims success in any note", () => {
+    for (const note of [OUTCOME_OK_NOTE, OUTCOME_UNOBSERVED_NOTE, OUTCOME_CANCELLED_NOTE]) {
+      expect(note.toLowerCase()).not.toMatch(/\bsucceeded\b|\bverified\b|\bconfirmed\b(?! effect)/);
+    }
   });
 });
