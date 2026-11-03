@@ -265,12 +265,13 @@ export default function App() {
 
         <div className="choose">
           {/* Disabled while opening — not decorative. §19 targets a
-              100 MB / ~1M-record chain, and open_chain's own correctness
-              check (confirming the file is not empty) has no cheap way
-              to answer without walking every record (measured: ~24 s of
-              wall time on a chain that size, tracked as U14). A second
-              click mid-open would start a second concurrent open rather
-              than do anything useful with the wait. */}
+              100 MB / ~1M-record chain, and opening one still takes
+              seconds: the sidecar reads every record's header once to
+              describe the file (measured at 1M records: under a second to
+              open the container, about five more for the header index —
+              C-10b; it was 21.6 s and 2 GB before). A second click
+              mid-open would start a second concurrent open rather than do
+              anything useful with the wait. */}
           <button
             className="choose-button"
             disabled={chain.kind === "opening"}
