@@ -248,3 +248,44 @@ group("date range chips", () => {
     expect(parseSearch("to:06.08.2026")).toMatchObject({ kind: "unsupported" });
   });
 });
+
+group("free text (C-09d)", () => {
+  it("reads a quoted phrase, keeping its spaces and case", () => {
+    expect(parseSearch('"No frame magic"')).toEqual({
+      kind: "filters",
+      chips: [{ key: "text", value: "No frame magic" }],
+    });
+  });
+
+  it("composes with chips, in any position", () => {
+    expect(parseSearch('kind:SAFETY "frame magic" boot:3fa9')).toEqual({
+      kind: "filters",
+      chips: [
+        { key: "text", value: "frame magic" },
+        { key: "kind", value: "SAFETY" },
+        { key: "boot", value: "3fa9" },
+      ],
+    });
+  });
+
+  it("still refuses unquoted words, and says to quote them", () => {
+    const outcome = parseSearch("frame magic");
+    expect(outcome?.kind).toBe("unsupported");
+    if (outcome?.kind === "unsupported") expect(outcome.reason).toContain("double quotes");
+  });
+
+  it("refuses an unclosed quote, two phrases, empty quotes and an over-long phrase", () => {
+    expect(parseSearch('"frame magic')).toMatchObject({ kind: "unsupported" });
+    expect(parseSearch('"a" "b"')).toMatchObject({ kind: "unsupported" });
+    expect(parseSearch('""')).toMatchObject({ kind: "unsupported" });
+    expect(parseSearch(`"${"x".repeat(201)}"`)).toMatchObject({ kind: "unsupported" });
+  });
+
+  it("does not accept text: as a chip — the quotes are the syntax", () => {
+    expect(parseSearch("text:magic")).toMatchObject({ kind: "unsupported" });
+  });
+
+  it("writes the phrase back in quotes", () => {
+    expect(chipLabel({ key: "text", value: "frame magic" })).toBe('"frame magic"');
+  });
+});
