@@ -413,7 +413,11 @@ it loaded — and is badged as such (L3).
 
 One bar, four behaviours:
 
-- Free text over `detail` strings ("no frame magic").
+- Free text over `detail` strings ("no frame magic"). Decided (§22.3):
+  in the MVP. Typed in double quotes, ANDed with the chips; a literal,
+  case-insensitive substring — no pattern language. A record with an
+  encrypted body cannot be searched and is counted as such, never treated
+  as a non-match.
 - Filter chips: `kind:SAFETY`, `type:KEY_SHRED`, `span:s-0b71`, `boot:6`,
   `tier:A`, date range.
 - Time jump: `06.08 22:41` (wall) — with the wall-claim caveat.
@@ -692,8 +696,8 @@ stands today.
 1. Segment sequences: how the UI presents several files as one logical
    chain, and what it does when one segment is missing.
 2. Whether `keychain` ships in MVP or the MVP is manual + file only.
-3. MVP cut line inside Browse: span view and origin inspection are in;
-   is free-text search over `detail` MVP or fast-follow?
+3. ~~MVP cut line inside Browse: is free-text search over `detail` MVP or
+   fast-follow?~~ **Decided 3 Nov 2026: MVP** (F10; built as C-09d).
 4. Record-health thresholds: what slope deviation, recurrence count, or
    baseline change is worth surfacing by default — and how the user tunes
    it without turning the tool into an alert factory.
