@@ -3,7 +3,7 @@
 
 import { describe as group, expect, it } from "vitest";
 
-import { nextOffset, recordsPage } from "./records";
+import { nextOffset, recordsPage, unsearchedLine } from "./records";
 import type { RecordPage, RecordView } from "./generated/types";
 
 function view(over: Partial<RecordView> = {}): RecordView {
@@ -102,5 +102,24 @@ group("the next page's offset", () => {
       }),
     );
     expect(nextOffset(resolved)).toBe(41);
+  });
+});
+
+group("records a text search could not look at (C-09d)", () => {
+  it("is null without a text filter, and says nothing", () => {
+    const resolved = recordsPage(page());
+    expect(resolved.unsearched).toBeNull();
+    expect(unsearchedLine(resolved)).toBeNull();
+  });
+
+  it("says nothing when every body was searched", () => {
+    expect(unsearchedLine(recordsPage(page({ unsearched: 0 })))).toBeNull();
+  });
+
+  it("names how many encrypted bodies were not searched", () => {
+    expect(unsearchedLine(recordsPage(page({ unsearched: 1 })))).toContain("1 record");
+    const many = unsearchedLine(recordsPage(page({ unsearched: 12 })));
+    expect(many).toContain("12 records");
+    expect(many).toContain("not searched");
   });
 });
