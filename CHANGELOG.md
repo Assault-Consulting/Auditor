@@ -14,6 +14,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- C-10b(b) — opening a large chain no longer decodes it. At 1M records a
+  session opened in 21.6 s and 2.0 GB before the first answer; now the
+  container opens in under a second at 272 MB, and the header index that
+  describes it takes about five seconds more, built once per session and
+  shared by every structural answer, under 610 MB. The emptiness check uses the
+  package's `record_count`; `subject`, `records`, `record`, `timeline`
+  and `nearest` read one header index built through `header_at()` and
+  decode only the rows they return; SAFETY, acknowledgements, shreds and
+  detail counts come from the package's bounded reads. Answers are
+  unchanged — checked against the previous seam on every fixture and
+  seven mutants of each (10,752 comparisons). Filters on a record's body
+  (`kind:`, `source:`, `outcome:`, a record's own hash) still decode every
+  record, and `verify` on a chain of tool loops still costs 35.6 s /
+  2.4 GB inside the package's own `verify()`; both are findings for
+  Palimpsests' U track.
+  `tests/test_bounded_paths.py` fails if a browse path decodes the chain.
+
 - C-14 — how a tool result ended, with what that does and does not mean.
   `RecordView.outcome` carries EVT_OUTCOME as the package names it (`ok`,
   `error`, `timeout`, `cancelled`, and r6's `unobserved`), null on every
