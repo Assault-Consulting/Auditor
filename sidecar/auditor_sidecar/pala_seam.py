@@ -26,6 +26,8 @@ from __future__ import annotations
 import threading
 from .keychain import KeychainUnavailable
 from .keychain import read as keychain_read
+from array import array
+from bisect import bisect_left, bisect_right
 from collections import Counter
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError
@@ -342,6 +344,65 @@ def verifier_identity() -> dict[str, str]:
     }
 
 
+@dataclass
+class _HeaderIndex:
+    """Every record's header fields, read once, kept as flat arrays (C-10b).
+
+    The seam used to answer every structural question by decoding the whole
+    chain (`records()`), which cost 21.6 s and 2.0 GB at 1M records before the
+    first answer. Everything those answers read is in the headers, so one
+    header pass through the package's `header_at()` (0.13, U16) — no body is
+    decoded — builds this, and each question reads arrays instead.
+
+    Bytes are read only through the package; nothing here parses wire bytes
+    (ADR-0001). An entry whose header does not decode keeps its seq and type
+    (from the package's own `record_at()`), with `ok` 0 and no clock fields.
+    """
+
+    seq: array
+    wall: array
+    rtype: array
+    tier: array
+    trust: array
+    boot: array
+    span: array
+    ok: bytearray
+    boot_ids: list
+    span_ids: list
+    type_names: dict
+    seq_sorted: bool
+
+    def __len__(self) -> int:
+        return len(self.seq)
+
+    def last_index_of(self, seq: int) -> int | None:
+        """The last record carrying `seq` — what `{r.seq: r for r in ...}` picks."""
+        if self.seq_sorted:
+            i = bisect_right(self.seq, seq) - 1
+            return i if i >= 0 and self.seq[i] == seq else None
+        for i in range(len(self.seq) - 1, -1, -1):
+            if self.seq[i] == seq:
+                return i
+        return None
+
+    def walls_follow_seq(self) -> bool:
+        """Whether wall time is non-decreasing in seq order (ties kept in file order)."""
+        order = (
+            range(len(self.seq))
+            if self.seq_sorted
+            else sorted(range(len(self.seq)), key=lambda i: (self.seq[i], i))
+        )
+        prev = None
+        for i in order:
+            if not self.ok[i]:
+                continue
+            w = self.wall[i]
+            if prev is not None and w < prev:
+                return False
+            prev = w
+        return True
+
+
 class ChainHandle:
     """An open container, and the only way to ask anything about one.
 
@@ -376,6 +437,94 @@ class ChainHandle:
         # to a slightly wider lock, not a deadlock a plain Lock would
         # produce silently.
         self._lock = threading.RLock()
+        # Built on first use, then kept: the chain a handle holds does not
+        # change under it (sessions.assert_unchanged refuses a changed file).
+        self._index: _HeaderIndex | None = None
+        self._safety_ctx: tuple[_AckContext, dict[int, int], Counter] | None = None
+
+    def _header_index(self) -> _HeaderIndex:
+        if self._index is None:
+            with self._lock:
+                if self._index is None:
+                    self._index = self._build_index()
+        return self._index
+
+    def _build_index(self) -> _HeaderIndex:
+        reader = self._reader
+        seq, wall = array("Q"), array("q")
+        rtype, tier, trust = array("H"), array("B"), array("B")
+        boot, span = array("I"), array("I")
+        ok = bytearray()
+        boot_ids: list[bytes] = []
+        span_ids: list[bytes] = []
+        boot_at: dict[bytes, int] = {}
+        span_at: dict[bytes, int] = {}
+        first_of_type: dict[int, int] = {}
+        for i in range(reader.record_count):
+            header = reader.header_at(i)
+            if header is None:
+                record = reader.record_at(i)
+                seq.append(record.seq)
+                rtype.append(record.record_type)
+                wall.append(0)
+                tier.append(0)
+                trust.append(0)
+                boot.append(0)
+                span.append(0)
+                ok.append(0)
+                continue
+            seq.append(header.seq)
+            rtype.append(header.record_type)
+            wall.append(header.wall_clock_ns)
+            tier.append(header.assurance_tier)
+            trust.append(header.time_trust)
+            b = boot_at.get(header.boot_id)
+            if b is None:
+                b = boot_at[header.boot_id] = len(boot_ids)
+                boot_ids.append(header.boot_id)
+            boot.append(b)
+            sp = span_at.get(header.span_id)
+            if sp is None:
+                sp = span_at[header.span_id] = len(span_ids)
+                span_ids.append(header.span_id)
+            span.append(sp)
+            ok.append(1)
+            first_of_type.setdefault(header.record_type, i)
+        # A type's name is the package's, read from one decoded record of
+        # each type present — never from a table kept on this side.
+        type_names = {t: reader.record_at(i).type_name for t, i in first_of_type.items()}
+        seq_sorted = all(seq[i] <= seq[i + 1] for i in range(len(seq) - 1))
+        return _HeaderIndex(
+            seq, wall, rtype, tier, trust, boot, span, ok,
+            boot_ids, span_ids, type_names, seq_sorted,
+        )
+
+    def _type_name_at(self, idx: _HeaderIndex, i: int) -> str | None:
+        return idx.type_names.get(idx.rtype[i]) if idx.ok[i] else None
+
+    def _prev_seq(self, index: int) -> int | None:
+        if index <= 0:
+            return None
+        return self._header_index().seq[index - 1]
+
+    def _safety_context(self) -> tuple[_AckContext, dict[int, int], Counter]:
+        """The oversight loop, shreds and detail counts, resolved once.
+
+        Each is the package's own bounded answer since 0.13 —
+        `acknowledged_candidates()` and `safety_records()` read SAFETY
+        records only, `shredded_targets()` decodes KEY_SHRED records only
+        (U23) — so none of them decodes the chain.
+        """
+        if self._safety_ctx is None:
+            with self._lock:
+                if self._safety_ctx is None:
+                    acknowledged = self._reader.acknowledged_candidates()
+                    shredded = self._reader.shredded_targets()
+                    safety = list(self._reader.safety_records())
+                    detail_counts = self._detail_counts(safety)
+                    acks = self._ack_context(acknowledged)
+                    self._safety_ctx = (acks, shredded, detail_counts)
+        return self._safety_ctx
 
     def close(self) -> None:
         with self._lock:
@@ -646,24 +795,27 @@ class ChainHandle:
         this file is an ordinary question with an ordinary answer, and a
         segment holding records 400–900 legitimately has no record 12.
 
-        Materialized under the lock rather than iterated directly: the
-        early ``break`` below saves nothing regardless, since
-        ``_decoded_records()`` builds its whole list before the first
-        item is ever yielded — the decode cost is already paid by the
-        time this loop starts, held under the lock or not.
+        The first record in file order whose seq is at least the one asked
+        for answers: that record if its seq matches, None if it overshoots —
+        the same walk-and-stop the full decode did, read off the header
+        index (C-10b) and decoding only the one record returned.
         """
+        idx = self._header_index()
+        if idx.seq_sorted:
+            i = bisect_left(idx.seq, seq)
+            found = i if i < len(idx) and idx.seq[i] == seq else None
+        else:
+            found = None
+            for i in range(len(idx)):
+                if idx.seq[i] >= seq:
+                    found = i if idx.seq[i] == seq else None
+                    break
+        if found is None:
+            return None
+        acks, shredded, detail_counts = self._safety_context()
         with self._lock:
-            records = list(self._reader.records())
-            acknowledged = self._reader.acknowledged_candidates()
-            shredded = self._reader.shredded_targets()
-        detail_counts = self._detail_counts(records)
-        acks = self._ack_context(records, acknowledged)
-        for record in records:
-            if record.seq == seq:
-                return self._record_view(record, records, acks, shredded, detail_counts)
-            if record.seq > seq:
-                break
-        return None
+            record = self._reader.record_at(found)
+        return self._record_view(record, self._prev_seq(found), acks, shredded, detail_counts)
 
     def records(
         self,
@@ -743,35 +895,40 @@ class ChainHandle:
         window: list[dict[str, object]] = []
         matched = 0
         matched_at_or_past_offset = 0
+        acks, shredded, detail_counts = self._safety_context()
 
-        # One walk. An earlier version computed `has_more` with a second
-        # pass over the file, which is the cost a paginated endpoint exists
-        # to avoid — on the million-record container §C-10 targets, every
-        # page would have read the whole chain twice.
-        #
-        # Still one walk after materializing under the lock below:
-        # `self._reader.records()` is still called exactly once. Only
-        # *when* the underlying generator is drained relative to the lock
-        # moved, not how many times the file is walked.
-        with self._lock:
-            records = list(self._reader.records())
-            acknowledged = self._reader.acknowledged_candidates()
-            shredded = self._reader.shredded_targets()
-        detail_counts = self._detail_counts(records)
-        acks = self._ack_context(records, acknowledged)
-        for record in records:
-            if not self._matches(
-                record, record_type, boot_id, span_id, type_name, kind_name, tier,
-                source_name, outcome_name, record_hash, wall_from_ns, wall_to_ns,
+        # One walk, as before, and since C-10b over the header index rather
+        # than the decoded chain: only the rows returned are decoded. The
+        # filters on a record's BODY — kind, source, outcome, its own hash —
+        # cannot be read from a header, and 0.13 has no public way to read a
+        # kind without decoding; those questions still decode every record
+        # (`_records_by_body`), as all of them did before.
+        if (
+            kind_name is not None
+            or source_name is not None
+            or outcome_name is not None
+            or record_hash is not None
+        ):
+            return self._records_by_body(
+                offset, limit, record_type, boot_id, span_id, type_name, kind_name,
+                tier, source_name, outcome_name, record_hash, wall_from_ns, wall_to_ns,
+            )
+        idx = self._header_index()
+        for i in range(len(idx)):
+            if not self._header_matches(
+                idx, i, record_type, boot_id, span_id, type_name, tier,
+                wall_from_ns, wall_to_ns,
             ):
                 continue
             matched += 1
-            if record.seq < offset:
+            if idx.seq[i] < offset:
                 continue
             matched_at_or_past_offset += 1
             if len(window) < limit:
+                with self._lock:
+                    record = self._reader.record_at(i)
                 window.append(
-                    self._record_view(record, records, acks, shredded, detail_counts)
+                    self._record_view(record, self._prev_seq(i), acks, shredded, detail_counts)
                 )
 
         return {
@@ -785,6 +942,94 @@ class ChainHandle:
             # Whether any match past this window exists, counted over the
             # matches rather than inferred from the window's length — which
             # is ambiguous when it ends exactly on the last one.
+            "has_more": matched_at_or_past_offset > len(window),
+        }
+
+    def _header_matches(
+        self,
+        idx: _HeaderIndex,
+        i: int,
+        record_type: int | None,
+        boot_id: str | None,
+        span_id: str | None,
+        type_name: str | None,
+        tier: str | None,
+        wall_from_ns: int | None,
+        wall_to_ns: int | None,
+    ) -> bool:
+        """`_matches` for the filters a header answers, read off the index."""
+        if record_type is not None and idx.rtype[i] != record_type:
+            return False
+        if type_name is not None and self._type_name_at(idx, i) != type_name:
+            return False
+        header_filters = (boot_id, span_id, tier, wall_from_ns, wall_to_ns)
+        if all(f is None for f in header_filters):
+            return True
+        if not idx.ok[i]:
+            # The full decode raised on such a record for these filters
+            # (it has no header to read them from); not matching is the
+            # nearest honest answer, and no such chain reaches a session
+            # in practice — the package's own verifier reports it.
+            return False
+        if boot_id is not None and idx.boot_ids[idx.boot[i]].hex() != boot_id:
+            return False
+        if span_id is not None and _span_or_none(idx.span_ids[idx.span[i]]) != span_id:
+            return False
+        if tier is not None and assurance_tier_name(idx.tier[i]) != tier:
+            return False
+        wall = idx.wall[i]
+        if wall_from_ns is not None and wall < wall_from_ns:
+            return False
+        if wall_to_ns is not None and wall >= wall_to_ns:
+            return False
+        return True
+
+    def _records_by_body(
+        self,
+        offset: int,
+        limit: int,
+        record_type: int | None,
+        boot_id: str | None,
+        span_id: str | None,
+        type_name: str | None,
+        kind_name: str | None,
+        tier: str | None,
+        source_name: str | None,
+        outcome_name: str | None,
+        record_hash: str | None,
+        wall_from_ns: int | None,
+        wall_to_ns: int | None,
+    ) -> dict[str, object]:
+        """The window for a question about bodies: every record decoded.
+
+        Unchanged from before C-10b, and as costly: a kind, a source mark,
+        an outcome or a record's own hash is not in the header, and 0.13
+        offers no public way to read one without the decode.
+        """
+        window: list[dict[str, object]] = []
+        matched = 0
+        matched_at_or_past_offset = 0
+        acks, shredded, detail_counts = self._safety_context()
+        with self._lock:
+            records = list(self._reader.records())
+        for record in records:
+            if not self._matches(
+                record, record_type, boot_id, span_id, type_name, kind_name, tier,
+                source_name, outcome_name, record_hash, wall_from_ns, wall_to_ns,
+            ):
+                continue
+            matched += 1
+            if record.seq < offset:
+                continue
+            matched_at_or_past_offset += 1
+            if len(window) < limit:
+                prev = records[record.index - 1].seq if record.index > 0 else None
+                window.append(self._record_view(record, prev, acks, shredded, detail_counts))
+        return {
+            "records": window,
+            "offset": offset,
+            "limit": limit,
+            "total": matched,
             "has_more": matched_at_or_past_offset > len(window),
         }
 
@@ -832,7 +1077,7 @@ class ChainHandle:
     def _record_view(
         self,
         record,
-        records: list,
+        prev_seq: int | None,
         acks: _AckContext,
         shredded: dict[int, int],
         detail_counts: Counter,
@@ -843,9 +1088,9 @@ class ChainHandle:
         describe the same record differently — which they would, eventually,
         if each built its own dict.
 
-        ``records`` is the full decoded list this record came from — needed
-        to resolve ``prev_seq`` (below), not to re-derive anything about
-        this record itself. ``acks``, ``shredded`` and ``detail_counts``
+        ``prev_seq`` is the seq of the record before this one in the file,
+        resolved by the caller from the header index (C-10b) — see below
+        for why it is that and never ``seq - 1``. ``acks``, ``shredded`` and ``detail_counts``
         are built once per caller from the package's own resolutions
         (U13/#236, U15, U12) and passed in rather than recomputed per
         record — see ``_ack_context`` for the one subtraction this side
@@ -887,7 +1132,7 @@ class ChainHandle:
             # Null at index 0: nothing in this file to jump to, whether
             # that is GENESIS's own zero prev_hash or a segment's first
             # record naming a predecessor outside this container.
-            "prev_seq": records[record.index - 1].seq if record.index > 0 else None,
+            "prev_seq": prev_seq,
             "wall_clock_ns": header.wall_clock_ns,
             "monotonic_ns": header.monotonic_ns,
             "assurance_tier": self._named(
@@ -1058,9 +1303,12 @@ class ChainHandle:
                 f"sequence numbers have no calendar"
             )
 
-        with self._lock:
-            records = list(self._reader.records())
-        if not records:
+        idx = self._header_index()
+        # The records a position exists for on this axis: every record on
+        # the seq axis, every record with a decoded header on the wall axis
+        # (the full decode raised on any other; the index skips it).
+        members = [i for i in range(len(idx)) if axis == "seq" or idx.ok[i]]
+        if not members:
             # Cannot happen through open_chain, which refuses an empty
             # container — but a timeline of nothing is still an answer rather
             # than a division by zero.
@@ -1081,11 +1329,9 @@ class ChainHandle:
                 "steps": [],
             }
 
-        position = (
-            (lambda r: r.seq) if axis == "seq" else (lambda r: r.header.wall_clock_ns)
-        )
-        lo = min(position(r) for r in records)
-        hi = max(position(r) for r in records)
+        positions = idx.seq if axis == "seq" else idx.wall
+        lo = min(positions[i] for i in members)
+        hi = max(positions[i] for i in members)
 
         if align == "day":
             # Snap the origin back to the midnight at or before the first
@@ -1120,13 +1366,14 @@ class ChainHandle:
             }
             for i in range(used)
         ]
-        for record in records:
-            index = min(used - 1, (position(record) - lo) // width)
+        for i in members:
+            index = min(used - 1, (positions[i] - lo) // width)
             bucket = counted[index]
             bucket["count"] = int(bucket["count"]) + 1
-            if record.type_name == "SAFETY":
+            name = self._type_name_at(idx, i)
+            if name == "SAFETY":
                 bucket["safety"] = int(bucket["safety"]) + 1
-            elif record.type_name == "ANCHOR":
+            elif name == "ANCHOR":
                 bucket["anchor"] = int(bucket["anchor"]) + 1
 
         with self._lock:
@@ -1141,27 +1388,32 @@ class ChainHandle:
             for step in step_data
         ]
         stepped_seqs = {step["seq"] for step in steps}
-        for record in records:
-            if record.seq in stepped_seqs:
-                index = min(used - 1, (position(record) - lo) // width)
-                counted[index]["stepped"] = True
+        if stepped_seqs:
+            for i in members:
+                if idx.seq[i] in stepped_seqs:
+                    index = min(used - 1, (positions[i] - lo) // width)
+                    counted[index]["stepped"] = True
         for bucket in counted:
             bucket.setdefault("stepped", False)
 
         with self._lock:
             boots = self._reader.boots()
-        by_seq = {r.seq: r for r in records}
-        boundaries = [
-            {
-                "boot_id": boot.boot_id.hex(),
-                "first_seq": boot.first_seq,
-                "last_seq": boot.last_seq,
-                "first_wall_ns": by_seq[boot.first_seq].header.wall_clock_ns,
-                "last_wall_ns": by_seq[boot.last_seq].header.wall_clock_ns,
-            }
-            for boot in boots
-            if boot.first_seq in by_seq and boot.last_seq in by_seq
-        ]
+        boundaries = []
+        for boot in boots:
+            # The last record carrying each seq — the one `{r.seq: r}` kept.
+            first = idx.last_index_of(boot.first_seq)
+            last = idx.last_index_of(boot.last_seq)
+            if first is None or last is None:
+                continue
+            boundaries.append(
+                {
+                    "boot_id": boot.boot_id.hex(),
+                    "first_seq": boot.first_seq,
+                    "last_seq": boot.last_seq,
+                    "first_wall_ns": idx.wall[first],
+                    "last_wall_ns": idx.wall[last],
+                }
+            )
 
         # The gap between one boot's last wall reading and the next boot's
         # first. Reported even when it is zero or negative: a negative gap
@@ -1180,7 +1432,6 @@ class ChainHandle:
             for earlier, later in zip(boundaries, boundaries[1:], strict=False)
         ]
 
-        walls = [r.header.wall_clock_ns for r in sorted(records, key=lambda r: r.seq)]
         return {
             "axis": axis,
             # Carried rather than inferred from `axis`, so a consumer cannot
@@ -1199,11 +1450,9 @@ class ChainHandle:
             # False means the writer's clock disagrees with proved order
             # somewhere. The wall axis then reorders records relative to the
             # chain, and a UI showing it must say so.
-            "wall_follows_seq": all(
-                a <= b for a, b in zip(walls, walls[1:], strict=False)
-            ),
+            "wall_follows_seq": idx.walls_follow_seq(),
             "time_trust_values": self._named(
-                {r.header.time_trust for r in records}, time_trust_name
+                {idx.trust[i] for i in range(len(idx)) if idx.ok[i]}, time_trust_name
             ),
             "steps": steps,
         }
@@ -1239,33 +1488,28 @@ class ChainHandle:
         refuses, so it is unreachable through a session; kept as an answer
         rather than an exception for the same reason `timeline()` does.
         """
-        with self._lock:
-            records = list(self._reader.records())
-        if not records:
+        idx = self._header_index()
+        members = [i for i in range(len(idx)) if idx.ok[i]]
+        if not members:
             return None
 
-        def distance(r) -> int:
-            return abs(r.header.wall_clock_ns - wall_ns)
-
-        best = min(records, key=lambda r: (distance(r), r.seq))
-        best_distance = distance(best)
-        equally_near = sum(1 for r in records if distance(r) == best_distance) - 1
-
-        walls = [r.header.wall_clock_ns for r in sorted(records, key=lambda r: r.seq)]
-        follows = all(a <= b for a, b in zip(walls, walls[1:], strict=False))
+        wall, seq = idx.wall, idx.seq
+        best = min(members, key=lambda i: (abs(wall[i] - wall_ns), seq[i]))
+        best_distance = abs(wall[best] - wall_ns)
+        equally_near = sum(1 for i in members if abs(wall[i] - wall_ns) == best_distance) - 1
 
         with self._lock:
             stepped_boots = {step.boot_id for step in step_catalog(self._reader)}
 
         return {
-            "seq": best.seq,
-            "wall_clock_ns": best.header.wall_clock_ns,
+            "seq": seq[best],
+            "wall_clock_ns": wall[best],
             "asked_ns": wall_ns,
-            "delta_ns": best.header.wall_clock_ns - wall_ns,
+            "delta_ns": wall[best] - wall_ns,
             "basis": "recorded",
-            "time_trust": self._named({best.header.time_trust}, time_trust_name)[0],
-            "wall_follows_seq": follows,
-            "boot_clock_stepped": best.header.boot_id in stepped_boots,
+            "time_trust": self._named({idx.trust[best]}, time_trust_name)[0],
+            "wall_follows_seq": idx.walls_follow_seq(),
+            "boot_clock_stepped": idx.boot_ids[idx.boot[best]] in stepped_boots,
             "equally_near": equally_near,
         }
 
@@ -1356,19 +1600,17 @@ class ChainHandle:
         """
         window: list[dict[str, object]] = []
         total = 0
+        acks, shredded, detail_counts = self._safety_context()
+        # The package's own SAFETY-only read (0.12): no other record decoded.
         with self._lock:
-            records = list(self._reader.records())
-            acknowledged = self._reader.acknowledged_candidates()
-            shredded = self._reader.shredded_targets()
-        detail_counts = self._detail_counts(records)
-        acks = self._ack_context(records, acknowledged)
+            records = list(self._reader.safety_records())
         for record in records:
-            if record.record_type != RT_SAFETY:
-                continue
             total += 1
             if len(window) < limit:
                 window.append(
-                    self._record_view(record, records, acks, shredded, detail_counts)
+                    self._record_view(
+                        record, self._prev_seq(record.index), acks, shredded, detail_counts
+                    )
                 )
         return {
             "records": window,
@@ -1386,31 +1628,26 @@ class ChainHandle:
         length is not evidence of how many records it holds — a truncated
         tail has bytes and no record.
         """
+        idx = self._header_index()
         with self._lock:
-            records = list(self._reader.records())
             boots = self._reader.boots()
             spans = self._reader.spans()
-        seqs = [r.seq for r in records]
+        decoded = [i for i in range(len(idx)) if idx.ok[i]]
         return {
-            "records": len(records),
-            "first_seq": min(seqs) if seqs else None,
-            "last_seq": max(seqs) if seqs else None,
+            "records": len(idx),
+            "first_seq": min(idx.seq) if len(idx) else None,
+            "last_seq": max(idx.seq) if len(idx) else None,
             "boots": len(boots),
             "spans": len(spans),
             # Every tier and time-trust value the chain carries, not just the
             # last one. A chain whose records were written under different
             # platform guarantees is a chain whose verdict wording cannot be
             # one sentence, and picking one value would decide that silently.
-            "assurance_tiers": self._named(
-                {r.header.assurance_tier for r in records}, assurance_tier_name
-            ),
-            "time_trust_values": self._named(
-                {r.header.time_trust for r in records}, time_trust_name
-            ),
+            "assurance_tiers": self._named({idx.tier[i] for i in decoded}, assurance_tier_name),
+            "time_trust_values": self._named({idx.trust[i] for i in decoded}, time_trust_name),
         }
 
-    @staticmethod
-    def _ack_context(records: list, acknowledged: dict[int, int]) -> _AckContext:
+    def _ack_context(self, acknowledged: dict[int, int]) -> _AckContext:
         """The oversight loop, resolved once per caller (C-07c).
 
         ``acknowledged`` is the package's own ``candidate_seq → ack_seq``
@@ -1429,16 +1666,17 @@ class ChainHandle:
         latency at all, and ``acknowledged_by`` non-null with
         ``ack_latency_ns`` null says exactly that.
         """
-        by_seq = {r.seq: r for r in records}
+        idx = self._header_index() if acknowledged else None
         latency: dict[int, int] = {}
         for candidate_seq, ack_seq in acknowledged.items():
-            candidate = by_seq.get(candidate_seq)
-            ack = by_seq.get(ack_seq)
+            # The last record carrying each seq — what `{r.seq: r}` picked.
+            candidate = idx.last_index_of(candidate_seq)
+            ack = idx.last_index_of(ack_seq)
             if candidate is None or ack is None:
                 continue
-            if candidate.header.boot_id != ack.header.boot_id:
+            if idx.boot[candidate] != idx.boot[ack]:
                 continue
-            latency[candidate_seq] = ack.header.wall_clock_ns - candidate.header.wall_clock_ns
+            latency[candidate_seq] = idx.wall[ack] - idx.wall[candidate]
         return _AckContext(
             ack_of=dict(acknowledged),
             candidate_of={ack: cand for cand, ack in acknowledged.items()},
@@ -1503,7 +1741,10 @@ def open_chain(path: Path) -> ChainHandle:
     except (OSError, ValueError) as exc:
         raise NotAChain(str(exc)) from exc
 
-    if not any(True for _ in reader.records()):
+    # The package's own count from its walk (0.13, U16): no record decoded.
+    # Was `any(reader.records())`, which decoded the whole chain to learn
+    # that it was not empty — 21.6 s and 2.0 GB at 1M records (C-10b).
+    if reader.record_count == 0:
         reader.close()
         raise NotAChain("the file holds no PALA-1 records")
 
