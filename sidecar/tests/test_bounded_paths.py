@@ -77,7 +77,14 @@ def test_every_browse_path_answers_without_the_full_decode(busy_chain, no_full_d
     assert h.safety()["total"] == 2
     assert h.timeline(axis="seq", buckets=7)["buckets"]
     assert h.timeline(axis="wall", buckets=2000, align="day")["buckets"]
-    assert h.nearest(h.record(last)["wall_clock_ns"])["seq"] == last
+    # On a coarse clock (Windows) several records share one wall time; the
+    # nearest-instant rule then picks the lowest seq among them, by design.
+    target = h.record(last)["wall_clock_ns"]
+    found = h.nearest(target)
+    assert found["delta_ns"] == 0
+    same_wall = [r["seq"] for r in h.records(limit=100)["records"] if r["wall_clock_ns"] == target]
+    assert found["seq"] == min(same_wall)
+    assert found["equally_near"] == len(same_wall) - 1
     assert h.origin(last)["state"] == "active"
     h.boots()
     h.spans()
