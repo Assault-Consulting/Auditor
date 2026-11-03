@@ -157,6 +157,7 @@ class Session:
         record_hash: str | None = None,
         wall_from_ns: int | None = None,
         wall_to_ns: int | None = None,
+        text: str | None = None,
     ) -> dict:
         """A window onto the records. Deliberately uncached — see above."""
         return self.chain.records(
@@ -173,6 +174,7 @@ class Session:
             record_hash=record_hash,
             wall_from_ns=wall_from_ns,
             wall_to_ns=wall_to_ns,
+            text=text,
         )
 
     def nearest(self, wall_ns: int) -> dict | None:
