@@ -328,6 +328,7 @@ export async function getRecords(
     tier?: string;
     sourceName?: string;
     outcomeName?: string;
+    text?: string;
     /** Decimal nanosecond strings — exact past 2^53, unlike a number. */
     wallFromNs?: string;
     wallToNs?: string;
@@ -345,6 +346,7 @@ export async function getRecords(
   if (options.tier !== undefined) query.set("tier", options.tier);
   if (options.sourceName !== undefined) query.set("source_name", options.sourceName);
   if (options.outcomeName !== undefined) query.set("outcome_name", options.outcomeName);
+  if (options.text !== undefined) query.set("text", options.text);
   if (options.wallFromNs !== undefined) query.set("wall_from_ns", options.wallFromNs);
   if (options.wallToNs !== undefined) query.set("wall_to_ns", options.wallToNs);
   if (options.recordHash !== undefined) query.set("record_hash", options.recordHash);
