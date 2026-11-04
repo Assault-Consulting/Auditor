@@ -33,6 +33,7 @@ import { getNearest, getRecords } from "./api/chain";
 import { type NearestLine, nearestLine } from "./api/nearest";
 import { type Chip, chipLabel, nextWarning, parseSearch } from "./api/search";
 import { safetyGroupKey } from "./api/safety";
+import { unsearchedLine } from "./api/records";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords, useSafety } from "./state";
 
 // C-11's page size. Well inside the sidecar's own 1000-record ceiling, and
@@ -676,6 +677,13 @@ export default function App() {
               <p className="records-failed">{recordsPage.detail}</p>
             )}
 
+            {/* C-09d. Encrypted bodies cannot be searched; the list says how
+                many were left unsearched rather than letting "no match"
+                stand for "could not look". */}
+            {recordsPage.kind === "found" && unsearchedLine(recordsPage.value) !== null && (
+              <p className="records-unsearched">{unsearchedLine(recordsPage.value)}</p>
+            )}
+
             {recordsPage.kind === "found" && recordsPage.value.rows.length === 0 && (
               <p className="records-empty">
                 {activeChips.length > 0
@@ -768,7 +776,7 @@ export default function App() {
                 <span className="search-hint">search</span>
                 <input
                   onChange={(e) => setSearchField(e.target.value)}
-                  placeholder="#1447  ·  @2026-08-06T22:41Z  ·  kind:INCIDENT_CANDIDATE from:2026-08-06"
+                  placeholder='#1447  ·  @2026-08-06T22:41Z  ·  kind:INCIDENT_CANDIDATE "frame magic"'
                   type="text"
                   value={searchField}
                 />

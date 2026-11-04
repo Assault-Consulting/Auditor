@@ -972,6 +972,14 @@ body {
   color: var(--vellum);
 }
 
+/* C-09d — what a text search could not look at. Slate, plain: a fact about
+   the evidence's encryption, not a failure of the search. */
+.records-unsearched {
+  margin: 0 0 calc(var(--step) * 1.2);
+  font-size: 0.82rem;
+  color: var(--unchecked);
+}
+
 .records-empty {
   margin: 0;
   font-size: 0.86rem;

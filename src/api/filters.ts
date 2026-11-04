@@ -10,7 +10,8 @@
  * Names pass straight through: `kind:`, `type:`, `tier:`, `source:` and
  * `outcome:` become `kind_name`, `type_name`, `tier`, `source_name` (C-12)
  * and `outcome_name` (C-14), and the sidecar matches them against the
- * names the package resolved. Nothing here knows which names exist.
+ * names the package resolved. Nothing here knows which names exist. A
+ * quoted phrase becomes `text` (C-09d), matched by the sidecar.
  *
  * Ids do not pass straight through. The screen shows a boot or span as its
  * first eight hex characters, so that is what a person types, and the
@@ -33,6 +34,8 @@ export interface RecordFilters {
   tier?: string;
   sourceName?: string;
   outcomeName?: string;
+  /** Free text over `detail` (C-09d): literal, case-insensitive. */
+  text?: string;
   /** Writer's-clock bounds, decimal ns strings: from inclusive, to exclusive. */
   wallFromNs?: string;
   wallToNs?: string;
@@ -89,6 +92,9 @@ export function resolveChips(chips: Chip[], known: KnownIds): Resolution {
       case "outcome":
         filters.outcomeName = chip.value;
         break;
+      case "text":
+        filters.text = chip.value;
+        break;
       // Whole UTC days, matching the rail. `to:` names the last day kept,
       // so the exclusive bound is the midnight after it.
       case "from":
@@ -131,6 +137,7 @@ export function filtersKey(filters: RecordFilters): string {
     filters.tier ?? null,
     filters.sourceName ?? null,
     filters.outcomeName ?? null,
+    filters.text ?? null,
     filters.wallFromNs ?? null,
     filters.wallToNs ?? null,
     filters.bootId ?? null,

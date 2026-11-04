@@ -141,3 +141,17 @@ group("the date range (C-09c)", () => {
     expect(filtersKey({ wallFromNs: "1" })).not.toBe(filtersKey({ wallToNs: "1" }));
   });
 });
+
+group("the text filter (C-09d)", () => {
+  it("passes the phrase straight through", () => {
+    expect(resolveChips([{ key: "text", value: "frame magic" }], { boots: null, spans: null })).toEqual({
+      kind: "resolved",
+      filters: { text: "frame magic" },
+    });
+  });
+
+  it("is part of the question the cursor resets on", () => {
+    expect(filtersKey({ text: "a" })).not.toBe(filtersKey({}));
+    expect(filtersKey({ text: "a" })).not.toBe(filtersKey({ text: "b" }));
+  });
+});

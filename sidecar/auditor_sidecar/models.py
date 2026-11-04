@@ -857,6 +857,15 @@ class RecordPage(BaseModel):
             "ambiguous when a window ends exactly on the last record."
         )
     )
+    unsearched: int | None = Field(
+        default=None,
+        description=(
+            "With a text filter: how many records passed every other filter "
+            "but have an encrypted body, so their detail could not be "
+            "searched. Null when no text was asked for. A non-zero value "
+            "means 'no match' is not the whole answer."
+        ),
+    )
 
 
 class NearestRecord(BaseModel):

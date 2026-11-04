@@ -467,6 +467,8 @@ export interface RecordPage {
   total: number;
   /** Whether records remain past this window. Stated rather than left to be inferred from len(records) == limit, which is ambiguous when a window ends exactly on the last record. */
   has_more: boolean;
+  /** With a text filter: how many records passed every other filter but have an encrypted body, so their detail could not be searched. Null when no text was asked for. A non-zero value means 'no match' is not the whole answer. */
+  unsearched?: number | null;
 }
 
 /**

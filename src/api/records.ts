@@ -18,6 +18,21 @@ export interface RecordsPage {
   limit: number;
   total: number;
   hasMore: boolean;
+  /**
+   * With a text filter: records that passed every other filter but have an
+   * encrypted body, so their detail could not be searched (C-09d). Null
+   * without a text filter. Non-zero means "no match" is not the whole answer.
+   */
+  unsearched: number | null;
+}
+
+/** The sentence a list owes its reader when some bodies could not be searched. */
+export function unsearchedLine(page: RecordsPage): string | null {
+  const n = page.unsearched;
+  if (n === null || n === 0) return null;
+  return n === 1
+    ? "1 record matching the other filters has an encrypted body and was not searched for this text."
+    : `${n} records matching the other filters have encrypted bodies and were not searched for this text.`;
 }
 
 export function recordsPage(page: RecordPage): RecordsPage {
@@ -27,6 +42,7 @@ export function recordsPage(page: RecordPage): RecordsPage {
     limit: page.limit,
     total: page.total,
     hasMore: page.has_more,
+    unsearched: page.unsearched ?? null,
   };
 }
 

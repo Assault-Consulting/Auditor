@@ -249,7 +249,7 @@ run.
 | ✓ C-06a | UI: the record card — envelope, tier and trust badges, type/kind name resolution, body presence state (none / opaque / cleartext / undecoded). An interim `seq` lookup field stands in for the seq-jump button until C-09 exists. | 1.5 | C-01 |
 | ✓ C-06b | `prev_hash` and container `index` on `RecordView`. Both are already on the reader's own objects — `Header.prev_hash`, `DecodedRecord.index` — and are not upstream work at all, just two fields `_record_view` was not copying through. Unlocks the predecessor jump; the record's own hash still waits on U10. | 0.5 | C-06a |
 | ✓ C-06c | Clickable `prev_hash` and the record's own hash. | 1 | **merged** |
-| C-06d | Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
+| C-06d | **Waits on upstream R2 and R3** (`docs/UPSTREAM-REQUESTS-0.14.md`): the bytes of a record as read — not `Header.encode()`, which re-encodes — and the header and body TLV layouts; `HEADER_FIELDS` (U4) covers only the fixed header. Then (a) header hex in the MVP, (b) body hex as fast-follow. Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
 | ✓ C-07a | UI: the SAFETY list, grouped by kind and sorted by seq — the slice buildable on what a record already resolves. No detail text, no acknowledgement state. | 1 | C-01 |
 | ✓ C-07b | Detail text and the recurrence count it enables, once `EVT_DETAIL` is decoded. **Merged** (Assault-Consulting/Auditor#65): `detail` on every record that carries one, `recurrence_count` scoped to SAFETY — null outside that scope, never 0. | ? | U12 *released* |
 | ✓ C-07c | The r2 oversight loop, in full. **Merged** (Assault-Consulting/Auditor#60 binary state and `KEY_SHRED`; #71 the rest): which ack resolved a candidate and the candidate an ack verifiably names — the package's hash-verified `candidate_seq → ack_seq` mapping read both ways (Palimpsests#236, 0.12.0) — the ack's `operator_id` (pseudonymous, never resolved to a person) and disposition, and ack latency by the writer's clock, computed within one boot only and withheld across a restart. **Display only** in the MVP regardless — recording a disposition is the Phase-5 item below, behind its own ADR. | 1 | Palimpsests#236 *released (0.12.0)* |
@@ -257,7 +257,7 @@ run.
 | ✓ C-09a | Search bar: seq jump (`#1447`), two of three quick buttons (first record, next warning). Unsupported input named plainly rather than silently ignored. | 1 | C-01, C-06a |
 | ✓ C-09b | Filter chips: `kind:`, `type:`, `tier:`, `boot:`, `span:` on C-11's list. **Merged** (Assault-Consulting/Auditor#68). No name→int mapping was needed after all: `/records` matches `type_name`/`kind_name`/`tier` against the names the package resolved on each record, so no table exists on this side. Date range moved to C-09c, with time jump — both are about the writer's clock. | 1.5 | C-11 |
 | ✓ C-09c | Time jump, date range and the anchor quick button. **Merged** (Assault-Consulting/Auditor#73). `@<instant>` selects the record nearest by the writer's clock through a new `/nearest`, whose answer carries `basis: recorded`, the clock's trust, `wall_follows_seq`, `boot_clock_stepped` and `equally_near` — each rendered as a caution, none dropped. `from:`/`to:` are whole UTC days, matching the rail. The anchor button finds the record whose own hash is the verified head, or says the head names nothing in this file — never a fallback. Instants travel as decimal nanosecond strings (past 2^53 a number rounds). The exit criterion's 22:41 question is a test (`test_the_phase_2_exit_criterion_question_is_answerable`). | 2.5 | C-06c, C-09b |
-| C-09d | Free text over `detail`. Blocked only on `FUNCTIONALITY.md` §22.3 now, an open product question this plan has no authority to answer — the data half is done: every record carries `detail` since C-07b. | ? | §22.3 decided |
+| ✓ C-09d | Free text over `detail`. §22.3 decided 3 Nov 2026: MVP. A quoted phrase, ANDed with the chips; literal, case-insensitive (`casefold`), no pattern language; `/records?text=`. Records with an encrypted body are counted in `unsearched` and named on the list, never treated as non-matches. On 0.13 it runs on the full-decode path the other body filters use; it moves to `record_fields_at` once `detail` is there (request R1, `docs/UPSTREAM-REQUESTS-0.14.md`). | 1.5 | §22.3 decided |
 | ✓ C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
 | ✓ C-10a | The three claims §19 bundled as one line, taken apart. "Off-thread verify, window never blocks" — already true, confirmed with a concurrency test rather than left as an assumption. The opening screen's own state model already had an `"opening"` variant `chainLine` rendered correctly; the Open button just never read it, so a slow open looked identical to a stuck one and a second click started a second one — fixed. "Record table virtualised" — C-11's ≤50-row pagination already bounds render cost independent of chain size; a literal virtual-scroll would add nothing this screen does not already have, and reads worse for a forensic review tool than paging does (§C-10 prose below). | 0.5 | C-03, C-11 |
 | ✓ C-10b | §19's size envelope. **Re-scoped after measuring 0.12.0**: the package's verify path now meets it (U14 row); what misses it is this repository's seam, which calls the eager `records()` for `record()`, `records()`, `safety()`, `timeline()`, `subject()` and `open_chain()`'s emptiness check. (a) **Re-scoped while building: on 0.12 nothing on the seam can move honestly.** `safety()` was to move to `safety_records()`, but every row it returns carries `prev_seq = records[index - 1].seq` — the predecessor in the file, usually not a SAFETY record — and 0.12 has no public way to read one record's seq without the full decode; a null there would claim "first record". `spans()` already rides on the package's `structure()`, `boots()` on `boot_statistics()`; `subject()`, `timeline()`, `nearest()` and `open_chain()` need every record's seq or clock. So (a) is the measurement: `scripts/bench_seam.py`, one seam call per fresh process. **Baseline, 0.12.0, 1,000,000 records / 246 MB:** opening a session costs 21.6 s and 2.0 GB peak RSS before the first answer — `open_chain()`'s emptiness check, `any(reader.records())`, decodes every record. On that warm cache: `verify` +13.2 s, `timeline` +3.7 s, `subject` +2.7 s, `boots` +2.4 s, `nearest` +2.3 s, the rest about a second or less; peak 2.0–2.4 GB throughout. (b) **Done, on 0.13.1:** the emptiness check is `record_count == 0`; every structural answer reads one header index built through `header_at()` (no body decoded) and decodes only the rows it returns; SAFETY, acks, shreds and detail counts come from the package's own bounded reads. **Measured at 1M records, one call per fresh process:** opening a session 0.98 s / 272 MB (was 21.6 s / 2.0 GB); `subject`, `records`, `record`, `safety`, `nearest` 5–6 s and `timeline` 7.4 s each from cold, almost all of it building the header index (~5 s), which a session builds once at open and then shares; peak 270–610 MB (was 2.0–2.4 GB). Equivalence with the full-decode seam checked across every fixture and seven mutants of each, out-of-order and duplicated records included: 10,752 comparisons, no difference. **Two limits, both upstream:** filters on a record's body (`kind:`, `source:`, `outcome:`, a record's own hash) still decode every record — 0.13 has no public way to read a kind without the decode; and `verify` on a chain of tool loops is 35.6 s / 2.4 GB, all of it inside `AuditReader.verify()`, whose referential pass decodes every result and the call it names and keeps them in its sparse cache (measured: 999,898 records retained). Both are findings for Palimpsests' U track, not work on this side, written up with reproduction steps in `docs/UPSTREAM-FINDINGS-0.13.md`. | 0.5 + 1.5 | ✓ |
@@ -295,8 +295,8 @@ C-10b(b) follows the pin.
 | C-16 | r2's two commitments on this side: `check_no_wire_parsing.sh` fails on any `palimpsests` import outside the consumer `__all__`, and a CI job runs the sidecar suite against Palimpsests `main`, non-blocking (Palimpsests decides whether it runs on their PRs). | 0.5 | U19 |
 
 **Order on this side.** Done: C-10b(a), C-13, C-14, the pin to
-`>=0.13.1,<0.14`, C-10b(b). Next: C-15, then C-16. C-06d and C-09d stay
-deferred as named.
+`>=0.13.1,<0.14`, C-10b(b), C-09d. Next: C-15, then C-16. C-06d waits on
+upstream R2 and R3 (`docs/UPSTREAM-REQUESTS-0.14.md`).
 
 ### Three upstream changes since 0.10.0 that this phase has to account for
 
@@ -782,13 +782,13 @@ the original estimate made in the other direction.
 
 **MVP total: not restated either, for the same reason.** It was ~73 days on
 an estimate that no longer describes Phase 3. The honest statement is that
-Phase 0 and Phase 1 are closed, and Phase 2 stands at twenty of
+Phase 0 and Phase 1 are closed, and Phase 2 stands at twenty-one of
 twenty-two items merged — C-01 through C-05, C-06a, C-06b, C-06c, C-07a,
-C-07b, C-07c, C-08, C-09a, C-09b, C-09c, C-10a, C-10b, C-11, C-12 and
-B-12. (PR #73's description said eighteen; it miscounted.) The twenty-two
+C-07b, C-07c, C-08, C-09a, C-09b, C-09c, C-09d, C-10a, C-10b, C-11, C-12
+and B-12. (PR #73's description said eighteen; it miscounted.) The twenty-two
 counts the four splits (C-06 into four, C-09 into four, C-07 into three,
-C-10 into two) and C-12, added after 0.12.0. Two remain, both deferred as
-named: C-06d (unstarted design) and C-09d (§22.3).
+C-10 into two) and C-12, added after 0.12.0. One remains: C-06d, waiting
+on upstream requests R2 and R3.
 
 **The exit criterion is met as far as a script can say; the rest is the
 desktop check.** "What happened at 22:41 on 6 Aug" is answerable in three
@@ -798,11 +798,11 @@ in under a second, the header index every structural answer shares takes
 about five more, and the timeline and nearest-instant answers then read
 that index rather than the chain. Whether the window *feels* interactive
 at that size is the live desktop session §10's definition of done already
-requires for a UI phase, and it has not been done. C-06d and C-09d are
-carried past the phase's close as named, deferred items.
+requires for a UI phase, and it has not been done. C-06d is carried past
+the phase's close as a named item, waiting on upstream.
 
 Phase 3 stays unquantified until D-02 and D-07 have been looked at. If
-the work has to shrink, the cut lines are C-06d and C-09d — not the tests.
+the work has to shrink, the cut line is C-06d — not the tests.
 (This used to name C-09b onward and B-05; both have since merged.)
 
 ## 7. Phase 4 — evidence artifacts
