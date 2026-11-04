@@ -832,6 +832,7 @@ class ChainHandle:
         record_hash: str | None = None,
         wall_from_ns: int | None = None,
         wall_to_ns: int | None = None,
+        text: str | None = None,
     ) -> dict[str, object]:
         """A window onto the records, with the header fields for each.
 
@@ -887,6 +888,13 @@ class ChainHandle:
         backwards, the records inside a wall range need not be contiguous
         in the chain. The window is still drawn in proved order.
 
+        `text` (C-09d, §22.3 decided: MVP) keeps records whose `detail`
+        contains it — a literal substring, case-insensitive (`casefold`), no
+        pattern language, so the same query finds the same records on every
+        desk. A record with no detail never matches. An encrypted body cannot
+        be searched: those records are counted in `unsearched` rather than
+        silently left out, so "no matches" never hides "could not look".
+
         Body TLVs are reported as **type and length, not content**. Bodies
         may be encrypted, and a records list is a structural view; showing
         what is inside a record is C-06d's job (`DEVELOPMENT-PLAN.md`, §5)
@@ -908,10 +916,12 @@ class ChainHandle:
             or source_name is not None
             or outcome_name is not None
             or record_hash is not None
+            or text is not None
         ):
             return self._records_by_body(
                 offset, limit, record_type, boot_id, span_id, type_name, kind_name,
                 tier, source_name, outcome_name, record_hash, wall_from_ns, wall_to_ns,
+                text,
             )
         idx = self._header_index()
         for i in range(len(idx)):
@@ -999,6 +1009,7 @@ class ChainHandle:
         record_hash: str | None,
         wall_from_ns: int | None,
         wall_to_ns: int | None,
+        text: str | None = None,
     ) -> dict[str, object]:
         """The window for a question about bodies: every record decoded.
 
@@ -1009,6 +1020,8 @@ class ChainHandle:
         window: list[dict[str, object]] = []
         matched = 0
         matched_at_or_past_offset = 0
+        unsearched = 0
+        needle = None if text is None else text.casefold()
         acks, shredded, detail_counts = self._safety_context()
         with self._lock:
             records = list(self._reader.records())
@@ -1018,6 +1031,14 @@ class ChainHandle:
                 source_name, outcome_name, record_hash, wall_from_ns, wall_to_ns,
             ):
                 continue
+            if needle is not None:
+                if record.header.key_id != 0:
+                    # Encrypted: its detail cannot be read, so it is neither a
+                    # match nor a non-match. Counted, never silently dropped.
+                    unsearched += 1
+                    continue
+                if record.detail is None or needle not in record.detail.casefold():
+                    continue
             matched += 1
             if record.seq < offset:
                 continue
@@ -1031,6 +1052,7 @@ class ChainHandle:
             "limit": limit,
             "total": matched,
             "has_more": matched_at_or_past_offset > len(window),
+            "unsearched": None if text is None else unsearched,
         }
 
     @staticmethod
