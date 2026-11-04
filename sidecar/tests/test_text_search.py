@@ -78,7 +78,9 @@ def test_without_text_unsearched_is_absent(detailed_chain) -> None:
 def test_an_encrypted_body_is_counted_never_silently_skipped(detailed_chain, monkeypatch) -> None:
     """The package's writer does not encrypt, so the encrypted record here is
     the decoded shape the reader gives one — `key_id` set, no `detail` —
-    swapped in for record 3. The real-bytes case waits on an upstream fixture."""
+    swapped in for record 3, which lets the count be checked next to other
+    filters. The real-bytes case runs against the published vectors'
+    ciphertext in `test_conformance_vectors.py` (C-15)."""
     original = AuditReader.records
 
     def with_one_encrypted(self):
