@@ -1113,6 +1113,18 @@
             "description": "Records that MATCHED THE FILTERS, not records in the file. With no filters the two are the same, which is why this field could quietly say the wrong thing once filters existed: a total counting everything would print '3 of 40000' above three rows that are the only three there are.",
             "title": "Total",
             "type": "integer"
+          },
+          "unsearched": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With a text filter: how many records passed every other filter but have an encrypted body, so their detail could not be searched. Null when no text was asked for. A non-zero value means 'no match' is not the whole answer.",
+            "title": "Unsearched"
           }
         },
         "required": [
@@ -2698,6 +2710,26 @@
               ],
               "description": "Keep only records whose writer's clock reads before this instant (exclusive).",
               "title": "Wall To Ns"
+            }
+          },
+          {
+            "description": "Keep only records whose detail contains this text: a literal substring, case-insensitive, no pattern language. Records with an encrypted body cannot be searched and are counted in `unsearched`, never silently left out.",
+            "in": "query",
+            "name": "text",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep only records whose detail contains this text: a literal substring, case-insensitive, no pattern language. Records with an encrypted body cannot be searched and are counted in `unsearched`, never silently left out.",
+              "title": "Text"
             }
           }
         ],
