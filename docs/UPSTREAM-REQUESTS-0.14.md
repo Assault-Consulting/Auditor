@@ -18,6 +18,14 @@ relies on, and how equivalence can be checked — the same shape as U28/U29
 
 Checked against `main` at the merge of #335.
 
+**Status (4 Nov 2026):** R1–R3 are merged in Palimpsests `main` as U30 and
+U31 (#337), with the API asked for — `RecordFields.detail`,
+`record_bytes_at()` → `RecordBytes(offset, header, body)`,
+`header_tlv_spans_at()` and `body_tlv_spans_at()` — and in the contract
+test. They ship in 0.14; C-06d and the move of body filters to
+`record_fields_at` (C-17) start with that release. R4, below, was noticed
+afterwards.
+
 ## R1 — `detail` in `RecordFields`
 
 **Need.** Search over `detail` across a chain without decoding every
@@ -104,9 +112,21 @@ body helper already promises.
 - `None` exactly where `record_at(i).body_tlvs` is `None` for a malformed
   body.
 
+## R4 — `detail` on a KEY_SHRED (noticed in C-15)
+
+**Need.** The inference vectors' `semantics` block states a `detail` for
+the KEY_SHRED at seq 6 ("erasure request E-17"). `DecodedRecord.detail` is
+decoded on EVENT and SAFETY bodies only (U12's scope), so a reader shows no
+detail for that record, and R1 inherits the same rule.
+
+**Question.** Whether `detail` should be decoded on KEY_SHRED bodies too —
+or the vectors' statement is about the body's TLVs rather than a field a
+reader exposes. Auditor's conformance test records the current behaviour
+(`test_conformance_vectors.py`) and will follow either answer.
+
 ## Surface
 
-- All three go into `reader.__all__`, `INTEGRATION-SURFACE.md` channel 1,
+- R1–R3 go into `reader.__all__`, `INTEGRATION-SURFACE.md` channel 1,
   and the contract test, as U29 did.
 - No change to verify, reports, or the wire.
 

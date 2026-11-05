@@ -14,6 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- C-15 — test fixtures onto the published vectors (r2 decision 5).
+  `test_conformance_vectors.py` now checks, through `open_chain`: the core
+  envelope; the four core demos the vectors carry as plain bytes — a
+  truncated tail, a stale anchor, a flipped body bit, a missing GENESIS —
+  built by concatenating published bytes, never by writing a header; the
+  inference profile's `semantics` block (r2–r6), field by field against
+  `RecordView`, with every stated field either checked or listed with its
+  reason so a richer vector cannot pass by silence; and the published
+  ciphertext, the first real encrypted body under test here — opaque on
+  the card, counted by a text search as unsearched. The profile-semantics
+  test, skipped since U9 for want of a body-semantics read path, runs: that
+  path has existed since C-07b. Three demos need a header written and stay
+  with the writer-built mutation suite. Found: the package decodes `detail`
+  on EVENT and SAFETY only, so the vectors' KEY_SHRED detail is not shown
+  (R4, `docs/UPSTREAM-REQUESTS-0.14.md`).
+
 - C-09d — free text over `detail`, decided into the MVP (§22.3). A phrase
   in double quotes searches every record's detail as a literal,
   case-insensitive substring, ANDed with the chips (`kind:SAFETY "frame
