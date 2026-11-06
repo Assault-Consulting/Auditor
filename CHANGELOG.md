@@ -14,6 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- C-16(a) — the seam imports only the declared consumer surface
+  (`CONSUMER-SURFACE.md` r2). Everything it used from `pala.codec` and
+  `pala_writer` now comes from `reader`: `FORMAT_VERSION`, `RT_SAFETY`,
+  `KIND_INCIDENT_CANDIDATE`, and `NO_SPAN` / `NO_PREDECESSOR` in place of the
+  raw `ZERO16` / `ZERO32` sentinels (the same bytes); `boot_statistics` and
+  `step_catalog` come from `reader` too. `check_no_wire_parsing.sh` refuses
+  a `palimpsests` import from any module other than `reader`, `anchors`,
+  `anchors_pkcs11`, `names` and `report` (channel 2), and
+  `tests/test_consumer_surface.py` checks every imported name against the
+  installed package's `__all__`, so a name the package stops declaring
+  fails on the pin bump rather than in use. The canary against Palimpsests
+  `main` (C-16(b)) is prepared as `.github/workflows/canary.yml` and lands
+  by upload.
+
 - C-15 — test fixtures onto the published vectors (r2 decision 5).
   `test_conformance_vectors.py` now checks, through `open_chain`: the core
   envelope; the four core demos the vectors carry as plain bytes — a

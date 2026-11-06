@@ -10,6 +10,13 @@ a value the package already produces. ``scripts/check_no_wire_parsing.sh``
 fails the build on any violation, and this module is its only exemption for
 package access.
 
+Imports come only from the consumer surface `CONSUMER-SURFACE.md` r2
+defines (C-16): the ``__all__`` of ``reader``, ``anchors``,
+``anchors_pkcs11`` and ``names``, and ``report.build_report`` (channel 2).
+``scripts/check_no_wire_parsing.sh`` refuses any other module, and
+``tests/test_consumer_surface.py`` checks every name against the installed
+package's ``__all__``.
+
 Nothing from ``palimpsests`` leaves this module. ``open_chain`` returns a
 :class:`ChainHandle` defined here, and every accessor on it returns plain
 data — dicts, strings, ints. That is what keeps the seam a seam: without it
@@ -44,13 +51,19 @@ from palimpsests.audit.anchors_pkcs11 import (
     Pkcs11Anchor,
     Pkcs11Unavailable,
 )
-from palimpsests.audit.bootstats import boot_statistics
 from palimpsests.audit.names import assurance_tier_name, time_trust_name
-from palimpsests.audit.pala.codec import FORMAT_VERSION, RT_SAFETY, ZERO16, ZERO32
-from palimpsests.audit.pala_writer import KIND_INCIDENT_CANDIDATE
-from palimpsests.audit.reader import AuditReader, decode_continuation
+from palimpsests.audit.reader import (
+    FORMAT_VERSION,
+    KIND_INCIDENT_CANDIDATE,
+    NO_PREDECESSOR,
+    NO_SPAN,
+    RT_SAFETY,
+    AuditReader,
+    boot_statistics,
+    decode_continuation,
+    step_catalog,
+)
 from palimpsests.audit.report import build_report
-from palimpsests.audit.timehealth import step_catalog
 from pathlib import Path
 
 __all__ = [
@@ -268,11 +281,11 @@ def _span_or_none(span_id: bytes | None) -> str | None:
 
     PALA-1 spells "no span" as sixteen zero bytes rather than as an absent
     field — checked against the package's own ``spans()``, which skips
-    records whose ``span_id`` is ``ZERO16``. A shell that hexed it blindly
+    records whose ``span_id`` is ``NO_SPAN`` (sixteen zero bytes). A shell that hexed it blindly
     would put a span called ``00000000000000000000000000000000`` on the
     screen and, worse, into a report.
     """
-    if span_id is None or span_id == ZERO16:
+    if span_id is None or span_id == NO_SPAN:
         return None
     return span_id.hex()
 
@@ -284,12 +297,13 @@ def _hash_or_none(digest: bytes) -> str | None:
     record type — confirmed against ``palimpsests.audit.pala.incremental``:
     "'no predecessor' and 'predecessor removed' must be distinguishable;
     that is the entire reason GENESIS is a type," and GENESIS is required to
-    carry ``prev_hash = ZERO32``. The same choice ``_span_or_none`` already
-    makes for "no span" — a shell that hexed it blindly would put a
+    carry ``prev_hash = NO_PREDECESSOR`` (thirty-two zero bytes). The same
+    choice ``_span_or_none`` already makes for "no span" — a shell that
+    hexed it blindly would put a
     predecessor named all zeros on the screen for the one record that
     truthfully has none.
     """
-    if digest == ZERO32:
+    if digest == NO_PREDECESSOR:
         return None
     return digest.hex()
 
@@ -1129,7 +1143,7 @@ class ChainHandle:
             "boot_id": header.boot_id.hex(),
             # The absence of a span is sixteen zero bytes, not None —
             # the package's own `spans()` skips records whose span_id
-            # is ZERO16. Rendering that as an identifier would put a
+            # is NO_SPAN. Rendering that as an identifier would put a
             # span called 00000000… on the screen and in reports.
             "span_id": _span_or_none(header.span_id),
             "parent_span_id": _span_or_none(header.parent_span_id),
