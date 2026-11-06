@@ -1,0 +1,98 @@
+# SPDX-FileCopyrightText: Assault Consulting
+# SPDX-License-Identifier: Apache-2.0
+#
+# Apply a committed patch to the branch it was committed to.
+#
+# Why this exists: changes are prepared outside the repository and arrive
+# through a commit API that takes one whole file per call. A change to
+# twenty files is then twenty whole files (C-09d: 595 KB), when the change
+# itself is a 47 KB diff. This workflow lets the change travel as the diff:
+# `git format-patch` output committed to `.patches/<name>.mbox`, applied here
+# with `git am`, which keeps each commit's author, message and Signed-off-by.
+#
+# Guarantees:
+# - Never runs on `main` (protected; every change still goes through a PR).
+# - Refuses a patch that touches `.github/` — a patch must not be able to
+#   change the workflows that apply it. PATCH_TOKEN should also lack the
+#   Workflows permission, so GitHub refuses such a push independently.
+# - On failure, writes `.patches/<name>.log` with the `git am` output and
+#   leaves the branch otherwise unchanged, so the failure is readable from the
+#   repository, not only from the Actions log.
+# - Pushes with PATCH_TOKEN (a fine-grained token stored as a repository
+#   secret, Contents: write on this repository only) so the push triggers CI;
+#   a push made with the built-in GITHUB_TOKEN would not.
+
+name: apply-patch
+
+on:
+  push:
+    branches-ignore: [main]
+    paths: [".patches/*.mbox"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apply-patch-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require the token
+        env:
+          PATCH_TOKEN: ${{ secrets.PATCH_TOKEN }}
+        run: |
+          if [ -z "$PATCH_TOKEN" ]; then
+            echo "::error::secret PATCH_TOKEN is not set (see the header of this workflow)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.PATCH_TOKEN }}
+
+      - name: Apply patches
+        run: |
+          set -u
+          git config user.name "patch-apply"
+          git config user.email "patch-apply@users.noreply.github.com"
+          shopt -s nullglob
+          patches=(.patches/*.mbox)
+          if [ ${#patches[@]} -eq 0 ]; then
+            echo "no patches to apply"; exit 0
+          fi
+          for p in "${patches[@]}"; do
+            log="${p%.mbox}.log"
+            if grep -qE '^diff --git a/\.github/|^diff --git a/[^ ]* b/\.github/' "$p"; then
+              echo "refused: $p touches .github/" | tee "$log"
+              git add "$log"
+              git commit -q -m "chore: patch $(basename "$p") refused — it touches .github/" \
+                -m "Signed-off-by: patch-apply <patch-apply@users.noreply.github.com>"
+              git push origin "HEAD:${GITHUB_REF_NAME}"
+              exit 1
+            fi
+            # Apply against a temporary copy, so removing the patch file in the
+            # same branch cannot disturb `git am` reading it.
+            cp "$p" "$RUNNER_TEMP/current.mbox"
+            git rm -q "$p"
+            rm -f "$log"
+            git commit -q -m "chore: take $(basename "$p") out of the tree before applying it" \
+              -m "Signed-off-by: patch-apply <patch-apply@users.noreply.github.com>"
+            if ! git am --3way --keep-cr "$RUNNER_TEMP/current.mbox" > "$RUNNER_TEMP/am.out" 2>&1; then
+              git am --abort || true
+              git reset -q --hard HEAD~1
+              cp "$RUNNER_TEMP/am.out" "$log"
+              git add "$log"
+              git commit -q -m "chore: patch $(basename "$p") did not apply — see $(basename "$log")" \
+                -m "Signed-off-by: patch-apply <patch-apply@users.noreply.github.com>"
+              git push origin "HEAD:${GITHUB_REF_NAME}"
+              cat "$log"
+              exit 1
+            fi
+            cat "$RUNNER_TEMP/am.out"
+          done
+          git push origin "HEAD:${GITHUB_REF_NAME}"

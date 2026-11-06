@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: Assault Consulting
+# SPDX-License-Identifier: Apache-2.0
+#
+# Canary: the sidecar suite against Palimpsests `main` (C-16).
+#
+# CONSUMER-SURFACE.md r2 asks this repository for two commitments: the seam
+# imports only the declared surface (checked in ci.yml and by
+# sidecar/tests/test_consumer_surface.py), and a job that runs the sidecar
+# suite against the package's unreleased `main`, so a change there that
+# would break Auditor is seen before it is released rather than after.
+#
+# Non-blocking by construction: this workflow is not part of `ci-complete`,
+# the one context branch protection requires. A red canary is a message to
+# both repositories, not a gate on this one. Whether it also runs on
+# Palimpsests' own pull requests is Palimpsests' decision (r2).
+
+name: canary
+
+on:
+  schedule:
+    - cron: "17 5 * * *"   # daily, 05:17 UTC
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canary-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  palimpsests-main:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: install the sidecar, then Palimpsests main over its pin
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e "sidecar[dev]"
+          # --no-deps: keep every other dependency as the pin resolved it, so
+          # a red result is about Palimpsests main and nothing else.
+          python -m pip install --force-reinstall --no-deps \
+            "palimpsests @ git+https://github.com/Assault-Consulting/Palimpsests@main"
+
+      - name: which Palimpsests this is
+        run: |
+          python - <<'PY'
+          import importlib.metadata as m
+          print("palimpsests", m.version("palimpsests"))
+          PY
+          git ls-remote https://github.com/Assault-Consulting/Palimpsests refs/heads/main
+
+      - name: sidecar suite
+        working-directory: sidecar
+        run: python -m pytest -q
