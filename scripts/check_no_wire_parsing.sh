@@ -121,6 +121,24 @@ if hits=$(grep -n -I -E '^[[:space:]]*(from|import)[[:space:]]+palimpsests' \
   fail=1
 fi
 
+# ... and the seam imports only the consumer surface (C-16; CONSUMER-SURFACE.md
+# r2, "Only the declared surface"). r2 names `reader` and `anchors` (with
+# `anchors_pkcs11`) as the consumer modules and keeps channels 2-6 public
+# beside them; `names` is declared public, and `report` is channel 2. Any
+# other path — `pala.codec`, `pala_writer`, an internal module — is internal
+# however importable it is. That each imported NAME is in its module's
+# `__all__` needs the package installed, so it is checked by
+# sidecar/tests/test_consumer_surface.py, not here.
+CONSUMER_MODULES='palimpsests\.audit\.(reader|anchors|anchors_pkcs11|names|report)'
+if hits=$(grep -n -E '^[[:space:]]*(from|import)[[:space:]]+palimpsests' "$SEAM" \
+            | grep -Ev "^[0-9]+:[[:space:]]*from[[:space:]]+${CONSUMER_MODULES}[[:space:]]+import[[:space:]]"); then
+  echo "FAIL: ${SEAM} imports palimpsests outside the consumer surface"
+  echo "${hits}" | sed 's/^/      /'
+  echo "      allowed: from ${CONSUMER_MODULES//\\/} import <names in its __all__>"
+  echo
+  fail=1
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "ADR-0001: the shell renders verifier output; it never parses wire bytes."
   echo "See docs/adr/0001-the-shell-renders-verifier-output.md"
