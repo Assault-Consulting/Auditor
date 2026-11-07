@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- D-01 (JSON) — the package's verification report, shown and never
+  rebuilt. `GET /session/{id}/report?profile=` returns what `build_report`
+  produced — `pala-verification-report/1` as the package returned it and its
+  own `to_json_bytes()` text — built once per profile, since a second build
+  would carry a second `checked_at`, a different attestation of the same
+  check. The verdict is the package's `derive_verdict`, copied and never
+  re-derived, shown with the package's own sentence for it; a verdict this
+  build cannot name is shown as it came. The Report block says what a report
+  is — an attestation of a check, not a certification — and the JSON can be
+  copied; saving it is D-07. The HTML rendering waits on R5:
+  `report_html.render_html` is not in the declared consumer surface. R6
+  asks about the report's `existence.note` for tier A.
+
 - C-16(a) — the seam imports only the declared consumer surface
   (`CONSUMER-SURFACE.md` r2). Everything it used from `pala.codec` and
   `pala_writer` now comes from `reader`: `FORMAT_VERSION`, `RT_SAFETY`,
