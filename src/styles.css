@@ -1616,6 +1616,103 @@ body {
   color: var(--unchecked);
 }
 
+/* D-01 — the package's report. Ruled like the provenance block: it is an
+   artifact about the check, not a finding of its own. The verdict takes the
+   standing colours the three questions use — verdigris only for "sound",
+   which the package says when everything checked held; slate and dashed for
+   "partial", whose missing part is a question not asked; ochre for
+   "violation", a description of evidence, never an alarm. */
+.report {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.report-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.2);
+}
+
+.report-attestation {
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-size: 0.86rem;
+  color: var(--vellum-dim);
+}
+
+.report-actions {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+}
+
+.report-failed {
+  margin: calc(var(--step) * 1.5) 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.report-body {
+  margin-top: calc(var(--step) * 1.5);
+  padding-left: var(--step);
+  border-left: 2px solid var(--rule);
+}
+
+.report-body[data-verdict="sound"] {
+  border-left-color: var(--proved);
+}
+
+.report-body[data-verdict="partial"] {
+  border-left-style: dashed;
+  border-left-color: var(--unchecked);
+}
+
+.report-body[data-verdict="violation"] {
+  border-left-color: var(--recorded);
+}
+
+.report-verdict {
+  margin: 0;
+  color: var(--vellum);
+}
+
+.report-verdict code {
+  font-family: var(--mono);
+}
+
+.report-meta {
+  margin: 0.4em 0 var(--step);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--unchecked);
+}
+
+.report-json summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--vellum-dim);
+}
+
+.report-json pre {
+  margin: var(--step) 0;
+  max-height: 24rem;
+  overflow: auto;
+  padding: var(--step);
+  background: var(--ink-raised);
+  border: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--vellum-dim);
+  white-space: pre;
+}
+
 .footnote {
   margin: calc(var(--step) * 3) 0 0;
   font-family: var(--mono);
