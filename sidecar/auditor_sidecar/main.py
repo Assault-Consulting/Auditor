@@ -39,6 +39,7 @@ from .models import (
     NearestRecord,
     OriginState,
     RecordPage,
+    ReportResponse,
     RecordView,
     SessionRequest,
     SessionResponse,
@@ -640,6 +641,49 @@ def build_app(token: str | None = None) -> FastAPI:
             subject_sha256=session.sha256,
             verifier=verifier_identity(),
             **result,
+        )
+
+    @app.get("/session/{session_id}/report", response_model=ReportResponse)
+    def report_session(
+        session_id: str,
+        profile: str = Query(
+            default=NO_ANCHOR,
+            description=(
+                "Anchor profile the report's check is made against, as for "
+                "/verify. The default leaves completeness not checked, and "
+                "the report's verdict says so ('partial')."
+            ),
+        ),
+    ) -> ReportResponse:
+        """The package's verification report for this session (D-01).
+
+        Built by `build_report`, never here; built once per profile, because
+        a second build would carry a second `checked_at` — a different
+        attestation of the same check. The same refusals as /verify: 409 if
+        the file changed, 404 for an unknown profile, 422 for an anchor kind
+        this build does not implement.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        try:
+            sources = app.state.anchors.get(profile)
+        except ProfileNotFound:
+            raise HTTPException(
+                status_code=404, detail=f"no anchor profile named {profile!r}"
+            ) from None
+        try:
+            built = session.report(profile, sources)
+        except UnknownAnchorKind as exc:
+            raise HTTPException(
+                status_code=422, detail=f"unknown anchor source kind: {exc}"
+            ) from None
+        return ReportResponse(
+            session_id=session.session_id,
+            subject_sha256=session.sha256,
+            format=built["report"]["format"],
+            verdict=built["report"]["verdict"],
+            report=built["report"],
+            json_text=built["json"],
         )
 
     @app.delete("/session/{session_id}", status_code=204)
