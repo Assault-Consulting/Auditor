@@ -5,7 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # Upstream requests for palimpsests 0.14
 
-Three additions Auditor needs for two decided features:
+Three additions Auditor needs for two decided features (R1–R3), and three
+questions noticed since (R4–R6):
 
 - **C-09d** — free text over `detail`. §22.3 is decided: MVP.
 - **C-06d** — raw hex view with field highlighting (F7).
@@ -23,8 +24,8 @@ U31 (#337), with the API asked for — `RecordFields.detail`,
 `record_bytes_at()` → `RecordBytes(offset, header, body)`,
 `header_tlv_spans_at()` and `body_tlv_spans_at()` — and in the contract
 test. They ship in 0.14; C-06d and the move of body filters to
-`record_fields_at` (C-17) start with that release. R4, below, was noticed
-afterwards.
+`record_fields_at` (C-17) start with that release. R4–R6, below, were
+noticed afterwards.
 
 ## R1 — `detail` in `RecordFields`
 
@@ -123,6 +124,33 @@ detail for that record, and R1 inherits the same rule.
 or the vectors' statement is about the body's TLVs rather than a field a
 reader exposes. Auditor's conformance test records the current behaviour
 (`test_conformance_vectors.py`) and will follow either answer.
+
+## R5 — the HTML report in the declared surface (noticed in D-01)
+
+**Need.** Phase 3's D-01 renders the package's report "the JSON and the
+HTML, neither rebuilt". `build_report` and `derive_verdict` are channel 2;
+`palimpsests.audit.report_html.render_html` is not listed anywhere in
+`INTEGRATION-SURFACE.md`, and the module has no `__all__`. Since C-16 the
+seam imports only the declared surface, so Auditor shows the JSON and not
+the HTML.
+
+**Question.** Whether `render_html` (and `report_html`) should join channel
+2 — or the HTML is the CLI's affair and a consumer should not render it.
+Either answer settles D-01; nothing is rebuilt here meanwhile.
+
+## R6 — the report's tier-A existence note (noticed in D-01)
+
+**Observation.** A report on a tier-A chain carries
+`"existence": {"external_pins": [], "note": "tier A: none available"}`.
+Auditor removed the same assumption from its own screen in #69: SCITT
+registration (`pala/scitt.py`) does not consult the tier, so a tier-A head
+can be registered and receipted, and "none available" reads as a limit of
+the tier rather than an absence in this file.
+
+**Question.** Whether the note should say what the report checked — for
+example, that no external pin was supplied or found — rather than what tier
+A allows. Auditor shows the report as the package wrote it and does not
+reword it (ADR-0001; D-03 audits only Auditor's own framing).
 
 ## Surface
 
