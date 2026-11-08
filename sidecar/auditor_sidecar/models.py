@@ -16,6 +16,7 @@ generated client carries.
 from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Any
 
 
 class HealthResponse(BaseModel):
@@ -503,6 +504,43 @@ class VerificationResponse(BaseModel):
         ),
     )
     advisory: AdvisoryModel
+
+
+class ReportResponse(BaseModel):
+    """The package's verification report, passed through whole (D-01).
+
+    Auditor does not build reports (ADR-0001): `build_report` does, and its
+    verdict comes from `derive_verdict`, the package's one verdict rule. This
+    response carries the report as the package returned it, and the exact
+    JSON text the package serialised, so a copy is the package's bytes.
+    """
+
+    session_id: str = Field(description="The session this report is about.")
+    subject_sha256: str = Field(
+        description=(
+            "Digest of the file as opened. Repeated beside the report so the "
+            "two cannot be separated."
+        )
+    )
+    format: str = Field(
+        description="The report's own format id, e.g. 'pala-verification-report/1'."
+    )
+    verdict: str = Field(
+        description=(
+            "The report's verdict as the package derived it (`derive_verdict`): "
+            "'sound', 'partial' or 'violation'. Copied from the report, never "
+            "re-derived here."
+        )
+    )
+    report: dict[str, Any] = Field(
+        description="The report object, exactly as `build_report` returned it."
+    )
+    json_text: str = Field(
+        description=(
+            "The report as the package serialised it (`to_json_bytes`), "
+            "UTF-8. What a copy or an export carries."
+        )
+    )
 
 
 class AnchorCadenceModel(BaseModel):

@@ -295,8 +295,8 @@ C-10b(b) follows the pin.
 | ◐ C-16 | r2's two commitments on this side: `check_no_wire_parsing.sh` fails on any `palimpsests` import outside the consumer `__all__`, and a CI job runs the sidecar suite against Palimpsests `main`, non-blocking (Palimpsests decides whether it runs on their PRs). **(a) Done:** the seam now imports only from `reader`, `anchors`, `anchors_pkcs11`, `names` and `report` (channel 2) — `FORMAT_VERSION`, `RT_SAFETY`, `KIND_INCIDENT_CANDIDATE`, `boot_statistics` and `step_catalog` from `reader`, and `ZERO16`/`ZERO32` replaced by `reader`'s `NO_SPAN`/`NO_PREDECESSOR` (same bytes, checked); `pala.codec` and `pala_writer` are gone from it. The script refuses any other module without needing the package installed; `tests/test_consumer_surface.py` checks every imported name against the installed package's `__all__` (the seam on `main` before this fails it eight times). **(b) Prepared, not merged:** `.github/workflows/canary.yml` — the sidecar suite with Palimpsests `main` installed over the pin, daily, on push to `main` and on pull requests, outside `ci-complete`. A workflow file cannot be committed through the tool this work uses; it lands by upload. Run by hand against `main` at `6853939`: 386 passed. | 0.5 | U19 |
 
 **Order on this side.** Done: C-10b(a), C-13, C-14, the pin to
-`>=0.13.1,<0.14`, C-10b(b), C-09d, C-15, C-16(a). Next: C-16(b), the
-canary, by upload. C-06d and C-17 wait on
+`>=0.13.1,<0.14`, C-10b(b), C-09d, C-15, C-16(a), D-01 (JSON). Next:
+C-16(b), the canary, by upload; D-03, D-04 and D-06 in Phase 3. C-06d and C-17 wait on
 the 0.14 release, which carries R1–R3 (U30, U31, merged in Palimpsests
 `main`, #337).
 
@@ -766,7 +766,7 @@ costs nothing against the air-gap invariant.
 
 | PR | Content | Days | Needs |
 |---|---|---|---|
-| D-01 | Render the package's report through the seam; the JSON and the HTML, neither rebuilt | 1 | U6, B-03 |
+| ◐ D-01 | Render the package's report through the seam; the JSON and the HTML, neither rebuilt. **JSON done:** `GET /session/{id}/report?profile=` passes `build_report`'s `pala-verification-report/1` through whole — the dict as the package returned it and its own `to_json_bytes()` text — built once per profile, because a second build would be a second `checked_at`, a different attestation of the same check. The verdict is the package's `derive_verdict`, copied, never re-derived, shown with the package's own sentence for it; the screen says the report attests a check and certifies nothing; the JSON can be copied. Saving it to a file is D-07. **HTML waits:** `report_html.render_html` is not in the declared consumer surface (channel 2 is `build_report` and `derive_verdict`), and since C-16 the seam imports nothing else — R5 in `docs/UPSTREAM-REQUESTS-0.14.md`. Found reading the report: its `existence.note` reads "tier A: none available", the assumption #69 removed from this screen — R6. | 1 | U6, B-03 |
 | D-02 | Print and PDF: whether that HTML is fit to print, and what a PDF path costs | ? | D-01 |
 | D-03 | Wording audit against L4 and the no-overclaim rule. Now audits *our* framing around the document; if the package's own wording overclaims, that is an upstream issue and is raised there | 1 | D-01 |
 | D-04 | Determinism test: same file + same anchor → identical bytes except `checked_at`. Now a check on the package's output rather than on ours | 1 | D-01 |

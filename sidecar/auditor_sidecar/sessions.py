@@ -52,6 +52,11 @@ class Session:
     #: and this application's entire claim is that its answers are
     #: reproducible.
     verifications: dict[str, dict] = field(default_factory=dict)
+    #: The package's report, keyed by anchor profile, built at most once.
+    #: Not only for cost: the report carries `checked_at`, so building it
+    #: again would hand out a second, differently timestamped attestation of
+    #: the same check. One check, one report (D-01).
+    reports: dict[str, dict] = field(default_factory=dict)
     #: The structural views, computed at most once each.
     #:
     #: The rule that decides what is cached here is whether the set of
@@ -97,6 +102,14 @@ class Session:
                 self._manifests[manifest["path"]] = manifest["sha256"]
             self.verifications[profile] = result
         return self.verifications[profile]
+
+    def report(
+        self, profile: str = "none", sources: list[dict[str, str]] | None = None
+    ) -> dict:
+        """The package's report for this session and profile, built at most once."""
+        if profile not in self.reports:
+            self.reports[profile] = self.chain.report(sources)
+        return self.reports[profile]
 
     def boots(self) -> list[dict]:
         """The boots in this container, computed at most once."""

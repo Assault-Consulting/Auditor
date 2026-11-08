@@ -23,6 +23,7 @@ import type {
   OriginState,
   RecordPage,
   RecordView,
+  ReportResponse,
   SessionResponse,
   SpanView,
   Timeline,
@@ -197,6 +198,26 @@ export async function verifyChain(
   );
   if (!response.ok) await raise(response);
   return (await response.json()) as VerificationResponse;
+}
+
+/**
+ * The package's verification report for an open session (D-01).
+ *
+ * Built by the package's `build_report`, never on this side, once per
+ * profile: asking again returns the same report, the same `checked_at`.
+ * Errors map as for `verifyChain` — the two answer the same question.
+ */
+export async function getReport(
+  session: Session,
+  sessionId: string,
+  profile = "none",
+): Promise<ReportResponse> {
+  const response = await fetch(
+    url(session, `/session/${sessionId}/report?profile=${encodeURIComponent(profile)}`),
+    { headers: headers(session) },
+  );
+  if (!response.ok) await raise(response);
+  return (await response.json()) as ReportResponse;
 }
 
 /**

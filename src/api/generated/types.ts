@@ -541,6 +541,29 @@ export interface RecordView {
 }
 
 /**
+ * The package's verification report, passed through whole (D-01).
+ *
+ * Auditor does not build reports (ADR-0001): `build_report` does, and its
+ * verdict comes from `derive_verdict`, the package's one verdict rule. This
+ * response carries the report as the package returned it, and the exact
+ * JSON text the package serialised, so a copy is the package's bytes.
+ */
+export interface ReportResponse {
+  /** The session this report is about. */
+  session_id: string;
+  /** Digest of the file as opened. Repeated beside the report so the two cannot be separated. */
+  subject_sha256: string;
+  /** The report's own format id, e.g. 'pala-verification-report/1'. */
+  format: string;
+  /** The report's verdict as the package derived it (`derive_verdict`): 'sound', 'partial' or 'violation'. Copied from the report, never re-derived here. */
+  verdict: string;
+  /** The report object, exactly as `build_report` returned it. */
+  report: Record<string, unknown>;
+  /** The report as the package serialised it (`to_json_bytes`), UTF-8. What a copy or an export carries. */
+  json_text: string;
+}
+
+/**
  * Open a container.
  */
 export interface SessionRequest {
