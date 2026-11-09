@@ -9,7 +9,10 @@
 //! (ADR-0001). A Rust command that reads a container to check its size is
 //! exactly the kind of small, reasonable helper that ADR exists to prevent.
 
+mod artifact;
 mod sidecar;
+
+use std::path::Path;
 
 use tauri::{Manager, RunEvent, State};
 use tauri_plugin_dialog::DialogExt;
@@ -45,7 +48,12 @@ fn sidecar_session(supervisor: State<'_, Supervisor>) -> Session {
 ///
 /// `None` means the user cancelled, which is not an error and must not be
 /// rendered as one.
-#[tauri::command]
+///
+/// `async`, so the body runs on the async runtime: a synchronous command
+/// runs on the main thread, and the plugin's blocking dialog calls must not
+/// — its documentation says they freeze the application there. Found while
+/// building `save_artifact` (D-07); the open dialog had the same shape.
+#[tauri::command(async)]
 fn pick_chain_file(app: tauri::AppHandle) -> Option<String> {
     app.dialog()
         .file()
@@ -60,6 +68,44 @@ fn pick_chain_file(app: tauri::AppHandle) -> Option<String> {
         .map(|chosen| chosen.to_string())
 }
 
+/// Save one of this application's own artifacts where the user chooses (D-07).
+///
+/// The same boundary as `pick_chain_file`, for writing. The dialog runs in
+/// this process and the file is written here, to the path the user just
+/// chose in that dialog — the webview hands over only a suggested name and
+/// the text, and never names a path to write to. So no filesystem
+/// permission is granted to the webview, and `capabilities/default.json` is
+/// unchanged: a webview that misbehaved could still not write anywhere the
+/// user did not pick.
+///
+/// What is written is an artifact Auditor produced (a report, an export),
+/// never a container: Auditor does not write PALA-1 bytes (§1.1). Beside it
+/// goes its SHA-256 as `<name>.sha256`, in `sha256sum`'s own format, so the
+/// digest travels with the file and a recipient can check it without us.
+///
+/// `Ok(None)` is a cancelled dialog, not an error.
+#[tauri::command(async)]
+fn save_artifact(
+    app: tauri::AppHandle,
+    suggested_name: String,
+    contents: String,
+) -> Result<Option<artifact::SavedArtifact>, String> {
+    let mut dialog = app.dialog().file().set_file_name(&suggested_name);
+    if let Some(ext) = Path::new(&suggested_name)
+        .extension()
+        .and_then(|e| e.to_str())
+    {
+        dialog = dialog.add_filter(ext.to_uppercase(), &[ext]);
+    }
+    let Some(chosen) = dialog.add_filter("All files", &["*"]).blocking_save_file() else {
+        return Ok(None);
+    };
+    let path = chosen.into_path().map_err(|e| e.to_string())?;
+    artifact::write_with_digest(&path, contents.as_bytes())
+        .map(Some)
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Spawned before the window exists, so the frontend never renders against
@@ -71,7 +117,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(supervisor)
-        .invoke_handler(tauri::generate_handler![sidecar_session, pick_chain_file])
+        .invoke_handler(tauri::generate_handler![
+            sidecar_session,
+            pick_chain_file,
+            save_artifact
+        ])
         .build(tauri::generate_context!())
         .expect("error while building Palimpsests Auditor")
         .run(|app, event| {
