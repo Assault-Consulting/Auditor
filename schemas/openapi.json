@@ -1472,6 +1472,52 @@
         "title": "RecordView",
         "type": "object"
       },
+      "ReportResponse": {
+        "description": "The package's verification report, passed through whole (D-01).\n\nAuditor does not build reports (ADR-0001): `build_report` does, and its\nverdict comes from `derive_verdict`, the package's one verdict rule. This\nresponse carries the report as the package returned it, and the exact\nJSON text the package serialised, so a copy is the package's bytes.",
+        "properties": {
+          "format": {
+            "description": "The report's own format id, e.g. 'pala-verification-report/1'.",
+            "title": "Format",
+            "type": "string"
+          },
+          "json_text": {
+            "description": "The report as the package serialised it (`to_json_bytes`), UTF-8. What a copy or an export carries.",
+            "title": "Json Text",
+            "type": "string"
+          },
+          "report": {
+            "additionalProperties": true,
+            "description": "The report object, exactly as `build_report` returned it.",
+            "title": "Report",
+            "type": "object"
+          },
+          "session_id": {
+            "description": "The session this report is about.",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "subject_sha256": {
+            "description": "Digest of the file as opened. Repeated beside the report so the two cannot be separated.",
+            "title": "Subject Sha256",
+            "type": "string"
+          },
+          "verdict": {
+            "description": "The report's verdict as the package derived it (`derive_verdict`): 'sound', 'partial' or 'violation'. Copied from the report, never re-derived here.",
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "subject_sha256",
+          "format",
+          "verdict",
+          "report",
+          "json_text"
+        ],
+        "title": "ReportResponse",
+        "type": "object"
+      },
       "SessionRequest": {
         "description": "Open a container.",
         "properties": {
@@ -2756,6 +2802,58 @@
           }
         },
         "summary": "Session Records"
+      }
+    },
+    "/session/{session_id}/report": {
+      "get": {
+        "description": "The package's verification report for this session (D-01).\n\nBuilt by `build_report`, never here; built once per profile, because\na second build would carry a second `checked_at` \u2014 a different\nattestation of the same check. The same refusals as /verify: 409 if\nthe file changed, 404 for an unknown profile, 422 for an anchor kind\nthis build does not implement.",
+        "operationId": "report_session_session__session_id__report_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Anchor profile the report's check is made against, as for /verify. The default leaves completeness not checked, and the report's verdict says so ('partial').",
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "description": "Anchor profile the report's check is made against, as for /verify. The default leaves completeness not checked, and the report's verdict says so ('partial').",
+              "title": "Profile",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report Session"
       }
     },
     "/session/{session_id}/safety": {

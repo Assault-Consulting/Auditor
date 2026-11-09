@@ -595,6 +595,37 @@ class ChainHandle:
             "body_digest_mismatches": list(data["body_digest_mismatches"]),
         }
 
+    def report(self, anchor_specs: list[dict[str, str]] | None = None) -> dict[str, object]:
+        """The package's verification report, as the package built it (D-01).
+
+        ``build_report`` (channel 2) produces ``pala-verification-report/1``
+        and its verdict, through ``derive_verdict`` — the one verdict rule,
+        which a renderer must not re-derive. Nothing here edits, reorders or
+        summarises it: the dict is the package's ``data`` and the text is its
+        own ``to_json_bytes()``, so what the screen shows and what a copy
+        holds are the same bytes the package wrote.
+
+        The two paths are the ones ``container()`` keeps apart, for the same
+        reason: with no anchor, the session's own reader is reused; with one,
+        ``build_report`` opens its own, because a shared reader answers with
+        the anchor it was opened with — none.
+        """
+        specs = anchor_specs or []
+        if specs:
+            built = build_report(
+                self._path,
+                anchor_source=_anchor_source(specs),
+                tool="palimpsests-auditor-sidecar",
+            )
+        else:
+            with self._lock:
+                built = build_report(
+                    self._path,
+                    reader=self._reader,
+                    tool="palimpsests-auditor-sidecar",
+                )
+        return {"report": built.data, "json": built.to_json_bytes().decode("utf-8")}
+
     def verify(self, anchor_specs: list[dict[str, str]] | None = None) -> dict[str, object]:
         """Ask the verifier the three questions, and pass the answer through.
 

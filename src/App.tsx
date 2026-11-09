@@ -29,11 +29,12 @@ import { diagnosisCard } from "./api/diagnosis";
 import { manifestLine } from "./api/manifest";
 import { provenance, provenanceSummary } from "./api/provenance";
 import { type RecordFilters, resolveChips } from "./api/filters";
-import { getNearest, getRecords } from "./api/chain";
+import { getNearest, getRecords, getReport } from "./api/chain";
 import { type NearestLine, nearestLine } from "./api/nearest";
 import { type Chip, chipLabel, nextWarning, parseSearch } from "./api/search";
 import { safetyGroupKey } from "./api/safety";
 import { unsearchedLine } from "./api/records";
+import { ATTESTATION, type ReportView, reportView } from "./api/report";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords, useSafety } from "./state";
 
 // C-11's page size. Well inside the sidecar's own 1000-record ceiling, and
@@ -140,6 +141,38 @@ export default function App() {
   const clearFilters = () => {
     setActiveChips([]);
     setRecordFilters({});
+  };
+
+  // D-01 — the package's report, built on request for the chosen profile.
+  // Belongs to the file it was built for: opening another clears it.
+  type ReportState =
+    | { kind: "idle" }
+    | { kind: "building" }
+    | { kind: "ready"; view: ReportView; profile: string }
+    | { kind: "failed"; detail: string };
+  const [report, setReport] = useState<ReportState>({ kind: "idle" });
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  useEffect(() => {
+    setReport({ kind: "idle" });
+    setCopyState("idle");
+  }, [openedSessionId]);
+  const buildReport = () => {
+    const s = sessionOf();
+    if (s === null) return;
+    const profile = chosenProfile;
+    setReport({ kind: "building" });
+    setCopyState("idle");
+    void getReport(s.session, s.id, profile)
+      .then((r) => setReport({ kind: "ready", view: reportView(r), profile }))
+      .catch((err: unknown) =>
+        setReport({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
+      );
+  };
+  const copyReport = (text: string) => {
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => setCopyState("copied"))
+      .catch(() => setCopyState("failed"));
   };
 
   // Present only when the verifier produced a diagnosis, which is only when
@@ -1234,6 +1267,71 @@ export default function App() {
               ))}
             </ol>
             <p className="provenance-summary">{provenanceSummary(links)}</p>
+          </section>
+        )}
+
+        {/* D-01 — the package's verification report, never rebuilt here.
+            Its verdict is the package's derive_verdict, shown with the
+            package's own sentence for it; the text is the package's own
+            serialisation. Saving to a file is D-07. */}
+        {openedOf(chain) !== null && (
+          <section className="report" aria-labelledby="report-title">
+            <h2 className="report-title" id="report-title">
+              Report
+            </h2>
+            <p className="report-attestation">{ATTESTATION}</p>
+            <div className="report-actions">
+              <button
+                className="choose-button"
+                disabled={report.kind === "building"}
+                onClick={buildReport}
+                type="button"
+              >
+                {report.kind === "building" ? "Building…" : "Build report"}
+              </button>
+              <span className="choose-hint">
+                against {chosenProfile === "none" ? "no anchor" : `profile ${chosenProfile}`}
+              </span>
+            </div>
+
+            {report.kind === "failed" && <p className="report-failed">{report.detail}</p>}
+
+            {report.kind === "ready" && (
+              <div className="report-body" data-verdict={report.view.verdict}>
+                <p className="report-verdict">
+                  <code>{report.view.verdict}</code> — {report.view.meaning}
+                </p>
+                <p className="report-meta">
+                  {report.view.format}
+                  {report.view.checkedAtIso !== null && (
+                    <>
+                      {" "}
+                      · built {report.view.checkedAtIso}
+                      {report.view.checkedAtNote !== null && ` (${report.view.checkedAtNote})`}
+                    </>
+                  )}{" "}
+                  · {report.profile === "none" ? "no anchor" : `profile ${report.profile}`}
+                </p>
+                <details className="report-json">
+                  <summary>The report as the package wrote it</summary>
+                  <pre>{report.view.jsonText}</pre>
+                </details>
+                <div className="report-actions">
+                  <button
+                    className="choose-button"
+                    onClick={() => copyReport(report.view.jsonText)}
+                    type="button"
+                  >
+                    {copyState === "copied" ? "Copied" : "Copy JSON"}
+                  </button>
+                  {copyState === "failed" && (
+                    <span className="choose-hint">
+                      copying was refused — open the report above and select the text
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
         )}
 
