@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- D-04 — the report is deterministic: the same file and the same anchor
+  give the same bytes, `checked_at` apart (§15, §19). Checked through
+  `/report` on separate sessions, on the package's own text with its one
+  `checked_at` object cut out, byte for byte; with and without an anchor; a
+  different anchor must change the bytes; a renamed copy elsewhere differs
+  in `subject.filename` alone; and the report carries no part of the
+  reader's path. Cross-platform identity is not claimed — compared within
+  one run on each OS.
+
 - D-01 (JSON) — the package's verification report, shown and never
   rebuilt. `GET /session/{id}/report?profile=` returns what `build_report`
   produced — `pala-verification-report/1` as the package returned it and its
