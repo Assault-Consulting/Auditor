@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- D-07 — saving Auditor's own artifacts, with the digest beside them. A new
+  shell command, `save_artifact`, runs the save dialog and writes the file in
+  the shell process, to the path the user chose in that dialog: the webview
+  sends only a suggested name and the text, never a path, and gains no
+  filesystem permission (`capabilities/default.json` is unchanged). Beside
+  the file goes `<name>.sha256` in `sha256sum`'s format, hashed from the file
+  as read back, so a recipient checks the pair with `sha256sum -c`. The
+  Report block gains **Save JSON…**, writing the package's report text as
+  `<chain>.report.json`; a cancelled dialog is not shown as a failure.
+
 - D-04 — the report is deterministic: the same file and the same anchor
   give the same bytes, `checked_at` apart (§15, §19). Checked through
   `/report` on separate sessions, on the package's own text with its one
@@ -268,6 +278,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The open dialog could freeze the application. `pick_chain_file` was a
+  synchronous Tauri command — run on the main thread — calling the dialog
+  plugin's blocking API, which the plugin documents as freezing the
+  application on the main thread. It is now `#[tauri::command(async)]`, as is
+  the new `save_artifact`. Found while building D-07, by reading the plugin
+  and Tauri sources; CI does not open a window, so the live desktop check is
+  where it is confirmed.
 - `GOVERNANCE.md`, `CONTRIBUTING.md` and `docs/REVIEW.md` had each stated
   that `main` was protected and that every change required a non-author
   approval, while none of it was in force. They were corrected to describe

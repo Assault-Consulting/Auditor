@@ -1693,6 +1693,16 @@ body {
   color: var(--unchecked);
 }
 
+/* D-07 — where a saved report went, and its digest. Plain, mono, breakable:
+   a path and a 64-character hash are facts to copy, not prose. */
+.report-saved {
+  margin: var(--step) 0 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--vellum-dim);
+  word-break: break-all;
+}
+
 .report-json summary {
   cursor: pointer;
   font-family: var(--mono);

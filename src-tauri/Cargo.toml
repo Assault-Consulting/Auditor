@@ -31,3 +31,7 @@ rand = "0.8"
 # directly — the one thing ADR-0001 forbids. Its documentation recommends
 # exactly what we do instead: "prefer writing a dedicated command".
 tauri-plugin-dialog = "2"
+# SHA-256 of a saved artifact, written beside it (D-07, artifact.rs). It
+# hashes the file Auditor wrote — a report or an export — never a PALA-1
+# chain: the same kind of digest the sidecar's digest.py takes of a file.
+sha2 = "0.10"
