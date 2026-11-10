@@ -35,6 +35,7 @@ import { type Chip, chipLabel, nextWarning, parseSearch } from "./api/search";
 import { safetyGroupKey } from "./api/safety";
 import { unsearchedLine } from "./api/records";
 import { ATTESTATION, type ReportView, reportView } from "./api/report";
+import { reportFileName, saveArtifact, savedLine } from "./api/saveFile";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords, useSafety } from "./state";
 
 // C-11's page size. Well inside the sidecar's own 1000-record ceiling, and
@@ -148,13 +149,21 @@ export default function App() {
   type ReportState =
     | { kind: "idle" }
     | { kind: "building" }
-    | { kind: "ready"; view: ReportView; profile: string }
+    | { kind: "ready"; view: ReportView; profile: string; fileName: string }
     | { kind: "failed"; detail: string };
   const [report, setReport] = useState<ReportState>({ kind: "idle" });
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  // D-07. Cancelling the dialog is not a failure, and leaves nothing to say.
+  type SaveState =
+    | { kind: "idle" }
+    | { kind: "saving" }
+    | { kind: "saved"; line: string }
+    | { kind: "failed"; detail: string };
+  const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
   useEffect(() => {
     setReport({ kind: "idle" });
     setCopyState("idle");
+    setSaveState({ kind: "idle" });
   }, [openedSessionId]);
   const buildReport = () => {
     const s = sessionOf();
@@ -162,10 +171,23 @@ export default function App() {
     const profile = chosenProfile;
     setReport({ kind: "building" });
     setCopyState("idle");
+    setSaveState({ kind: "idle" });
     void getReport(s.session, s.id, profile)
-      .then((r) => setReport({ kind: "ready", view: reportView(r), profile }))
+      .then((r) =>
+        setReport({ kind: "ready", view: reportView(r), profile, fileName: reportFileName(r.report) }),
+      )
       .catch((err: unknown) =>
         setReport({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
+      );
+  };
+  const saveReport = (fileName: string, text: string) => {
+    setSaveState({ kind: "saving" });
+    void saveArtifact(fileName, text)
+      .then((saved) =>
+        setSaveState(saved === null ? { kind: "idle" } : { kind: "saved", line: savedLine(saved) }),
+      )
+      .catch((err: unknown) =>
+        setSaveState({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
       );
   };
   const copyReport = (text: string) => {
@@ -1329,7 +1351,19 @@ export default function App() {
                       copying was refused — open the report above and select the text
                     </span>
                   )}
+                  <button
+                    className="choose-button"
+                    disabled={saveState.kind === "saving"}
+                    onClick={() => saveReport(report.fileName, report.view.jsonText)}
+                    type="button"
+                  >
+                    {saveState.kind === "saving" ? "Saving…" : "Save JSON…"}
+                  </button>
                 </div>
+                {/* D-07. Where it went and its digest, written beside it —
+                    the shell chose the place with the user, never this page. */}
+                {saveState.kind === "saved" && <p className="report-saved">{saveState.line}</p>}
+                {saveState.kind === "failed" && <p className="report-failed">{saveState.detail}</p>}
               </div>
             )}
           </section>
