@@ -77,20 +77,29 @@ def test_without_text_unsearched_is_absent(detailed_chain) -> None:
 
 def test_an_encrypted_body_is_counted_never_silently_skipped(detailed_chain, monkeypatch) -> None:
     """The package's writer does not encrypt, so the encrypted record here is
-    the decoded shape the reader gives one — `key_id` set, no `detail` —
-    swapped in for record 3, which lets the count be checked next to other
-    filters. The real-bytes case runs against the published vectors'
-    ciphertext in `test_conformance_vectors.py` (C-15)."""
-    original = AuditReader.records
+    the shape the reader gives one — the header names a key, and the fields
+    read in place carry no `detail` — swapped in for record 3, which lets the
+    count be checked next to other filters. Since C-17 the search reads
+    `header_at()` and `record_fields_at()`, so those are what is replaced.
+    The real-bytes case runs against the published vectors' ciphertext in
+    `test_conformance_vectors.py` (C-15)."""
+    header_at = AuditReader.header_at
+    fields_at = AuditReader.record_fields_at
 
-    def with_one_encrypted(self):
-        for record in original(self):
-            if record.seq == 3:
-                header = dataclasses.replace(record.header, key_id=7)
-                record = dataclasses.replace(record, header=header, detail=None)
-            yield record
+    def encrypted_header(self, index):
+        header = header_at(self, index)
+        if header is not None and header.seq == 3:
+            header = dataclasses.replace(header, key_id=7)
+        return header
 
-    monkeypatch.setattr(AuditReader, "records", with_one_encrypted)
+    def no_detail(self, index):
+        fields = fields_at(self, index)
+        if header_at(self, index).seq == 3:
+            fields = dataclasses.replace(fields, detail=None)
+        return fields
+
+    monkeypatch.setattr(AuditReader, "header_at", encrypted_header)
+    monkeypatch.setattr(AuditReader, "record_fields_at", no_detail)
     h = open_chain(detailed_chain)
     page = h.records(text="sensor")
     assert page["total"] == 0
