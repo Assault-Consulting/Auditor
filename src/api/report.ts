@@ -17,6 +17,7 @@
  */
 
 import type { ReportResponse } from "./generated/types";
+import { ownEntry } from "./own";
 
 /** The package's own sentence for each verdict (`derive_verdict`). */
 export const VERDICT_MEANING: Record<string, string> = {
@@ -43,6 +44,30 @@ export interface ReportView {
   checkedAtNote: string | null;
   /** The package's serialisation, the text a copy carries. */
   jsonText: string;
+  /**
+   * True when `meaning` is the package's diagnosis narrative rather than the
+   * verdict's general sentence — the empty container on report /1; see
+   * `emptyContainerNarrative`.
+   */
+  meaningFromDiagnosis: boolean;
+}
+
+/**
+ * Report /1 (palimpsests 0.14) only: an empty container read without an
+ * anchor gets the verdict `partial`, whose general sentence — "sound as far
+ * as checked" — would stand beside a file that holds nothing. The
+ * diagnosis's own narrative says what happened (the check passed because
+ * there was nothing to check, never that a log was found intact), so it
+ * takes that sentence's place; the verdict word is still shown as the
+ * package gave it. Branches on `diagnosis.pattern`, never on the verdict's
+ * wording. Small on purpose: report /2 (0.15) gives such a file the verdict
+ * `empty`, and this goes. Read against an anchor, an empty file is
+ * `replaced_or_rolled_back` with the verdict `violation`, and renders as any
+ * violation does.
+ */
+function emptyContainerNarrative(report: Record<string, unknown>): string | null {
+  const d = report.diagnosis as { pattern?: unknown; narrative?: unknown } | null | undefined;
+  return d?.pattern === "empty_container" && typeof d.narrative === "string" ? d.narrative : null;
 }
 
 function checkedAt(report: Record<string, unknown>): { iso: string | null; note: string | null } {
@@ -56,15 +81,18 @@ function checkedAt(report: Record<string, unknown>): { iso: string | null; note:
 
 export function reportView(response: ReportResponse): ReportView {
   // Own keys only: `in` would count an inherited name such as `constructor`.
-  const known = Object.prototype.hasOwnProperty.call(VERDICT_MEANING, response.verdict);
+  const meaning = ownEntry(VERDICT_MEANING, response.verdict);
+  const known = meaning !== undefined;
+  const empty = emptyContainerNarrative(response.report);
   const at = checkedAt(response.report);
   return {
     format: response.format,
     verdict: response.verdict,
-    meaning: known ? VERDICT_MEANING[response.verdict]! : UNRECOGNISED,
+    meaning: empty ?? meaning ?? UNRECOGNISED,
     unrecognised: !known,
     checkedAtIso: at.iso,
     checkedAtNote: at.note,
     jsonText: response.json_text,
+    meaningFromDiagnosis: empty !== null,
   };
 }
