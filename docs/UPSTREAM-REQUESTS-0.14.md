@@ -5,8 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # Upstream requests for palimpsests 0.14
 
-Three additions Auditor needs for two decided features (R1–R3), and three
-questions noticed since (R4–R6):
+Three additions Auditor needs for two decided features (R1–R3), and four
+questions noticed since (R4–R7):
 
 - **C-09d** — free text over `detail`. §22.3 is decided: MVP.
 - **C-06d** — raw hex view with field highlighting (F7).
@@ -156,6 +156,37 @@ the tier rather than an absence in this file.
 example, that no external pin was supplied or found — rather than what tier
 A allows. Auditor shows the report as the package wrote it and does not
 reword it (ADR-0001; D-03 audits only Auditor's own framing).
+
+## R7 — the verdict for an empty container (noticed in C-17(b))
+
+**Observation.** On 0.14.0 an empty file opens, `verify()` diagnoses
+`empty_container` with `chain_ok: true`, and `build_report` gives it the
+verdict **`partial`**; the CLI exits 2. The package's own sentence is
+careful — "the check passes because there was nothing to check, not because
+a log was found intact" — but the verdict word is the one a consumer reads
+first, and `partial` is defined as "sound as far as checked". Core
+clarification C-8 records Palimpsests' position as `violation`.
+
+**Question.** Whether the verdict for `empty_container` should be
+`violation`, as C-8 says, or `partial` is intended.
+
+**Answer (Palimpsests).** C-8 as merged does not give `violation`: a
+clarification cannot change a verifier's answer, and the core is frozen
+(the r2 wording was corrected in #327). It records that the check passes
+vacuously on zero records and that this means nothing was there, never that
+a log was found intact. The stronger verdict is a report-format matter:
+`pala-verification-report/2` (0.15) adds the verdict `empty`. With an anchor
+the verdict is already `violation` — `replaced_or_rolled_back`, "a log was
+written and is not here" — and that is why an empty file must open: refusing
+it hides a deleted log. The package's own HTML printing "PARTIAL — sound as
+far as checked" for an empty file is a rendering defect, fixed upstream.
+
+**What Auditor does (C-17(b)).** Opens it. On report /1 it branches on
+`diagnosis.pattern`: for `empty_container` the verdict `partial` is shown as
+given, with the diagnosis narrative in place of the general sentence for
+`partial`; `replaced_or_rolled_back` on a file with no records renders as
+any violation. The special case is one function, removed when report /2
+gives the verdict `empty`.
 
 ## Surface
 
