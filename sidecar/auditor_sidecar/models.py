@@ -159,6 +159,19 @@ class ChainResult(BaseModel):
             "as pairs: a seq without its reason is a number nobody can act on."
         )
     )
+    violation_codes: list[list] = Field(
+        default_factory=list,
+        description=(
+            "(seq, code) pairs, parallel to `violations` (U24, palimpsests "
+            "0.14). The CODE is what a consumer branches on — an open "
+            "vocabulary (as of 0.14: prefix_absent, genesis_not_first, "
+            "genesis_prev_hash_nonzero, header_len_mismatch, malformed_tlv, "
+            "time_trust_undefined, time_unknown_with_wall_clock, "
+            "empty_body_digest_nonzero, nonempty_body_digest_zero, "
+            "encrypted_body_too_short); the reason in `violations` is the "
+            "verifier's sentence, never parsed."
+        ),
+    )
     uninterpretable: list[int] = Field(
         description=(
             "Records with an unknown format version or record type. "
@@ -236,7 +249,7 @@ class DiagnosisModel(BaseModel):
         description=(
             "The package's pattern, an open vocabulary (a newer verifier may "
             "add one; a consumer renders an unknown one with the narrative). "
-            "As of 0.13: not_a_container, truncated_tail, "
+            "As of 0.14: empty_container, not_a_container, truncated_tail, "
             "declared_continuation, continuation_contradicts_manifest, "
             "prefix_absent, seq_gap, chain_break, record_violation, "
             "unanchored_tail, replaced_or_rolled_back."
@@ -245,6 +258,14 @@ class DiagnosisModel(BaseModel):
     at_seq: int | None = Field(description="Where, when the pattern has a location.")
     expected: str | None = Field(description="What the verifier expected to find.")
     narrative: str = Field(description="The verifier's own description, verbatim.")
+    code: str | None = Field(
+        default=None,
+        description=(
+            "For record_violation: the violation's code (U24, palimpsests "
+            "0.14), the machine field to branch on — `expected` carries the "
+            "reason as a sentence. Null for every other pattern."
+        ),
+    )
 
 
 class AdvisoryItemModel(BaseModel):
