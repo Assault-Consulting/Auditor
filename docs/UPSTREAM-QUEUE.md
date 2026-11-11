@@ -53,14 +53,17 @@ The CLI's own table has **3 UNREADABLE — "the log could not be opened in a
 trustworthy state"** — which describes this case exactly and is not used
 here.
 
-Auditor refuses to open such a file instead, and reports that it holds no
-PALA-1 records. Two of our invariants require that: L6 separates *absent*
+Auditor refused to open such a file instead, and reported that it holds no
+PALA-1 records. Two of our invariants required that: L6 separates *absent*
 from *unreadable* from *failed*, and L4 forbids attributing intent. Calling
 an ordinary text file "tampered" does both wrongs at once.
 
-The divergence is pinned by a test on our side
-(`test_a_file_that_was_never_a_chain_is_classified_differently`), so a change
-upstream fails loudly here rather than passing unnoticed.
+**Status (0.14):** the reader now diagnoses such a file `not_a_container`
+(U22), a pattern that names no intent, and the report verdict is
+`violation`. Auditor opens the file and shows that (C-17b), so the verdict
+no longer diverges; the pinned test is now
+`test_a_file_that_was_never_a_chain_is_named_by_the_package`. **The CLI's
+exit code is still 1 (TAMPERED)**, so the question below about exit 3 stands.
 
 **Question, not a defect report.** There may be a reason we have not seen —
 for instance that a chain truncated below one header length is genuinely
