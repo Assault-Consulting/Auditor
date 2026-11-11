@@ -226,14 +226,13 @@ def test_verify_requires_the_token(gated_client: TestClient, auth, chain_path) -
     assert gated_client.get(f"/session/{sid}/verify", headers=auth).status_code == 200
 
 
-# --- container()'s reader= wiring (U14, 0.11.0) -----------------------------
+# --- container() on the session's reader (U14 in 0.11.0, U21 in 0.14) -------
 #
-# With no anchor override, container() now reuses the session's own reader
-# via build_report's reader= (released in 0.11.0) instead of opening an
-# independent one. With an override, it cannot: build_report's own
-# docstring says anchor_source is ignored when reader is given, and
-# self._reader carries no anchor at all — passing both would silently
-# check against nothing while a specific anchor was asked for.
+# The body walk is the package's container_check() (0.14) on the session's
+# own reader, with or without an anchor: it is over the bytes, and no head
+# changes it. Before 0.14 it went through build_report, which with an anchor
+# override had to open the file a second time. The anchor itself is applied
+# by verify()'s own per-anchor reader, and that one open remains.
 
 
 def test_container_reuses_the_session_reader_with_no_anchor(
@@ -260,12 +259,12 @@ def test_container_reuses_the_session_reader_with_no_anchor(
     assert r.status_code == 200
     assert r.json()["container"]["well_formed"] is True
 
-    # No second AuditReader.open() for the container walk: build_report
-    # reused the session's own reader instead of opening its own.
+    # No second AuditReader.open() for the container walk: container_check()
+    # runs on the session's own reader.
     assert open_calls == open_calls_after_session
 
 
-def test_container_still_opens_its_own_reader_with_an_anchor_override(
+def test_with_an_anchor_only_verify_opens_a_second_reader(
     open_client: TestClient, chain_path, head_hex, monkeypatch
 ) -> None:
     from palimpsests.audit.reader import AuditReader
@@ -296,10 +295,11 @@ def test_container_still_opens_its_own_reader_with_an_anchor_override(
     # self._reader's own (nonexistent) one.
     assert body["completeness"]["complete_to_anchor"] is True
 
-    # Two independent opens beyond the session's own: one for verify()'s
-    # own per-anchor reader, one inside container()'s build_report call —
-    # confirming the anchor-override path did NOT reuse self._reader.
-    assert open_calls == open_calls_after_session + 2
+    # One open beyond the session's own: verify()'s per-anchor reader, which
+    # is what applies the anchor. The body walk no longer opens the file
+    # again (container_check() on the session's reader, C-17); it was two.
+    assert open_calls == open_calls_after_session + 1
+    assert body["container"]["well_formed"] is True
 
 
 # --- helpers ----------------------------------------------------------------
