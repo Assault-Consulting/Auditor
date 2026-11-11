@@ -180,3 +180,14 @@ group("nothing in the lane reads as a verdict", () => {
     }
   });
 });
+
+group("a code named like an object property is not a known one", () => {
+  it("leaves it unrecognised, with the package's own items", () => {
+    for (const code of ["constructor", "toString", "__proto__"]) {
+      const [g] = advisoryGroups(advisory([item(code, 1)]));
+      expect(g?.unrecognised).toBe(true);
+      expect(g?.title).toBe(code);
+      expect(g?.weight).toBe("ordinary");
+    }
+  });
+});
