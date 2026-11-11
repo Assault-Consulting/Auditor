@@ -194,6 +194,8 @@ export interface ChainResult {
   gaps: Array<number>;
   /** (seq, reason) pairs for normative MUSTs the record broke. Kept as pairs: a seq without its reason is a number nobody can act on. */
   violations: Array<Array<unknown>>;
+  /** (seq, code) pairs, parallel to `violations` (U24, palimpsests 0.14). The CODE is what a consumer branches on — an open vocabulary (as of 0.14: prefix_absent, genesis_not_first, genesis_prev_hash_nonzero, header_len_mismatch, malformed_tlv, time_trust_undefined, time_unknown_with_wall_clock, empty_body_digest_nonzero, nonempty_body_digest_zero, encrypted_body_too_short); the reason in `violations` is the verifier's sentence, never parsed. */
+  violation_codes?: Array<Array<unknown>>;
   /** Records with an unknown format version or record type. Chain-checked and reported, never rejected — the verifier not understanding a record is not the same as the record being wrong. */
   uninterpretable: Array<number>;
 }
@@ -292,7 +294,7 @@ export interface ContinuationModel {
  * the report stops saying what the verifier said.
  */
 export interface DiagnosisModel {
-  /** The package's pattern, an open vocabulary (a newer verifier may add one; a consumer renders an unknown one with the narrative). As of 0.13: not_a_container, truncated_tail, declared_continuation, continuation_contradicts_manifest, prefix_absent, seq_gap, chain_break, record_violation, unanchored_tail, replaced_or_rolled_back. */
+  /** The package's pattern, an open vocabulary (a newer verifier may add one; a consumer renders an unknown one with the narrative). As of 0.14: empty_container, not_a_container, truncated_tail, declared_continuation, continuation_contradicts_manifest, prefix_absent, seq_gap, chain_break, record_violation, unanchored_tail, replaced_or_rolled_back. */
   pattern: string;
   /** Where, when the pattern has a location. */
   at_seq: number | null;
@@ -300,6 +302,8 @@ export interface DiagnosisModel {
   expected: string | null;
   /** The verifier's own description, verbatim. */
   narrative: string;
+  /** For record_violation: the violation's code (U24, palimpsests 0.14), the machine field to branch on — `expected` carries the reason as a sentence. Null for every other pattern. */
+  code?: string | null;
 }
 
 export interface HTTPValidationError {
