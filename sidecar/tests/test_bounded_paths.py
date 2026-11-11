@@ -13,11 +13,11 @@ records it returns, and asks the package's own bounded questions
 
 These tests make that a property rather than a measurement: the reader's
 ``records()`` is replaced with one that fails, and every browse path must
-still answer. The filters that need a record's body — kind, source mark,
-outcome, a record's own hash — are the stated exception and are checked to
-still work through the full decode. Equivalence of every answer with the
-pre-C-10b seam was checked across fixtures and mutants when this landed
-(10,752 comparisons; see the PR); the existing suite holds the semantics.
+still answer. Since C-17 (0.14) that includes the filters on a record's
+body — kind, source mark, outcome and detail are read in place through
+``record_fields_at()``, and a record's own hash through ``record_at()``,
+one record at a time — so there is no exception left. Equivalence with the
+full-decode answers is held by ``test_body_filter_equivalence.py``.
 """
 
 from __future__ import annotations
@@ -104,18 +104,23 @@ def test_the_ack_latency_still_reads_both_records(busy_chain, no_full_decode) ->
         {"kind_name": "TOOL_RESULT"},
         {"source_name": "parsed-from-wire"},
         {"outcome_name": "unobserved"},
+        {"text": "guard refusals"},
     ],
 )
-def test_a_question_about_bodies_is_the_stated_exception(busy_chain, body_filter) -> None:
-    """A kind, a source mark, an outcome is not in the header; 0.13 offers no
-    public way to read one without the decode, so these still decode."""
+def test_a_question_about_bodies_no_longer_decodes_the_chain(
+    busy_chain, body_filter, no_full_decode
+) -> None:
+    """A kind, a source mark, an outcome, a detail is not in the header;
+    0.14's ``record_fields_at()`` reads it in place (C-17)."""
     h = open_chain(busy_chain)
     assert h.records(**body_filter)["total"] > 0
     h.close()
 
 
-def test_a_body_question_still_honours_every_header_filter_beside_it(busy_chain) -> None:
-    """The full-decode path keeps applying the header filters too."""
+def test_a_body_question_still_honours_every_header_filter_beside_it(
+    busy_chain, no_full_decode
+) -> None:
+    """The body path keeps applying the header filters too."""
     h = open_chain(busy_chain)
     first = h.record(h.subject()["first_seq"])
     walls = [r["wall_clock_ns"] for r in h.records(limit=100)["records"]]
@@ -139,7 +144,7 @@ def test_a_body_question_still_honours_every_header_filter_beside_it(busy_chain)
     h.close()
 
 
-def test_a_record_found_by_its_own_hash_still_resolves(busy_chain) -> None:
+def test_a_record_found_by_its_own_hash_still_resolves(busy_chain, no_full_decode) -> None:
     h = open_chain(busy_chain)
     last = h.subject()["last_seq"]
     target = h.record(last)["record_hash"]

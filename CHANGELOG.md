@@ -268,6 +268,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- C-17(a) — on palimpsests 0.14.0 (pin `>=0.14.0,<0.15`). The body filters
+  — `kind:`, `source:`, `outcome:` and the quoted text search — read a
+  record's fields in place through `record_fields_at()` instead of
+  decoding the chain, and decode only the rows they return; a record's own
+  hash is read one record at a time. At 1M records a `kind:` query is
+  13.7 s / 376 MB and a text search 12.9 s / 376 MB, against 21.9 s /
+  2.04 GB before. The body-digest walk is the package's `container_check()`
+  on the session's own reader, so verifying against an anchor no longer
+  opens the file a second time. Answers are unchanged: the old walk is
+  kept as an oracle and held against the new path over 1,032 comparisons,
+  the published ciphertext included.
+
 - **Branch protection is enabled.** A repository ruleset on `main`, active
   from 17 August 2026, blocks direct pushes and force pushes, requires one
   approval from someone other than the author, requires `ci-complete` and an

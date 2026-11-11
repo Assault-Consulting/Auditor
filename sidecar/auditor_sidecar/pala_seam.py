@@ -381,6 +381,8 @@ class _HeaderIndex:
     boot: array
     span: array
     ok: bytearray
+    #: 1 where the header names a key — the body is ciphertext (C-17).
+    encrypted: bytearray
     boot_ids: list
     span_ids: list
     type_names: dict
@@ -469,6 +471,7 @@ class ChainHandle:
         rtype, tier, trust = array("H"), array("B"), array("B")
         boot, span = array("I"), array("I")
         ok = bytearray()
+        encrypted = bytearray()
         boot_ids: list[bytes] = []
         span_ids: list[bytes] = []
         boot_at: dict[bytes, int] = {}
@@ -486,6 +489,7 @@ class ChainHandle:
                 boot.append(0)
                 span.append(0)
                 ok.append(0)
+                encrypted.append(0)
                 continue
             seq.append(header.seq)
             rtype.append(header.record_type)
@@ -503,13 +507,14 @@ class ChainHandle:
                 span_ids.append(header.span_id)
             span.append(sp)
             ok.append(1)
+            encrypted.append(1 if header.key_id != 0 else 0)
             first_of_type.setdefault(header.record_type, i)
         # A type's name is the package's, read from one decoded record of
         # each type present — never from a table kept on this side.
         type_names = {t: reader.record_at(i).type_name for t, i in first_of_type.items()}
         seq_sorted = all(seq[i] <= seq[i + 1] for i in range(len(seq) - 1))
         return _HeaderIndex(
-            seq, wall, rtype, tier, trust, boot, span, ok,
+            seq, wall, rtype, tier, trust, boot, span, ok, encrypted,
             boot_ids, span_ids, type_names, seq_sorted,
         )
 
@@ -547,52 +552,29 @@ class ChainHandle:
     def container(self, anchor_specs: list[dict[str, str]] | None = None) -> dict[str, object]:
         """The container-level facts, including the body-digest walk.
 
-        ``AuditReader.verify()`` walks headers only — confirmed on 0.10, not
-        assumed: a record body swapped under an intact header chain still
-        reports ``chain_ok`` true with no diagnosis. That is by design, and
-        it is why verification needs no keys.
+        ``AuditReader.verify()`` walks headers only — by design, which is why
+        verification needs no keys: a record body swapped under an intact
+        header chain still reports ``chain_ok`` true. Whether each record is
+        the bytes its header claims is the package's ``container_check()``
+        (0.14, U21): §2.4 well-formedness and the body digests, walked once on
+        the session's own reader and kept. ADR-0001 applied literally — the
+        package owns what a body digest means.
 
-        The body comparison lives in ``build_report``, which runs its own
-        pass and reports ``body_digest_mismatches``. Calling it here rather
-        than walking bodies ourselves is ADR-0001 applied literally: the
-        package owns what a body digest means, and a second implementation
-        would be a second thing to be wrong.
-
-        Two paths, not one, and they must stay separate. With no anchor
-        override, this reuses ``self._reader`` via ``build_report``'s own
-        ``reader=`` (released in 0.11.0) — no second decode, held under
-        this class's lock the same as every other touch to ``self._reader``.
-        With an anchor override, ``self._reader`` cannot be used at all:
-        ``build_report``'s own docstring is explicit that ``anchor_source``
-        is *ignored* when ``reader`` is given, since a shared reader
-        answers with its own anchor — and ``self._reader`` was opened with
-        none. Before 0.12.0, passing both silently checked the file
-        against no anchor while the caller asked for a specific one; since
-        0.12.0 (upstream F4, reported from here) the package refuses the
-        combination with ``ValueError`` — which this method never
-        triggers, because the two paths stay apart. The override path
-        still pays a second open, by necessity.
+        It does not depend on an anchor — the walk is over the bytes, not over
+        what any head says — so ``anchor_specs`` is accepted for the caller's
+        symmetry and does not change the answer. Before 0.14 this went
+        through ``build_report``, which with an anchor had to open the file a
+        second time; that second open is gone.
         """
-        specs = anchor_specs or []
-        if specs:
-            data = build_report(
-                self._path,
-                anchor_source=_anchor_source(specs),
-                tool="palimpsests-auditor-sidecar",
-            ).data["container"]
-        else:
-            with self._lock:
-                data = build_report(
-                    self._path,
-                    reader=self._reader,
-                    tool="palimpsests-auditor-sidecar",
-                ).data["container"]
+        del anchor_specs  # the body walk is the same with or without one
+        with self._lock:
+            check = self._reader.container_check()
         return {
-            "well_formed": data["well_formed"],
-            "malformed": data["malformed"],
-            "bytes_parsed": data["bytes_parsed"],
-            "bytes_total": data["bytes_total"],
-            "body_digest_mismatches": list(data["body_digest_mismatches"]),
+            "well_formed": check.well_formed,
+            "malformed": check.malformed,
+            "bytes_parsed": check.bytes_parsed,
+            "bytes_total": check.bytes_total,
+            "body_digest_mismatches": list(check.body_digest_mismatches),
         }
 
     def report(self, anchor_specs: list[dict[str, str]] | None = None) -> dict[str, object]:
@@ -605,10 +587,10 @@ class ChainHandle:
         own ``to_json_bytes()``, so what the screen shows and what a copy
         holds are the same bytes the package wrote.
 
-        The two paths are the ones ``container()`` keeps apart, for the same
-        reason: with no anchor, the session's own reader is reused; with one,
-        ``build_report`` opens its own, because a shared reader answers with
-        the anchor it was opened with — none.
+        Two paths: with no anchor, the session's own reader is reused; with
+        one, ``build_report`` opens its own, because a shared reader answers
+        with the anchor it was opened with — none, and the package refuses
+        the pair (0.12.0, F4).
         """
         specs = anchor_specs or []
         if specs:
@@ -950,12 +932,10 @@ class ChainHandle:
         matched_at_or_past_offset = 0
         acks, shredded, detail_counts = self._safety_context()
 
-        # One walk, as before, and since C-10b over the header index rather
-        # than the decoded chain: only the rows returned are decoded. The
-        # filters on a record's BODY — kind, source, outcome, its own hash —
-        # cannot be read from a header, and 0.13 has no public way to read a
-        # kind without decoding; those questions still decode every record
-        # (`_records_by_body`), as all of them did before.
+        # One walk over the header index; only the rows returned are decoded.
+        # The filters on a record's BODY — kind, source, outcome, detail, its
+        # own hash — take `_records_by_body`, which reads them in place
+        # through `record_fields_at()` (0.14) rather than decoding the chain.
         if (
             kind_name is not None
             or source_name is not None
@@ -1012,7 +992,7 @@ class ChainHandle:
         wall_from_ns: int | None,
         wall_to_ns: int | None,
     ) -> bool:
-        """`_matches` for the filters a header answers, read off the index."""
+        """The filters a header answers, read off the index."""
         if record_type is not None and idx.rtype[i] != record_type:
             return False
         if type_name is not None and self._type_name_at(idx, i) != type_name:
@@ -1056,41 +1036,73 @@ class ChainHandle:
         wall_to_ns: int | None,
         text: str | None = None,
     ) -> dict[str, object]:
-        """The window for a question about bodies: every record decoded.
+        """The window for a question about bodies, without decoding the chain (C-17).
 
-        Unchanged from before C-10b, and as costly: a kind, a source mark,
-        an outcome or a record's own hash is not in the header, and 0.13
-        offers no public way to read one without the decode.
+        A record's kind, source mark, outcome and detail come from the
+        package's ``record_fields_at()`` (0.14, U29/U30), read in place by
+        the rules ``decode_record`` applies — every field equals the decoded
+        one, ``None`` included — and nothing is kept. The header filters
+        read the index, as on the structural path; only the rows returned
+        are decoded.
+
+        A record's own hash is the one body-side question 0.14 still answers
+        only through a decode, so the ``record_hash`` filter decodes each
+        record that reaches it — one at a time, through ``record_at()``,
+        never the whole chain into memory. It is the anchor button's lookup.
         """
         window: list[dict[str, object]] = []
         matched = 0
         matched_at_or_past_offset = 0
         unsearched = 0
         needle = None if text is None else text.casefold()
+        reads_fields = (
+            kind_name is not None
+            or source_name is not None
+            or outcome_name is not None
+            or needle is not None
+        )
         acks, shredded, detail_counts = self._safety_context()
-        with self._lock:
-            records = list(self._reader.records())
-        for record in records:
-            if not self._matches(
-                record, record_type, boot_id, span_id, type_name, kind_name, tier,
-                source_name, outcome_name, record_hash, wall_from_ns, wall_to_ns,
+        idx = self._header_index()
+        reader = self._reader
+        for i in range(len(idx)):
+            if not self._header_matches(
+                idx, i, record_type, boot_id, span_id, type_name, tier,
+                wall_from_ns, wall_to_ns,
             ):
                 continue
+            fields = None
+            if reads_fields:
+                with self._lock:
+                    fields = reader.record_fields_at(i)
+                if kind_name is not None and fields.kind_name != kind_name:
+                    continue
+                if source_name is not None and fields.source_name != source_name:
+                    continue
+                if outcome_name is not None and fields.outcome_name != outcome_name:
+                    continue
+            if record_hash is not None:
+                with self._lock:
+                    own = reader.record_at(i).record_hash.hex()
+                if own != record_hash:
+                    continue
             if needle is not None:
-                if record.header.key_id != 0:
+                if idx.encrypted[i]:
                     # Encrypted: its detail cannot be read, so it is neither a
                     # match nor a non-match. Counted, never silently dropped.
                     unsearched += 1
                     continue
-                if record.detail is None or needle not in record.detail.casefold():
+                if fields.detail is None or needle not in fields.detail.casefold():
                     continue
             matched += 1
-            if record.seq < offset:
+            if idx.seq[i] < offset:
                 continue
             matched_at_or_past_offset += 1
             if len(window) < limit:
-                prev = records[record.index - 1].seq if record.index > 0 else None
-                window.append(self._record_view(record, prev, acks, shredded, detail_counts))
+                with self._lock:
+                    record = reader.record_at(i)
+                window.append(
+                    self._record_view(record, self._prev_seq(i), acks, shredded, detail_counts)
+                )
         return {
             "records": window,
             "offset": offset,
@@ -1099,47 +1111,6 @@ class ChainHandle:
             "has_more": matched_at_or_past_offset > len(window),
             "unsearched": None if text is None else unsearched,
         }
-
-    @staticmethod
-    def _matches(
-        record,
-        record_type: int | None,
-        boot_id: str | None,
-        span_id: str | None,
-        type_name: str | None = None,
-        kind_name: str | None = None,
-        tier: str | None = None,
-        source_name: str | None = None,
-        outcome_name: str | None = None,
-        record_hash: str | None = None,
-        wall_from_ns: int | None = None,
-        wall_to_ns: int | None = None,
-    ) -> bool:
-        """Whether a record passes the filters, all of which are ANDed."""
-        if record_type is not None and record.record_type != record_type:
-            return False
-        if boot_id is not None and record.header.boot_id.hex() != boot_id:
-            return False
-        if span_id is not None and _span_or_none(record.header.span_id) != span_id:
-            return False
-        if type_name is not None and record.type_name != type_name:
-            return False
-        if kind_name is not None and record.kind_name != kind_name:
-            return False
-        if tier is not None and assurance_tier_name(record.header.assurance_tier) != tier:
-            return False
-        if source_name is not None and record.source_name != source_name:
-            return False
-        if outcome_name is not None and record.outcome_name != outcome_name:
-            return False
-        if record_hash is not None and record.record_hash.hex() != record_hash:
-            return False
-        wall = record.header.wall_clock_ns
-        if wall_from_ns is not None and wall < wall_from_ns:
-            return False
-        if wall_to_ns is not None and wall >= wall_to_ns:
-            return False
-        return True
 
     def _record_view(
         self,

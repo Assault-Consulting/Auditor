@@ -29,13 +29,18 @@ dependencies = [
     # one module (U19) under a contract test (U20), which is what
     # CONSUMER-SURFACE.md r2 gates the C track on. Rules 4-7 of that
     # contract (what patterns, codes and names mean) hold from 0.13, so
-    # this pin may rely on them. Upper bound one minor wide: 0.14 is only
-    # taken once this application renders what it adds.
+    # this pin may rely on them.
+    #
+    # 0.14.0 (C-17): record_fields_at() reads a record's kind, source mark,
+    # outcome and detail in place without decoding it (U29, U30), so the
+    # body filters stop decoding the chain; container_check() walks the
+    # bodies on the session's own reader (U21). Upper bound one minor wide:
+    # 0.15 is only taken once this application has been checked against it.
     #
     # 0.12.0, measured here for the record, on 1M records: opening a
     # session cost 21.6 s / 2.0 GB before the first answer
     # (scripts/bench_seam.py, C-10b(a)); 0.13 is what lets C-10b(b) fix it.
-    "palimpsests[pala]>=0.13.1,<0.14",
+    "palimpsests[pala]>=0.14.0,<0.15",
 ]
 
 [project.optional-dependencies]
@@ -74,7 +79,7 @@ keyring = [
 # anchor source works without them, and a pkcs11 source configured without
 # the extra reports "error" for its own link rather than failing the check.
 pkcs11 = [
-    "palimpsests[pkcs11]>=0.13.1,<0.14",
+    "palimpsests[pkcs11]>=0.14.0,<0.15",
     "keyring>=25.0",
 ]
 
