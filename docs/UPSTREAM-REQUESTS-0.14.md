@@ -19,13 +19,18 @@ relies on, and how equivalence can be checked — the same shape as U28/U29
 
 Checked against `main` at the merge of #335.
 
-**Status (4 Nov 2026):** R1–R3 are merged in Palimpsests `main` as U30 and
-U31 (#337), with the API asked for — `RecordFields.detail`,
-`record_bytes_at()` → `RecordBytes(offset, header, body)`,
-`header_tlv_spans_at()` and `body_tlv_spans_at()` — and in the contract
-test. They ship in 0.14; C-06d and the move of body filters to
-`record_fields_at` (C-17) start with that release. R4–R6, below, were
-noticed afterwards.
+**Status (released in 0.14.0):** R1–R3 shipped as U30 and U31 (#337) —
+`RecordFields.detail`, `record_bytes_at()` → `RecordBytes(offset, header,
+body)`, `header_tlv_spans_at()` and `body_tlv_spans_at()`, all in the
+contract test. R5 and R6 shipped too (#347): `render_html` in channel 2,
+and the existence note now says what the report checked. Auditor's body
+filters moved onto `record_fields_at` in C-17(a); C-06d builds on R2 and
+R3. R4 is planned for 0.15 as A5: `decode_shred(dr) -> ShredView`, with
+`DecodedRecord.detail` left as rule 4 fixes it.
+
+One note for 0.15, not a request: `report` has no `__all__`, so Auditor's
+contract test checks channel 2 against the `INTEGRATION-SURFACE.md` table
+rather than against `__all__` as it does for `reader`.
 
 ## R1 — `detail` in `RecordFields`
 
@@ -160,10 +165,9 @@ reword it (ADR-0001; D-03 audits only Auditor's own framing).
 
 ## What Auditor does meanwhile
 
-- **C-09d ships on 0.13** through the same full-decode path the other body
-  filters use (`_records_by_body`): correct on every chain, slow on large
-  ones. It moves to `record_fields_at` with R1, alongside `kind:`,
-  `source:` and `outcome:` (planned C-17).
-- **C-06d waits for R2 and R3.** Rendering re-encoded bytes or computing
-  offsets on this side would break ADR-0001, so nothing is built before
-  the release that carries them.
+- **C-09d shipped on 0.13** through the full-decode path the other body
+  filters used. Since C-17(a), on 0.14, all of them read `record_fields_at`
+  (R1): 12.9–13.7 s and 376 MB at 1M records, against 21.9 s and 2.04 GB.
+- **C-06d builds on R2 and R3,** released in 0.14. Rendering re-encoded
+  bytes or computing offsets on this side would break ADR-0001, so nothing
+  was built before the release that carries them.
