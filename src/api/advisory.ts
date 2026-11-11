@@ -21,6 +21,7 @@
  * one thing to look at, and a flat list of five makes it look like five.
  */
 
+import { ownEntry } from "./own";
 import type { AdvisoryItemModel, AdvisoryModel } from "./generated/types";
 
 export interface AdvisoryGroup {
@@ -161,7 +162,7 @@ export function advisoryGroups(advisory: AdvisoryModel): AdvisoryGroup[] {
   }
 
   const groups: AdvisoryGroup[] = [...byCode.entries()].map(([code, items]) => {
-    const known = WORDING[code];
+    const known = ownEntry(WORDING, code);
     return {
       code,
       title: known?.title ?? code,
