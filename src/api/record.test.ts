@@ -435,3 +435,15 @@ group("a tool result's outcome (C-14, r3/r6)", () => {
     }
   });
 });
+
+group("an outcome named like an object property is not a known one", () => {
+  it("keeps its number and says this build cannot name it", () => {
+    for (const name of ["constructor", "toString", "__proto__"]) {
+      const card = recordCard(view({ outcome: { value: 9, name } }));
+      expect(card.outcome?.name).toBeNull();
+      expect(card.outcome?.label).toBe("outcome 9, unknown");
+      expect(card.outcome?.flagged).toBe(true);
+      expect(typeof card.outcome?.note).toBe("string");
+    }
+  });
+});
