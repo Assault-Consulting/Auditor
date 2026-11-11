@@ -229,24 +229,18 @@ def test_a_swapped_body_is_seen_by_both(
 # --- a divergence that is deliberate, and therefore recorded ----------------
 
 
-def test_a_file_that_was_never_a_chain_is_classified_differently(
+def test_a_file_that_was_never_a_chain_is_named_by_the_package(
     open_client: TestClient, tmp_path
 ) -> None:
-    """The two disagree here, and this test exists so nobody discovers it by
-    accident.
+    """Once a recorded divergence; since 0.14 an agreement.
 
-    Given a file that is not a container at all, the CLI answers TAMPERED —
-    the strongest accusation it can make about a file that never had a
-    history. Auditor refuses to open it instead, and says so.
-
-    Auditor's behaviour is the one the invariants require. L6 separates
-    absent, unreadable and failed; L4 forbids attributing intent. Calling an
-    ordinary text file "tampered" does both wrongs at once. The CLI's own
-    table has EXIT_UNREADABLE for exactly this case and does not use it,
-    which is worth raising upstream rather than papering over here.
-
-    If the CLI ever changes to UNREADABLE, this test fails and the assertion
-    below is the place to record the agreement.
+    Given a file that is not a container at all, the CLI exits TAMPERED, and
+    Auditor used to refuse to open it rather than repeat an accusation about
+    a file that never had a history (L4, L6). Since 0.13/0.14 the package
+    itself says what the file is — ``not_a_container`` (U22), a pattern that
+    names no intent — and its report verdict is ``violation``. So Auditor
+    opens it and shows the package's verdict (C-17b): the two agree on the
+    verdict, and neither screen calls a text file tampered.
     """
     junk = tmp_path / "notes.txt"
     junk.write_bytes(b"this was never a container" * 20)
@@ -255,9 +249,9 @@ def test_a_file_that_was_never_a_chain_is_classified_differently(
     assert code == EXIT_TAMPERED
     assert cli["consistency"]["malformed_container"]
 
-    r = open_client.post("/session", json={"path": str(junk)})
-    assert r.status_code == 422
-    assert "no PALA-1 records" in r.json()["detail"]
+    ours = _sidecar(open_client, junk)
+    assert ours["diagnosis"]["pattern"] == "not_a_container"
+    assert ours["container"]["well_formed"] is False
 
 
 # --- fixtures ---------------------------------------------------------------
