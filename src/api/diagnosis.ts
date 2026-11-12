@@ -89,7 +89,7 @@ const GUIDANCE: Record<string, Guidance> = {
   record_violation: {
     title: "One record breaks a rule the format requires",
     whereToLook: [
-      "The named record; the chain around it is intact, so this is about that record rather than the history.",
+      "The named record: the verifier's finding is about that one record. Whether the chain around it holds is question one's answer, above — this card does not claim it.",
       "Which writer version produced it — a violation confined to one record is more often a writer defect than anything else.",
     ],
   },
