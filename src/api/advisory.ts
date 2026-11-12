@@ -82,7 +82,7 @@ const WORDING: Record<string, Wording> = {
   // Span conditions the package emits and §9 does not list.
   span_unclosed: {
     title: "A span was opened and never closed",
-    note: "First-class evidence rather than a fault: a span left open is what an interrupted operation looks like, and the record of it is intact.",
+    note: "First-class evidence rather than a fault: a span left open is what an interrupted operation looks like, and the records it opened are still in the file.",
   },
   span_unopened: {
     title: "A span was closed without an opening record",
