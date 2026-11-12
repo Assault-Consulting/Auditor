@@ -55,7 +55,12 @@ export type ChainState =
       sources: AnchorSourceSpec[];
       result: VerificationResponse;
     }
-  /** The bytes are not a container. Distinct from a chain that fails. */
+  /**
+   * The path could not be read as a file at all — a directory, no
+   * permission. Distinct from a chain that fails, and since C-17b distinct
+   * from a file with no records too: that one opens, and the package says
+   * what it is. The name is older than that change; the line below is not.
+   */
   | { kind: "not-a-chain"; path: string; detail: string }
   /** The file moved under us. Whatever was on screen is no longer about it. */
   | { kind: "subject-changed"; detail: string }
@@ -181,7 +186,7 @@ export function chainLine(state: ChainState): string {
       return `Opening ${state.path}…`;
     case "open": {
       const s = state.opened.subject;
-      return `${s.filename} — ${s.records} records, ${s.boots} boots. Not verified yet.`;
+      return `${s.filename} — ${s.records} records, ${s.boots} boots. Not checked yet.`;
     }
     case "verifying":
       return `${state.opened.subject.filename} — checking against anchor profile "${state.profile}"…`;
@@ -193,9 +198,10 @@ export function chainLine(state: ChainState): string {
       return `${s.filename} — ${s.records} records, ${s.boots} boots. Checked against "${state.profile}".`;
     }
     case "not-a-chain":
-      // Not "invalid", and not "corrupt". The file is not a container; that
-      // says nothing about whether anyone did anything to it.
-      return `${state.path} is not a PALA-1 container: ${state.detail}`;
+      // Not "invalid", and not "corrupt" — and not "not a PALA-1 container"
+      // either, which would be a claim about bytes nobody read. The path
+      // could not be read as a file; the operating system's sentence says why.
+      return `${state.path} could not be read as a file: ${state.detail}`;
     case "subject-changed":
       return `The file changed since it was opened, so nothing here describes it any more: ${state.detail}`;
     case "failed":
