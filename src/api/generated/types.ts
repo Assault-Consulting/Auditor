@@ -565,6 +565,8 @@ export interface ReportResponse {
   report: Record<string, unknown>;
   /** The report as the package serialised it (`to_json_bytes`), UTF-8. What a copy or an export carries. */
   json_text: string;
+  /** The same report as the package renders it (`render_html`, channel 2 since palimpsests 0.14): one self-contained HTML page — no script, no link, no outbound URL. Built from the same report object, never by this application. */
+  html_text: string;
 }
 
 /**
