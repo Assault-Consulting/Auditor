@@ -13,8 +13,10 @@ serialisation, and the verdict is copied, not computed.
 from __future__ import annotations
 
 import json
+import re
 from auditor_sidecar.pala_seam import open_chain
 from palimpsests.audit.report import build_report, derive_verdict
+from palimpsests.audit.report_html import render_html
 
 
 def _open(client, path) -> str:
@@ -100,3 +102,44 @@ def test_the_route_refuses_what_verify_refuses(open_client, chain_path) -> None:
     open_client.app.state.sessions.detach(sid)
     chain_path.write_bytes(chain_path.read_bytes() + b"\x00")
     assert open_client.get(f"/session/{sid}/report").status_code == 409
+
+
+# --- the HTML, the package's rendering of the same report (D-01b) ----------
+
+
+def test_the_html_is_the_packages_rendering_of_the_same_report(open_client, chain_path) -> None:
+    """Built by `render_html` from the very object the response carries —
+    never rebuilt, never re-rendered on this side."""
+    sid = _open(open_client, chain_path)
+    body = open_client.get(f"/session/{sid}/report").json()
+    assert body["html_text"] == render_html(body["report"])
+
+
+def test_the_html_is_one_self_contained_page(open_client, chain_path) -> None:
+    """Nothing in it may run or reach out: the page is shown inside this
+    application and carried to whoever receives the file."""
+    sid = _open(open_client, chain_path)
+    html = open_client.get(f"/session/{sid}/report").json()["html_text"]
+    lowered = html.lower()
+    for forbidden in ("<script", "<link", "@import", "<iframe", "<object", "<embed"):
+        assert forbidden not in lowered, forbidden
+    assert re.findall(r"(?:https?:)?//[^\s\"'<>)]+", html) == []
+
+
+def test_one_check_one_html(open_client, chain_path) -> None:
+    sid = _open(open_client, chain_path)
+    first = open_client.get(f"/session/{sid}/report").json()["html_text"]
+    second = open_client.get(f"/session/{sid}/report").json()["html_text"]
+    assert first == second
+
+
+def test_the_html_carries_the_verdict_of_its_profile(open_client, chain_path, head_hex) -> None:
+    open_client.put(
+        "/anchors/profiles/stranger",
+        json={"name": "stranger", "sources": [{"kind": "manual", "head": "aa" * 32}]},
+    )
+    sid = _open(open_client, chain_path)
+    plain = open_client.get(f"/session/{sid}/report").json()
+    anchored = open_client.get(f"/session/{sid}/report", params={"profile": "stranger"}).json()
+    assert plain["verdict"] == "partial" and "PARTIAL" in plain["html_text"]
+    assert anchored["verdict"] == "violation" and "VIOLATION" in anchored["html_text"]
