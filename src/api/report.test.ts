@@ -3,7 +3,7 @@
 
 import { describe as group, expect, it } from "vitest";
 
-import { ATTESTATION, reportView, VERDICT_MEANING } from "./report";
+import { ATTESTATION, HTML_WITHHELD, reportView, VERDICT_MEANING } from "./report";
 import type { ReportResponse } from "./generated/types";
 
 function response(over: Partial<ReportResponse> = {}): ReportResponse {
@@ -18,6 +18,7 @@ function response(over: Partial<ReportResponse> = {}): ReportResponse {
       checked_at: { wall_ns: 1_786_056_060_000_000_000, note: "the auditing machine's clock" },
     },
     json_text: '{"format":"pala-verification-report/1"}',
+    html_text: "<!DOCTYPE html><title>report</title>",
     ...over,
   };
 }
@@ -103,5 +104,42 @@ group("an empty container on report /1 (0.14)", () => {
     const view = reportView(response());
     expect(view.meaning).toBe(VERDICT_MEANING.partial);
     expect(view.meaningFromDiagnosis).toBe(false);
+  });
+});
+
+group("the package's HTML page (D-01b)", () => {
+  it("carries the package's page as it came", () => {
+    const view = reportView(response({ html_text: "<!DOCTYPE html><p>x</p>" }));
+    expect(view.htmlText).toBe("<!DOCTYPE html><p>x</p>");
+    expect(view.htmlWithheld).toBe(false);
+  });
+
+  it("withholds it for an empty container on report /1, and says why", () => {
+    const view = reportView(
+      response({
+        report: {
+          format: "pala-verification-report/1",
+          verdict: "partial",
+          diagnosis: { pattern: "empty_container", narrative: "nothing to check" },
+        },
+      }),
+    );
+    expect(view.htmlWithheld).toBe(true);
+    expect(HTML_WITHHELD).toContain("0.15");
+    expect(HTML_WITHHELD).toContain("The JSON above is the same report");
+  });
+
+  it("offers it for an empty file read against an anchor — a violation", () => {
+    const view = reportView(
+      response({
+        verdict: "violation",
+        report: {
+          format: "pala-verification-report/1",
+          verdict: "violation",
+          diagnosis: { pattern: "replaced_or_rolled_back", narrative: "a log was written and is not here" },
+        },
+      }),
+    );
+    expect(view.htmlWithheld).toBe(false);
   });
 });
