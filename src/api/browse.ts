@@ -9,7 +9,8 @@
  *
  * **An unclosed span is "opened, never closed by its owner"** — styled as an
  * unclosed bracket, not an error. An interrupted operation looks exactly
- * like this, and the record of it is intact; the log did its job.
+ * like this, and the records it opened are still in the file; the log did
+ * its job.
  *
  * **`recovery_seq` is "the honest marker of a crash-recovered chain"** — the
  * writer noticed a truncated tail and said so. A chain that recovered and
@@ -32,7 +33,7 @@ import type { BootView, SpanView } from "./generated/types";
 export type SpanExtent =
   /** Both ends are here. */
   | "closed"
-  /** Opened here and never closed — an interrupted operation, intact. */
+  /** Opened here and never closed — what an interrupted operation leaves. */
   | "unclosed"
   /** Ends here, began before this file. */
   | "began-earlier"
@@ -68,7 +69,7 @@ export interface SpanRow {
 const EXTENT_NOTE: Record<SpanExtent, string> = {
   closed: "opened and closed within this file",
   // The spec's own words. Not "unterminated", not "missing end": an
-  // interrupted operation looks exactly like this and the record is intact.
+  // interrupted operation looks exactly like this, and its records are here.
   unclosed: "opened, never closed by its owner",
   "began-earlier": "closed here; it began before this file",
   "spans-the-file": "neither end is in this file",
