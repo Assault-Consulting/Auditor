@@ -236,6 +236,9 @@ and D-06 leaves the plan.
 - **C-09d shipped on 0.13** through the full-decode path the other body
   filters used. Since C-17(a), on 0.14, all of them read `record_fields_at`
   (R1): 12.9–13.7 s and 376 MB at 1M records, against 21.9 s and 2.04 GB.
-- **C-06d builds on R2 and R3,** released in 0.14. Rendering re-encoded
-  bytes or computing offsets on this side would break ADR-0001, so nothing
-  was built before the release that carries them.
+- **C-06d waits for 0.15.** R2 and R3 shipped in 0.14, but the fixed
+  header's map (R8) ships in 0.15; a hex view that could name every TLV and
+  none of the header fields would be built twice. Rendering re-encoded bytes
+  or computing offsets on this side would break ADR-0001, so nothing is
+  built before the release that carries all three.
+- **D-06 waits for R9.** Nothing is built on an undeclared module.
