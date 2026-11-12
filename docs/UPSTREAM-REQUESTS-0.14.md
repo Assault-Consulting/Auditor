@@ -5,8 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # Upstream requests for palimpsests 0.14
 
-Three additions Auditor needs for two decided features (R1–R3), and four
-questions noticed since (R4–R7):
+Three additions Auditor needs for two decided features (R1–R3), and six
+requests and questions noticed since (R4–R9):
 
 - **C-09d** — free text over `detail`. §22.3 is decided: MVP.
 - **C-06d** — raw hex view with field highlighting (F7).
@@ -187,6 +187,43 @@ given, with the diagnosis narrative in place of the general sentence for
 `partial`; `replaced_or_rolled_back` on a file with no records renders as
 any violation. The special case is one function, removed when report /2
 gives the verdict `empty`.
+
+## R8 — the fixed header's field map in the declared surface (noticed in C-06d)
+
+**Need.** C-06d's hex view names every field it highlights. `HEADER_FIELDS`
+(U4) and `HeaderField` live in `palimpsests.audit.pala.codec`, outside the
+consumer surface — neither is in `reader.__all__` or
+`INTEGRATION-SURFACE.md`, and neither is `FIXED_HEADER_LEN`. 0.14 gives the
+record's bytes as read and both TLV maps, but not the map for the fixed
+bytes those spans sit after.
+
+**Ask.** Re-export `HEADER_FIELDS`, `HeaderField` and `FIXED_HEADER_LEN`
+from `reader`, under the contract test.
+
+**Answer (Palimpsests).** Merged (#356), ships in 0.15. The sixteen fields
+cover bytes 0–156 contiguously, each with its offset, length and struct
+code; `magic`, `format_version` and `header_len` are in the map though they
+are not `Header` attributes; every header TLV span starts at or after
+`FIXED_HEADER_LEN`. C-06d starts on 0.15.
+
+**R7, the HTML half.** The package's own HTML printing "PARTIAL — sound as
+far as checked" for an empty container is fixed in #353, for 0.15. Until
+then Auditor withholds that one page, with a sentence saying why (D-01b).
+
+## R9 — the JSONL export in the declared surface (noticed in D-06)
+
+**Need.** Phase 3's D-06 offers the package's JSONL export — `pala-jsonl/1`,
+range-bounded, with the "derived, not authoritative" notice — and saves it
+through D-07. `palimpsests.audit.export.export_jsonl(data, out, *,
+from_seq, to_seq)` does exactly that, but it is in none of the seven
+channels of `INTEGRATION-SURFACE.md`, and `audit.export` has no `__all__`.
+Since C-16 the seam imports only the declared surface.
+
+**Ask.** Declare `export_jsonl` and the `pala-jsonl/1` format as public —
+a channel of their own or beside the report in channel 2 — with an
+`__all__` on `audit.export` and a line in the contract test. Or, if the
+export is the CLI's affair and a consumer should not produce it, say so,
+and D-06 leaves the plan.
 
 ## Surface
 
