@@ -1703,6 +1703,22 @@ body {
   word-break: break-all;
 }
 
+/* D-01b — the package's own page, framed. Its own colours, not ours: it is
+   the package's document, and a white sheet reads as one. */
+.report-html {
+  display: block;
+  width: 100%;
+  height: 32rem;
+  margin-top: var(--step);
+  border: 1px solid var(--rule);
+  background: #ffffff;
+}
+
+.report-html-withheld {
+  display: block;
+  margin-top: var(--step);
+}
+
 .report-json summary {
   cursor: pointer;
   font-family: var(--mono);
