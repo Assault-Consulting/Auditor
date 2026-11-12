@@ -404,6 +404,17 @@ export default function App() {
                   <dd>{failure.expected}</dd>
                 </div>
               )}
+              {/* U24 (0.14): the violation's code, the field a reader can
+                  search for and compare — beside the reason, never in place
+                  of it. */}
+              {failure.code !== null && (
+                <div>
+                  <dt>Code</dt>
+                  <dd>
+                    <code>{failure.code}</code>
+                  </dd>
+                </div>
+              )}
             </dl>
 
             <p className="diagnosis-lead">
