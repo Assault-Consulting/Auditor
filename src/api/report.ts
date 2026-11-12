@@ -30,6 +30,16 @@ export const VERDICT_MEANING: Record<string, string> = {
 
 const UNRECOGNISED = "chain-checked, not interpretable by this verifier version";
 
+/**
+ * Said in place of the HTML for an empty container on report /1. The
+ * package's own page prints the general sentence for `partial` there — a
+ * rendering defect fixed upstream for 0.15 (R7, Palimpsests #353) — and this
+ * application already keeps that sentence off the JSON block. One sentence,
+ * removed with the rest of the report /1 special case.
+ */
+export const HTML_WITHHELD =
+  "The package's HTML page for an empty container is not shown on this version: it prints \"sound as far as checked\" for a file that holds nothing (fixed upstream for 0.15). The JSON above is the same report.";
+
 export const ATTESTATION =
   "An attestation that this check was run against this file, with this anchor, at this time — not a certification.";
 
@@ -44,6 +54,10 @@ export interface ReportView {
   checkedAtNote: string | null;
   /** The package's serialisation, the text a copy carries. */
   jsonText: string;
+  /** The package's own HTML rendering of the same report (D-01b). */
+  htmlText: string;
+  /** True when the HTML is not offered — the empty container on report /1. */
+  htmlWithheld: boolean;
   /**
    * True when `meaning` is the package's diagnosis narrative rather than the
    * verdict's general sentence — the empty container on report /1; see
@@ -93,6 +107,8 @@ export function reportView(response: ReportResponse): ReportView {
     checkedAtIso: at.iso,
     checkedAtNote: at.note,
     jsonText: response.json_text,
+    htmlText: response.html_text,
+    htmlWithheld: empty !== null,
     meaningFromDiagnosis: empty !== null,
   };
 }
