@@ -268,7 +268,7 @@ the sentence for locale; it may **never** override the pattern.
 | `prefix_absent` | Chain start marked missing; first record is not GENESIS |
 | `seq_gap` | Gap marker at `at_seq` on the timeline |
 | `chain_break` | Link broken at `at_seq`; records before it still verify |
-| `record_violation` | Single record flagged, chain around it intact |
+| `record_violation` | Single record flagged; whether the chain around it holds is question one's answer |
 | `unanchored_tail` | Green up to the anchored head, `anchor_lag` records past it |
 | `replaced_or_rolled_back` | Anchor names no record in this chain |
 
