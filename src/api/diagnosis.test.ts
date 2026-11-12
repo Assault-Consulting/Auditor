@@ -98,13 +98,18 @@ group("every known pattern is usable", () => {
     expect(card?.unrecognised).toBe(false);
   });
 
-  it("covers the seven the specification lists and the three 0.13 added", () => {
+  it("covers the seven the specification lists, the three 0.13 added and 0.14's one", () => {
     // FUNCTIONALITY.md §8 names seven; palimpsests 0.13 adds three
-    // (CHANGELOG 0.13.0). A pattern arriving with no guidance is handled,
-    // but a pattern the package is already known to emit arriving with
-    // none would just be an omission.
-    expect(KNOWN_PATTERNS).toHaveLength(10);
-    for (const pattern of ["not_a_container", "declared_continuation", "continuation_contradicts_manifest"]) {
+    // (CHANGELOG 0.13.0) and 0.14 adds empty_container (U26). A pattern
+    // arriving with no guidance is handled, but a pattern the package is
+    // already known to emit arriving with none would just be an omission.
+    expect(KNOWN_PATTERNS).toHaveLength(11);
+    for (const pattern of [
+      "not_a_container",
+      "declared_continuation",
+      "continuation_contradicts_manifest",
+      "empty_container",
+    ]) {
       expect(KNOWN_PATTERNS).toContain(pattern);
     }
   });
@@ -215,5 +220,35 @@ group("guidance asks, it does not conclude", () => {
     // repeat that as a finding. The verifier hedges; so does the card.
     const title = diagnosisCard(REPLACED)?.title ?? "";
     expect(title).toBe("The anchored head is not in this chain");
+  });
+});
+
+group("a violation's code is carried as it came (U24, 0.14)", () => {
+  it("shows the code beside the reason for record_violation", () => {
+    const card = diagnosisCard({
+      pattern: "record_violation",
+      at_seq: 4,
+      expected: "time_trust UNKNOWN with a non-zero wall clock",
+      narrative: "Record 4 violates a normative MUST.",
+      code: "time_unknown_with_wall_clock",
+    });
+    expect(card?.code).toBe("time_unknown_with_wall_clock");
+    expect(card?.expected).toBe("time_trust UNKNOWN with a non-zero wall clock");
+  });
+
+  it("is null for every other pattern, and for a response without the field", () => {
+    expect(diagnosisCard(TRUNCATED)?.code).toBeNull();
+    const { code: _code, ...withoutCode } = { ...REPLACED, code: undefined };
+    expect(diagnosisCard(withoutCode as DiagnosisModel)?.code).toBeNull();
+  });
+});
+
+group("an inherited name is not guidance", () => {
+  it("treats a pattern named like an object property as unknown", () => {
+    for (const pattern of ["constructor", "toString", "__proto__"]) {
+      const card = diagnosisCard({ ...TRUNCATED, pattern });
+      expect(card?.unrecognised).toBe(true);
+      expect(card?.title).toBe("A failure this build has no guidance for");
+    }
   });
 });

@@ -21,6 +21,7 @@
  */
 
 import type { DiagnosisModel } from "./generated/types";
+import { ownEntry } from "./own";
 
 export interface DiagnosisCard {
   pattern: string;
@@ -32,6 +33,11 @@ export interface DiagnosisCard {
   atSeq: number | null;
   /** What the verifier expected to find there. */
   expected: string | null;
+  /**
+   * For record_violation: the violation's code (U24, palimpsests 0.14) —
+   * the machine field, shown as it came; `expected` carries the reason.
+   */
+  code: string | null;
   /** The verifier's own sentence, carried verbatim. */
   narrative: string;
   /** True when this build has no guidance for the pattern. */
@@ -94,15 +100,24 @@ const GUIDANCE: Record<string, Guidance> = {
       "The anchor's own cadence: if it lags routinely, this is the normal state of the system rather than an event.",
     ],
   },
-  // palimpsests 0.13 (U22). Auditor refuses such a file at open — it holds
-  // no PALA-1 records — so this card is for a verdict that reaches the
-  // screen another way; the guidance exists ahead of that, as
-  // record_violation's does.
+  // palimpsests 0.13 (U22). Since C-17b such a file opens and this card is
+  // what the operator sees: before, Auditor refused it at open with a
+  // sentence of its own, and this guidance was never reached.
   not_a_container: {
     title: "This file does not begin with a PALA-1 record",
     whereToLook: [
       "Whether the right file was opened — its first bytes are not the record magic, so nothing at the start of it was written by a PALA-1 writer.",
       "Whether the chain is inside something else: an archive, an export, or a transfer that added a header of its own.",
+    ],
+  },
+  // palimpsests 0.14 (U26), an empty file read without an anchor. Read
+  // against one, the same file is replaced_or_rolled_back — a log was
+  // written and is not here — and takes that card instead.
+  empty_container: {
+    title: "The file holds no records",
+    whereToLook: [
+      "Whether the right file was opened — nothing in it contradicts the format, and nothing in it is a chain, so there was nothing to check.",
+      "Whether the writer had started: a log created and never written to looks exactly like this, and so does a copy taken before the first record was flushed.",
     ],
   },
   // palimpsests 0.13, inference profile r6: a segment that declares where it
@@ -148,7 +163,9 @@ const GUIDANCE: Record<string, Guidance> = {
 export function diagnosisCard(diagnosis: DiagnosisModel | null): DiagnosisCard | null {
   if (diagnosis === null) return null;
 
-  const known = GUIDANCE[diagnosis.pattern];
+  // Own keys only: an open vocabulary can name a pattern that collides
+  // with an inherited property ("constructor"), which is not guidance.
+  const known = ownEntry(GUIDANCE, diagnosis.pattern);
   if (known === undefined) {
     return {
       pattern: diagnosis.pattern,
@@ -159,6 +176,7 @@ export function diagnosisCard(diagnosis: DiagnosisModel | null): DiagnosisCard |
       ],
       atSeq: diagnosis.at_seq,
       expected: diagnosis.expected,
+      code: diagnosis.code ?? null,
       narrative: diagnosis.narrative,
       unrecognised: true,
     };
@@ -170,6 +188,7 @@ export function diagnosisCard(diagnosis: DiagnosisModel | null): DiagnosisCard |
     whereToLook: known.whereToLook,
     atSeq: diagnosis.at_seq,
     expected: diagnosis.expected,
+    code: diagnosis.code ?? null,
     narrative: diagnosis.narrative,
     unrecognised: false,
   };

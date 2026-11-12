@@ -309,11 +309,13 @@ def _hash_or_none(digest: bytes) -> str | None:
 
 
 class NotAChain(Exception):
-    """The file is not a readable PALA-1 container.
+    """The path cannot be read as a file at all — a directory, no permission.
 
     Distinct from "the chain fails verification". A chain that fails is
     opened, browsed and diagnosed — inspecting broken evidence is half the
-    job. This is the other case: there is nothing here to inspect.
+    job. So, since C-17(b), is a file with no records: the package names it
+    (`empty_container`, `not_a_container`). This is the one remaining case:
+    there are no bytes here to ask the verifier about.
     """
 
 
@@ -674,6 +676,11 @@ class ChainHandle:
                 # (seq, reason) pairs from the package, kept as pairs: the
                 # seq without its reason is a number nobody can act on.
                 "violations": [[seq, reason] for seq, reason in chain.violations],
+                # The same violations' codes (U24, 0.14), parallel to the
+                # list above — (seq, code) pairs. The code is the machine
+                # field a consumer branches on; the reason beside it is the
+                # verifier's sentence, carried verbatim, never parsed.
+                "violation_codes": [[seq, code] for seq, code in chain.violation_codes],
                 # Unknown record types and format versions. Chain-checked,
                 # reported, never rejected — so they are surfaced rather than
                 # dropped, and the UI says the verifier could not interpret
@@ -721,6 +728,10 @@ class ChainHandle:
                 # localised sentence beside it; it may never replace it, or
                 # the report stops saying what the verifier said.
                 "narrative": diagnosis.narrative,
+                # For record_violation, the violation's code (U24, 0.14);
+                # None for every other pattern. What to branch on — the
+                # `expected` sentence beside it carries the reason.
+                "code": diagnosis.code,
             },
             # The second file a verdict may rest on (U17, 0.13): the segments
             # manifest a continuation diagnosis was decided against. Carried as
@@ -1347,9 +1358,9 @@ class ChainHandle:
         # (the full decode raised on any other; the index skips it).
         members = [i for i in range(len(idx)) if axis == "seq" or idx.ok[i]]
         if not members:
-            # Cannot happen through open_chain, which refuses an empty
-            # container — but a timeline of nothing is still an answer rather
-            # than a division by zero.
+            # A file with no records — since C-17(b) one opens, and the
+            # package names it. A timeline of nothing is an answer, not a
+            # division by zero.
             return {
                 "axis": axis,
                 "basis": "proved" if axis == "seq" else "recorded",
@@ -1522,9 +1533,8 @@ class ChainHandle:
         `delta_ns` is signed: negative means the record's clock reads
         before the instant asked about.
 
-        None for a container with no records — which `open_chain` already
-        refuses, so it is unreachable through a session; kept as an answer
-        rather than an exception for the same reason `timeline()` does.
+        None for a container with no records — since C-17(b) such a file
+        opens, and `/nearest` answers it with a 404 that says so.
         """
         idx = self._header_index()
         members = [i for i in range(len(idx)) if idx.ok[i]]
@@ -1769,21 +1779,32 @@ class ChainHandle:
 def open_chain(path: Path) -> ChainHandle:
     """Open a container for reading.
 
-    Raises :class:`NotAChain` when the file cannot be read as one at all —
-    which includes the empty file, because an empty container is not a chain
-    with zero records; it is a file that says nothing, and reporting "0
-    records, verified" about it would be a verdict on nothing.
+    Raises :class:`NotAChain` only when the file cannot be read at all — a
+    directory, a path that cannot be opened.
+
+    **A file with no records opens, and the package says what it is (C-17b).**
+    Since 0.13/0.14 the verifier diagnoses every such file, so nothing about
+    it is decided here, from a size or a first byte:
+
+    * ``not_a_container`` (U22) — bytes, but no PALA-1 record at the start:
+      a text file, an archive, the wrong file. Verdict ``violation``.
+    * ``empty_container`` (U26) — no records. Without an anchor the check
+      passes vacuously, and the package says so: nothing was there, never
+      that a log was found intact (core clarification C-8); report /1 gives
+      it ``partial``, and the Report block shows the diagnosis in place of
+      the general sentence for ``partial`` (``api/report.ts``).
+    * Read **against an anchor**, an empty file is ``replaced_or_rolled_back``,
+      verdict ``violation``: a log was written and is not here. This is the
+      case refusing to open an empty file would hide — a deleted log — and
+      the reason it opens.
+
+    Before 0.14 Auditor refused all of these at open in a sentence of its
+    own, so the screen disagreed with the CLI and the diagnosis cards for
+    these patterns could never be reached.
     """
     try:
         reader = AuditReader.open(path)
     except (OSError, ValueError) as exc:
         raise NotAChain(str(exc)) from exc
-
-    # The package's own count from its walk (0.13, U16): no record decoded.
-    # Was `any(reader.records())`, which decoded the whole chain to learn
-    # that it was not empty — 21.6 s and 2.0 GB at 1M records (C-10b).
-    if reader.record_count == 0:
-        reader.close()
-        raise NotAChain("the file holds no PALA-1 records")
 
     return ChainHandle(reader, path)

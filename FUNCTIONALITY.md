@@ -177,7 +177,11 @@ the session is invalidated with an explicit banner — never silently
 re-read.
 
 **Zero-length file, non-PALA file, unreadable file:** three distinct
-states, each with a plain sentence and no verdict badge at all.
+states. A path that cannot be read as a file is refused with a plain
+sentence and no verdict at all. A zero-length or non-PALA file opens, and
+the package says what it is — `empty_container`, `not_a_container` — with
+its own verdict, never one of the shell's (C-17b); an empty file read
+against an anchor is a deleted log, which is why it must open.
 
 ---
 
@@ -613,13 +617,20 @@ testable, and worth having because every field is copied by hand at the seam.
 It proves nothing about correctness: the CLI calls the same library, so both
 sides would be wrong together.
 
-Two divergences are known and deliberate, and are pinned by tests rather
-than left to be discovered. The CLI folds "container malformed" into
+One divergence is known and deliberate, and is pinned by a test rather than
+left to be discovered: the CLI folds "container malformed" into
 `consistency.ok`, while the reader keeps `chain_ok` about the chain and
-reports truncation as a diagnosis. And for a file that was never a chain the
-CLI answers TAMPERED, where Auditor refuses to open it — L6 and L4 both
-require the refusal, since calling an ordinary text file "tampered" attributes
-intent to a file with no history at all.
+reports truncation as a diagnosis. A second one closed in 0.14: for a file
+that was never a chain the CLI exits TAMPERED, and Auditor used to refuse to
+open it, because calling an ordinary text file "tampered" attributes intent
+to a file with no history (L4, L6). The package now says what such a file is
+— `not_a_container`, a pattern that names no intent, with the report verdict
+`violation` — so Auditor opens it and shows that (C-17b). An empty file opens
+too: without an anchor the package diagnoses `empty_container`, a check that
+passed because there was nothing to check (C-8), and the Report block shows
+that sentence in place of the general one for `partial`; read against an
+anchor, it is `replaced_or_rolled_back`, verdict `violation` — a log was
+written and is not here, the case a refusal would hide.
 
 *(b) Against the published vectors.* `test-vectors.json` (envelope
 conformance, one record of each type) and `profiles/inference-vectors.json`

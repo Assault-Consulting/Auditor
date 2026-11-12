@@ -46,6 +46,7 @@
  * both released 0.11.0, both wired through now.
  */
 
+import { ownEntry } from "./own";
 import type { NamedValue, RecordView } from "./generated/types";
 
 /**
@@ -301,8 +302,9 @@ const OUTCOME_NOTES: Record<string, string | null> = {
 export function outcomeOf(view: RecordView): OutcomeMark | null {
   const o = view.outcome ?? null;
   if (o === null) return null;
-  if (o.name !== null && o.name in OUTCOME_NOTES) {
-    return { name: o.name, value: o.value, label: o.name, note: OUTCOME_NOTES[o.name] ?? null, flagged: o.name !== "ok" };
+  const note = o.name === null ? undefined : ownEntry(OUTCOME_NOTES, o.name);
+  if (o.name !== null && note !== undefined) {
+    return { name: o.name, value: o.value, label: o.name, note, flagged: o.name !== "ok" };
   }
   // A value this build cannot name keeps its number, says so, and is
   // flagged — guessing it into "ok" would turn an unknown into a return.

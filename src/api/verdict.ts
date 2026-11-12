@@ -127,6 +127,25 @@ function consistency(v: VerificationResponse): Panel {
     };
   }
 
+  // A file with no records (C-17b): nothing to link, so neither "linked"
+  // nor "does not hold" is true of it. Since 0.14 such a file opens and the
+  // package names it — not_a_container, empty_container, or, read against an
+  // anchor, replaced_or_rolled_back (a log was written and is not here). The
+  // sentence says what the file is not; the package's own sits beside it.
+  if (v.chain.count === 0) {
+    return {
+      index: "01",
+      question,
+      standing: "answered-no",
+      answer:
+        v.diagnosis?.pattern === "not_a_container"
+          ? "This file does not begin with a PALA-1 record. It is not a chain, so nothing in it was linked or checked."
+          : "This file holds no records, so nothing in it was linked or checked.",
+      basis,
+      narrative: v.diagnosis?.narrative,
+    };
+  }
+
   // BOTH remaining conditions. See the module docstring: chain_ok is true
   // for a truncated container.
   if (v.chain.chain_ok && v.diagnosis === null) {

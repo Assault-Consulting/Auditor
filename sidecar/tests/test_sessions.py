@@ -73,24 +73,55 @@ def test_closing_an_unknown_session_is_an_error_not_a_shrug(store: SessionStore)
 # --- what is not a chain ----------------------------------------------------
 
 
-def test_an_empty_file_is_not_a_chain(store: SessionStore, tmp_path) -> None:
-    """Not "0 records, verified".
+def test_an_empty_file_opens_and_the_verifier_names_it(store: SessionStore, tmp_path) -> None:
+    """Not "0 records, verified" — the package's own diagnosis.
 
-    An empty container is not a chain with nothing in it; it is a file that
-    says nothing, and a verdict about nothing is the most misleading output
-    this application could produce.
+    C-17(b): an empty container opens, and the verifier says what it is —
+    `empty_container`, whose sentence says the check passed because there
+    was nothing to check, never that a log was found intact (C-8).
     """
     empty = tmp_path / "empty.pala"
     empty.write_bytes(b"")
-    with pytest.raises(NotAChain):
-        store.open(empty)
+    verdict = store.open(empty).verify()
+    assert verdict["diagnosis"]["pattern"] == "empty_container"
+    assert "nothing to check" in verdict["diagnosis"]["narrative"]
+    assert verdict["chain"]["count"] == 0
 
 
-def test_a_non_pala_file_is_not_a_chain(store: SessionStore, tmp_path) -> None:
+def test_an_empty_file_read_against_an_anchor_is_a_deleted_log(
+    open_client: TestClient, tmp_path, head_hex
+) -> None:
+    """The case refusing an empty file would hide: an anchor names a head, and
+    the file holds nothing — a log was written and is not here."""
+    empty = tmp_path / "empty.pala"
+    empty.write_bytes(b"")
+    open_client.put(
+        "/anchors/profiles/desk",
+        json={"name": "desk", "sources": [{"kind": "manual", "head": head_hex}]},
+    )
+    sid = open_client.post("/session", json={"path": str(empty)}).json()["session_id"]
+    verdict = open_client.get(f"/session/{sid}/verify", params={"profile": "desk"}).json()
+    assert verdict["diagnosis"]["pattern"] == "replaced_or_rolled_back"
+    assert verdict["completeness"]["complete_to_anchor"] is False
+    report = open_client.get(f"/session/{sid}/report", params={"profile": "desk"}).json()
+    assert report["verdict"] == "violation"
+    # Without the anchor, the same file is the vacuous pass, said as such.
+    plain = open_client.get(f"/session/{sid}/report").json()
+    assert plain["verdict"] == "partial"
+    assert plain["report"]["diagnosis"]["pattern"] == "empty_container"
+
+
+def test_a_non_pala_file_opens_and_the_verifier_names_it(store: SessionStore, tmp_path) -> None:
+    """C-17(b): the package says what a file with no PALA-1 record is
+    (not_a_container), so the file opens and the verdict is the package's —
+    not a refusal worded on this side."""
     junk = tmp_path / "notes.txt"
     junk.write_bytes(b"this is not a container")
-    with pytest.raises(NotAChain):
-        store.open(junk)
+    session = store.open(junk)
+    verdict = session.verify()
+    assert verdict["diagnosis"]["pattern"] == "not_a_container"
+    assert verdict["chain"]["count"] == 0
+    assert verdict["container"]["well_formed"] is False
 
 
 def test_a_directory_is_not_a_chain(store: SessionStore, tmp_path) -> None:
@@ -217,15 +248,33 @@ def test_post_session_says_nothing_about_the_verdict(open_client: TestClient, ch
         assert word not in flat
 
 
-def test_a_non_chain_is_422_not_404_or_500(open_client: TestClient, tmp_path) -> None:
-    """The path resolved; the bytes are not a chain.
+def test_an_unreadable_path_is_422_not_404_or_500(open_client: TestClient, tmp_path) -> None:
+    """The path resolved; it cannot be read as a file at all.
 
     404 would say the file is missing and 500 would say this service is
-    broken. Both send the operator to the wrong place.
+    broken. Both send the operator to the wrong place. (A file with no
+    records is not this case: it opens, and the package names it.)
     """
+    assert open_client.post("/session", json={"path": str(tmp_path)}).status_code == 422
+
+
+def test_a_non_pala_file_is_a_session_whose_every_answer_is_empty(
+    open_client: TestClient, tmp_path
+) -> None:
+    """Opened (C-17b), and every path answers for a file with no record."""
     junk = tmp_path / "notes.txt"
-    junk.write_bytes(b"not a container")
-    assert open_client.post("/session", json={"path": str(junk)}).status_code == 422
+    junk.write_bytes(b"not a container" * 10)
+    r = open_client.post("/session", json={"path": str(junk)})
+    assert r.status_code == 201
+    sid = r.json()["session_id"]
+    assert r.json()["subject"]["records"] == 0
+    verdict = open_client.get(f"/session/{sid}/verify").json()
+    assert verdict["diagnosis"]["pattern"] == "not_a_container"
+    assert open_client.get(f"/session/{sid}/records").json()["total"] == 0
+    assert open_client.get(f"/session/{sid}/safety").json()["total"] == 0
+    assert open_client.get(f"/session/{sid}/timeline").json()["buckets"] == []
+    assert open_client.get(f"/session/{sid}/nearest", params={"wall_ns": 0}).status_code == 404
+    assert open_client.get(f"/session/{sid}/report").json()["verdict"] == "violation"
 
 
 def test_session_lifecycle_over_http(open_client: TestClient, chain_path) -> None:

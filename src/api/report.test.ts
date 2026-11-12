@@ -66,3 +66,42 @@ group("the package's report, shown (D-01)", () => {
     expect(ATTESTATION.toLowerCase()).not.toMatch(/compliant|certified|valid log/);
   });
 });
+
+group("an empty container on report /1 (0.14)", () => {
+  const narrative =
+    "The container holds no records. Nothing in it contradicts the format, and nothing in it is a chain: the check passes because there was nothing to check, not because a log was found intact.";
+
+  it("keeps the package's verdict and puts the diagnosis in place of 'sound as far as checked'", () => {
+    const view = reportView(
+      response({
+        verdict: "partial",
+        report: { format: "pala-verification-report/1", verdict: "partial", diagnosis: { pattern: "empty_container", narrative } },
+      }),
+    );
+    expect(view.verdict).toBe("partial");
+    expect(view.meaning).toBe(narrative);
+    expect(view.meaning).not.toContain("sound as far as checked");
+    expect(view.meaningFromDiagnosis).toBe(true);
+  });
+
+  it("renders an empty file read against an anchor as any violation", () => {
+    const view = reportView(
+      response({
+        verdict: "violation",
+        report: {
+          format: "pala-verification-report/1",
+          verdict: "violation",
+          diagnosis: { pattern: "replaced_or_rolled_back", narrative: "a log was written and is not here" },
+        },
+      }),
+    );
+    expect(view.meaning).toBe(VERDICT_MEANING.violation);
+    expect(view.meaningFromDiagnosis).toBe(false);
+  });
+
+  it("leaves every other partial report with the general sentence", () => {
+    const view = reportView(response());
+    expect(view.meaning).toBe(VERDICT_MEANING.partial);
+    expect(view.meaningFromDiagnosis).toBe(false);
+  });
+});

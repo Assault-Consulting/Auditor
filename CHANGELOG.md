@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- C-17(b) — violation codes (palimpsests 0.14, U24). `/verify` carries
+  `chain.violation_codes`, `(seq, code)` pairs parallel to `violations`, and
+  `diagnosis.code` for `record_violation`; the diagnosis card shows the code
+  as a **Code** row beside the reason. Guidance for the `empty_container`
+  diagnosis (U26).
+
 - D-07 — saving Auditor's own artifacts, with the digest beside them. A new
   shell command, `save_artifact`, runs the save dialog and writes the file in
   the shell process, to the path the user chose in that dialog: the webview
@@ -268,6 +274,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- C-17(b) — a file with no records opens, and the package says what it is.
+  A file that is not a container (`not_a_container`) gets the package's
+  verdict, `violation`, its diagnosis card, and question one saying it is not
+  a chain. An empty file read without an anchor is `empty_container`: the
+  check passed because there was nothing to check, and the Report block shows
+  that sentence in place of the general one for `partial`. Read against an
+  anchor, the same empty file is `replaced_or_rolled_back`, verdict
+  `violation` — a log was written and is not here; refusing to open it would
+  have hidden exactly that. Before, Auditor refused all of these at open in a
+  sentence of its own.
+
 - C-17(a) — on palimpsests 0.14.0 (pin `>=0.14.0,<0.15`). The body filters
   — `kind:`, `source:`, `outcome:` and the quoted text search — read a
   record's fields in place through `record_fields_at()` instead of
@@ -290,6 +307,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Tables keyed by a name the package supplies — diagnosis guidance, advisory
+  wording, outcome notes, verdict sentences — were looked up by plain
+  property access or `in`, so a name such as `constructor` would have read as
+  a known one (an advisory code as recognised, an outcome with a function for
+  its note). One own-keys lookup (`api/own.ts`) for all of them.
 - The open dialog could freeze the application. `pick_chain_file` was a
   synchronous Tauri command — run on the main thread — calling the dialog
   plugin's blocking API, which the plugin documents as freezing the

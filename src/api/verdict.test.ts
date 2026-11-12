@@ -390,3 +390,30 @@ group("no panel accuses anyone of anything", () => {
     expect(panels.map((p) => p.answer).join(" ")).not.toMatch(/\bvalid\b/i);
   });
 });
+
+// --- a file with no records (C-17b) ------------------------------------------
+
+group("question one for a file with no records", () => {
+  const empty = (pattern: string, narrative: string) =>
+    response({
+      chain: { ...response().chain, count: 0, head: "00".repeat(32) },
+      container: { ...response().container, well_formed: pattern !== "not_a_container", bytes_parsed: 0 },
+      diagnosis: { pattern, at_seq: null, expected: null, narrative, code: null },
+    });
+
+  it("never reads as linked, and says the file is not a chain", () => {
+    const v = empty("not_a_container", "The file does not begin with a PALA-1 record.");
+    const [panel] = triptych(v, TIER_A);
+    expect(panel.standing).toBe("answered-no");
+    expect(panel.answer).toContain("not a chain");
+    expect(panel.answer).not.toMatch(/linked, but|does not hold/);
+    expect(panel.narrative).toBe("The file does not begin with a PALA-1 record.");
+  });
+
+  it("says plainly that nothing was checked when no record is there", () => {
+    const v = empty("empty_container", "The container holds no records.");
+    const [panel] = triptych(v, TIER_A);
+    expect(panel.standing).toBe("answered-no");
+    expect(panel.answer).toContain("nothing in it was linked or checked");
+  });
+});

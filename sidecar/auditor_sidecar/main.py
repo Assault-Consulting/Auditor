@@ -191,10 +191,12 @@ def build_app(token: str | None = None) -> FastAPI:
         try:
             session = app.state.sessions.open(Path(req.path))
         except NotAChain as exc:
-            # 422, not 404 or 500. The path resolved; the bytes are not a
-            # chain. A 404 would say the file is missing and a 500 would say
-            # this service is broken — both send the operator to the wrong
-            # place.
+            # 422, not 404 or 500. The path resolved; it cannot be read as a
+            # file at all (a directory, no permission). A 404 would say the
+            # file is missing and a 500 would say this service is broken —
+            # both send the operator to the wrong place. A file with no
+            # records is not this case: it opens, and the package names it
+            # (C-17b).
             raise HTTPException(status_code=422, detail=str(exc)) from None
 
         return SessionResponse(
@@ -461,7 +463,10 @@ def build_app(token: str | None = None) -> FastAPI:
         session = _session_or_404(app, session_id)
         _assert_still_the_subject(session)
         found = session.nearest(wall_ns)
-        if found is None:  # pragma: no cover - open_chain refuses empty files
+        if found is None:
+            # A file with no records — empty, or one the package calls
+            # not_a_container — opens (C-17b), and has no record to be
+            # nearest to.
             raise HTTPException(status_code=404, detail="this container holds no records")
         return NearestRecord(**found)
 
