@@ -81,7 +81,7 @@ fn pick_chain_file(app: tauri::AppHandle) -> Option<String> {
 ///
 /// What is written is an artifact Auditor produced (a report, an export),
 /// never a container: Auditor does not write PALA-1 bytes (§1.1). Beside it
-/// goes its SHA-256 as `<n>.sha256`, in `sha256sum`'s own format, so the
+/// goes its SHA-256 as `<name>.sha256`, in `sha256sum`'s own format, so the
 /// digest travels with the file and a recipient can check it without us.
 ///
 /// `Ok(None)` is a cancelled dialog, not an error.
