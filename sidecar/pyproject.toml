@@ -37,10 +37,16 @@ dependencies = [
     # bodies on the session's own reader (U21). Upper bound one minor wide:
     # 0.15 is only taken once this application has been checked against it.
     #
+    # 0.14.1 (C-19, D-06): export_jsonl and its format pala-jsonl/1 in
+    # channel 2 (R9), streamed to a file by the shell; HEADER_FIELDS,
+    # HeaderField and FIXED_HEADER_LEN from reader (R8, for C-06d); and an
+    # HTML report that says of an empty container that nothing was checked
+    # (R7), so it is no longer withheld.
+    #
     # 0.12.0, measured here for the record, on 1M records: opening a
     # session cost 21.6 s / 2.0 GB before the first answer
     # (scripts/bench_seam.py, C-10b(a)); 0.13 is what lets C-10b(b) fix it.
-    "palimpsests[pala]>=0.14.0,<0.15",
+    "palimpsests[pala]>=0.14.1,<0.15",
 ]
 
 [project.optional-dependencies]
@@ -79,7 +85,7 @@ keyring = [
 # anchor source works without them, and a pkcs11 source configured without
 # the extra reports "error" for its own link rather than failing the check.
 pkcs11 = [
-    "palimpsests[pkcs11]>=0.14.0,<0.15",
+    "palimpsests[pkcs11]>=0.14.1,<0.15",
     "keyring>=25.0",
 ]
 
