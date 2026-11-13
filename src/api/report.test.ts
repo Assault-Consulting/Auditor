@@ -3,7 +3,7 @@
 
 import { describe as group, expect, it } from "vitest";
 
-import { ATTESTATION, HTML_WITHHELD, reportView, VERDICT_MEANING } from "./report";
+import { ATTESTATION, reportView, VERDICT_MEANING } from "./report";
 import type { ReportResponse } from "./generated/types";
 
 function response(over: Partial<ReportResponse> = {}): ReportResponse {
@@ -111,12 +111,12 @@ group("the package's HTML page (D-01b)", () => {
   it("carries the package's page as it came", () => {
     const view = reportView(response({ html_text: "<!DOCTYPE html><p>x</p>" }));
     expect(view.htmlText).toBe("<!DOCTYPE html><p>x</p>");
-    expect(view.htmlWithheld).toBe(false);
   });
 
-  it("withholds it for an empty container on report /1, and says why", () => {
+  it("offers it for an empty container too, since 0.14.1 (R7)", () => {
     const view = reportView(
       response({
+        html_text: "<p>nothing was checked</p>",
         report: {
           format: "pala-verification-report/1",
           verdict: "partial",
@@ -124,22 +124,7 @@ group("the package's HTML page (D-01b)", () => {
         },
       }),
     );
-    expect(view.htmlWithheld).toBe(true);
-    expect(HTML_WITHHELD).toContain("0.15");
-    expect(HTML_WITHHELD).toContain("The JSON above is the same report");
-  });
-
-  it("offers it for an empty file read against an anchor — a violation", () => {
-    const view = reportView(
-      response({
-        verdict: "violation",
-        report: {
-          format: "pala-verification-report/1",
-          verdict: "violation",
-          diagnosis: { pattern: "replaced_or_rolled_back", narrative: "a log was written and is not here" },
-        },
-      }),
-    );
-    expect(view.htmlWithheld).toBe(false);
+    expect(view.htmlText).toBe("<p>nothing was checked</p>");
+    expect("htmlWithheld" in view).toBe(false);
   });
 });
