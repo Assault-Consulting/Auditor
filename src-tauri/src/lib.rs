@@ -10,6 +10,7 @@
 //! exactly the kind of small, reasonable helper that ADR exists to prevent.
 
 mod artifact;
+mod export;
 mod sidecar;
 
 use std::path::Path;
@@ -80,7 +81,7 @@ fn pick_chain_file(app: tauri::AppHandle) -> Option<String> {
 ///
 /// What is written is an artifact Auditor produced (a report, an export),
 /// never a container: Auditor does not write PALA-1 bytes (§1.1). Beside it
-/// goes its SHA-256 as `<name>.sha256`, in `sha256sum`'s own format, so the
+/// goes its SHA-256 as `<n>.sha256`, in `sha256sum`'s own format, so the
 /// digest travels with the file and a recipient can check it without us.
 ///
 /// `Ok(None)` is a cancelled dialog, not an error.
@@ -106,6 +107,48 @@ fn save_artifact(
         .map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Export the package's record view of an open chain to a file the user
+/// chooses (D-06).
+///
+/// The export is streamed: this process asks the sidecar for it and writes
+/// each piece to the chosen file as it arrives (`export.rs`), so a
+/// 770 MB export of a 1M-record chain never sits in memory — nor in the
+/// webview, which a report's text does pass through. The webview names a
+/// session and a range; the path comes from the dialog here, and the port
+/// and token are this process's own. Beside the file goes its SHA-256, as
+/// for any artifact (D-07).
+///
+/// `Ok(None)` is a cancelled dialog, not an error.
+#[tauri::command(async)]
+fn export_records(
+    app: tauri::AppHandle,
+    supervisor: State<'_, Supervisor>,
+    session_id: String,
+    from_seq: Option<u64>,
+    to_seq: Option<u64>,
+    suggested_name: String,
+) -> Result<Option<artifact::SavedArtifact>, String> {
+    if !export::valid_session_id(&session_id) {
+        return Err("not a session id".to_owned());
+    }
+    let Some(chosen) = app
+        .dialog()
+        .file()
+        .set_file_name(&suggested_name)
+        .add_filter("JSON Lines", &["jsonl"])
+        .add_filter("All files", &["*"])
+        .blocking_save_file()
+    else {
+        return Ok(None);
+    };
+    let path = chosen.into_path().map_err(|e| e.to_string())?;
+    let session = supervisor.session();
+    let target = export::export_target(&session_id, from_seq, to_seq);
+    export::fetch_to_file(session.port, &session.token, &target, &path)
+        .map(Some)
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Spawned before the window exists, so the frontend never renders against
@@ -120,7 +163,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             sidecar_session,
             pick_chain_file,
-            save_artifact
+            save_artifact,
+            export_records
         ])
         .build(tauri::generate_context!())
         .expect("error while building Palimpsests Auditor")
