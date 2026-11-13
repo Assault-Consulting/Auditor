@@ -689,6 +689,7 @@ def build_app(token: str | None = None) -> FastAPI:
             verdict=built["report"]["verdict"],
             report=built["report"],
             json_text=built["json"],
+            html_text=built["html"],
         )
 
     @app.delete("/session/{session_id}", status_code=204)

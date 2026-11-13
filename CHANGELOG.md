@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- D-03 — the wording audit, kept as a test. `src/wording.test.ts` collects
+  every string the screen can show from the TypeScript syntax tree and fails
+  on any word that attributes intent (L4), and on any certifying word —
+  verified, valid, compliant, proves, intact — outside an allowance list
+  that gives each one's reason.
+
+- D-01b — the package's HTML report. `/report` carries `html_text`, the
+  package's `render_html` of the same report (channel 2 since palimpsests
+  0.14), checked to be one self-contained page with no script, link or URL.
+  The Report block can show it in a frame sandboxed with no permissions,
+  and save it as `<chain>.report.html` with its SHA-256 beside it (D-07).
+  For an empty container on report /1 the page is withheld with a sentence
+  saying why: the package's HTML prints "sound as far as checked" there, a
+  defect fixed upstream for 0.15.
+
 - C-17(b) — violation codes (palimpsests 0.14, U24). `/verify` carries
   `chain.violation_codes`, `(seq, code)` pairs parallel to `violations`, and
   `diagnosis.code` for `record_violation`; the diagnosis card shows the code
@@ -274,6 +289,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `DEVELOPMENT-PLAN.md` is the short plan now: governance, Track U status,
+  phases, open items, risks R1–R8 and the definition of done, with every
+  item id kept. The long one — each item's full account and the
+  measurements behind it — had grown to 83 KB and was re-sent with every
+  change; it stays whole in git (`git show adcfbdf:DEVELOPMENT-PLAN.md`).
+
 - C-17(b) — a file with no records opens, and the package says what it is.
   A file that is not a container (`not_a_container`) gets the package's
   verdict, `violation`, its diagnosis card, and question one saying it is not
@@ -307,6 +328,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Three overclaims of our own, found by D-03. The `record_violation` guidance
+  said "the chain around it is intact", which the card cannot know — whether
+  the chain holds is question one's answer; and the `span_unclosed` note said
+  "the record of it is intact" in a lane shown whatever the verdict. Both now
+  say only what is known. The line before a check read "Not verified yet";
+  it reads "Not checked yet", L7's word everywhere else. And a path that
+  cannot be read at all (a directory, no permission) was announced as "not a
+  PALA-1 container" — a claim about bytes nobody read, and since C-17(b) the
+  only case left behind that line; it now says the path could not be read
+  as a file, with the operating system's reason.
 - Tables keyed by a name the package supplies — diagnosis guidance, advisory
   wording, outcome notes, verdict sentences — were looked up by plain
   property access or `in`, so a name such as `constructor` would have read as

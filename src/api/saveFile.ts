@@ -48,13 +48,17 @@ export function saveError(err: unknown): Error {
 
 /**
  * The name the save dialog offers for a report: the chain's own file name with
- * `.report.json` appended, so the two sort together and the report names what
- * it is about. A subject the report does not name falls back to `report.json`.
+ * `.report.json` (or `.report.html`, D-01b) appended, so the two sort together
+ * and the report names what it is about. A subject the report does not name
+ * falls back to `report.json` / `report.html`.
  */
-export function reportFileName(report: Record<string, unknown>): string {
+export function reportFileName(
+  report: Record<string, unknown>,
+  kind: "json" | "html" = "json",
+): string {
   const subject = report.subject as { filename?: unknown } | undefined;
   const name = typeof subject?.filename === "string" ? subject.filename.trim() : "";
-  return name === "" ? "report.json" : `${name}.report.json`;
+  return name === "" ? `report.${kind}` : `${name}.report.${kind}`;
 }
 
 function baseName(path: string): string {

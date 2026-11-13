@@ -1501,6 +1501,11 @@
             "title": "Format",
             "type": "string"
           },
+          "html_text": {
+            "description": "The same report as the package renders it (`render_html`, channel 2 since palimpsests 0.14): one self-contained HTML page \u2014 no script, no link, no outbound URL. Built from the same report object, never by this application.",
+            "title": "Html Text",
+            "type": "string"
+          },
           "json_text": {
             "description": "The report as the package serialised it (`to_json_bytes`), UTF-8. What a copy or an export carries.",
             "title": "Json Text",
@@ -1534,7 +1539,8 @@
           "format",
           "verdict",
           "report",
-          "json_text"
+          "json_text",
+          "html_text"
         ],
         "title": "ReportResponse",
         "type": "object"

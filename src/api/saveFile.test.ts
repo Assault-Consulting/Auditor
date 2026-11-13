@@ -11,6 +11,11 @@ group("saving an artifact (D-07)", () => {
     expect(reportFileName({ subject: { filename: "chain.pala" } })).toBe("chain.pala.report.json");
   });
 
+  it("offers .report.html for the package's HTML page (D-01b)", () => {
+    expect(reportFileName({ subject: { filename: "chain.pala" } }, "html")).toBe("chain.pala.report.html");
+    expect(reportFileName({}, "html")).toBe("report.html");
+  });
+
   it("falls back to report.json when the report names no file", () => {
     expect(reportFileName({})).toBe("report.json");
     expect(reportFileName({ subject: { filename: "  " } })).toBe("report.json");

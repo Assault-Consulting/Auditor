@@ -152,8 +152,8 @@ group("verifying is layered over open, not instead of it", () => {
 });
 
 group("each failure reaches its own state", () => {
-  it("a non-container is not-a-chain, and keeps the path", () => {
-    const state = describe(new NotAChainError("the file holds no PALA-1 records"), "/tmp/x");
+  it("an unreadable path is not-a-chain, and keeps the path", () => {
+    const state = describe(new NotAChainError("[Errno 21] Is a directory: '/tmp/x'"), "/tmp/x");
     expect(state.kind).toBe("not-a-chain");
     expect(state).toMatchObject({ path: "/tmp/x" });
   });
@@ -179,8 +179,14 @@ group("each failure reaches its own state", () => {
 
 group("the sidecar's own words survive", () => {
   it("keeps the detail verbatim rather than rewriting it", () => {
-    const state = describe(new NotAChainError("the file holds no PALA-1 records"), "/p");
-    expect(chainLine(state)).toContain("the file holds no PALA-1 records");
+    const state = describe(new NotAChainError("[Errno 13] Permission denied: '/p'"), "/p");
+    expect(chainLine(state)).toContain("[Errno 13] Permission denied: '/p'");
+  });
+
+  it("never calls an unreadable path a non-container — nobody read its bytes", () => {
+    const line = chainLine({ kind: "not-a-chain", path: "/p", detail: "Permission denied" });
+    expect(line).toContain("could not be read as a file");
+    expect(line).not.toMatch(/PALA-1 container/);
   });
 });
 
@@ -191,7 +197,7 @@ group("the wording describes rather than accuses", () => {
     { kind: "open", opened: OPENED },
     { kind: "verifying", opened: OPENED, profile: "desk" },
     { kind: "verified", opened: OPENED, profile: "desk", sources: [], result: VERIFIED },
-    { kind: "not-a-chain", path: "/tmp/notes.txt", detail: "no PALA-1 records" },
+    { kind: "not-a-chain", path: "/tmp/records", detail: "[Errno 21] Is a directory" },
     { kind: "subject-changed", detail: "chain.pala has changed" },
     { kind: "failed", detail: "connection refused" },
   ];
@@ -210,7 +216,7 @@ group("the wording describes rather than accuses", () => {
   );
 
   it("never claims a verdict before one exists", () => {
-    expect(chainLine({ kind: "open", opened: OPENED })).toContain("Not verified yet");
+    expect(chainLine({ kind: "open", opened: OPENED })).toContain("Not checked yet");
   });
 });
 

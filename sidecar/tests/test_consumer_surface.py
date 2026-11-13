@@ -34,6 +34,7 @@ CONSUMER_MODULES = {
     "palimpsests.audit.anchors_pkcs11": "consumer module, with anchors (r2)",
     "palimpsests.audit.names": "declared public; has __all__",
     "palimpsests.audit.report": "channel 2 (INTEGRATION-SURFACE.md)",
+    "palimpsests.audit.report_html": "channel 2 since 0.14 (R5); has __all__",
 }
 
 #: Channel 2 has no `__all__`; its public names are the ones the channel

@@ -12,7 +12,8 @@ package access.
 
 Imports come only from the consumer surface `CONSUMER-SURFACE.md` r2
 defines (C-16): the ``__all__`` of ``reader``, ``anchors``,
-``anchors_pkcs11`` and ``names``, and ``report.build_report`` (channel 2).
+``anchors_pkcs11`` and ``names``, and channel 2: ``report.build_report`` and,
+since 0.14, ``report_html.render_html`` (R5).
 ``scripts/check_no_wire_parsing.sh`` refuses any other module, and
 ``tests/test_consumer_surface.py`` checks every name against the installed
 package's ``__all__``.
@@ -64,6 +65,7 @@ from palimpsests.audit.reader import (
     step_catalog,
 )
 from palimpsests.audit.report import build_report
+from palimpsests.audit.report_html import render_html
 from pathlib import Path
 
 __all__ = [
@@ -587,7 +589,8 @@ class ChainHandle:
         which a renderer must not re-derive. Nothing here edits, reorders or
         summarises it: the dict is the package's ``data`` and the text is its
         own ``to_json_bytes()``, so what the screen shows and what a copy
-        holds are the same bytes the package wrote.
+        holds are the same bytes the package wrote. The HTML is the package's
+        ``render_html`` of that same data (D-01b), likewise never rebuilt.
 
         Two paths: with no anchor, the session's own reader is reused; with
         one, ``build_report`` opens its own, because a shared reader answers
@@ -608,7 +611,14 @@ class ChainHandle:
                     reader=self._reader,
                     tool="palimpsests-auditor-sidecar",
                 )
-        return {"report": built.data, "json": built.to_json_bytes().decode("utf-8")}
+        # The HTML is the package's rendering of the same report (render_html,
+        # channel 2 since 0.14, R5) — one self-contained page, no script, no
+        # link, no outbound URL — built from the same data, never from ours.
+        return {
+            "report": built.data,
+            "json": built.to_json_bytes().decode("utf-8"),
+            "html": render_html(built.data),
+        }
 
     def verify(self, anchor_specs: list[dict[str, str]] | None = None) -> dict[str, object]:
         """Ask the verifier the three questions, and pass the answer through.

@@ -5,915 +5,126 @@ SPDX-License-Identifier: Apache-2.0
 
 # Development plan
 
-Scope reference: `FUNCTIONALITY.md`. Structure reference: `ARCHITECTURE.md`.
+Scope: `FUNCTIONALITY.md`. Structure: `ARCHITECTURE.md`. Upstream requests:
+`docs/UPSTREAM-REQUESTS-0.14.md`. What changed and why: `CHANGELOG.md`.
 
-## 0. How to read this plan
+**This is the short plan.** The long one — every item's full account, the
+splits of C-06, C-07, C-09 and C-10, the B-12 notes, the U14 investigation,
+and the measurements behind them — stopped being worth re-sending with every
+change at 83 KB. It is kept whole in git, at the last commit that had it:
 
-A `✓` before an item's id means merged (or, in Track U, released).
-A `◐` means partially merged — some of the item landed, the rest is
-still open, and the row's own text says which is which. Anything
-else — no mark — has not landed. The marks are a scanning aid only;
-the row's own text is still the source of truth for exactly what
-"done" covers, especially for a split or partial item.
+    git show adcfbdf:DEVELOPMENT-PLAN.md
 
-Effort is stated in **working days of focused effort**, never calendar
-dates. This is a small team with more than one project, so a plan pinned to
-dates is wrong by week two; a plan pinned to effort stays usable however
-the calendar moves.
+Rows below keep their ids, so anything citing one (a commit, a test, the
+changelog) still finds it here, and its history there.
 
-Work is ordered by **dependency**, not by visibility. Track U comes first
-because half the later phases cannot be built without it, not because it
-demos well. Where a dependency and an impressive screenshot disagree, the
-dependency wins.
+## How to read it
 
-Every phase ends with an exit criterion that can fail. A phase without a
-falsifiable exit criterion is a wish, and none are written that way here.
+`✓` merged (or, in Track U, released); `◐` partly merged; no mark, not
+landed. Effort in working days of focused effort, never dates. Work is
+ordered by dependency, not visibility. A wrong estimate becomes `?`, never a
+smaller number.
 
-**What this plan does not model.** Of the fifteen branches merged through
-Phase 0 and the first half of Phase 1, **six were not in it** — governance
-corrections, the plan-versus-specification sync, the branch verification
-script, a fix to that script, and two rounds of CI robustness after an Ubuntu
-mirror took down five runs in a day. Forty per cent.
+## Governance
 
-Almost none of that was scope creep. Most of it was either correcting a claim
-this plan or its sibling documents made about themselves, or repairing
-something that was blocking every other item. But the estimates below cover
-only the numbered work, so a phase costed at 22.5 days has historically taken
-closer to 30. That figure is stated here rather than folded into the
-estimates, because inflating each item would hide which ones are actually
-expensive.
+Non-draft PR, non-author review, DCO sign-off, REUSE headers, `ruff` pinned
+to CI's version, sidecar coverage ≥ 90 statement / ≥ 80 branch, release
+tagged by the non-author of the bump. **No stacked PRs:** a PR starts from
+`main` after the previous one merges. English in the repository, Ukrainian
+in discussion.
 
-**An estimate that turns out to describe the wrong work is replaced by a
-question mark, not by a smaller number.** Phase 3 is the first case: U6
-closed upstream and the package now produces the report this plan had Auditor
-building. Substituting an invented figure would be the same overclaim in the
-other direction.
+## Track U — upstream, in Palimpsests
 
-## 1. Governance — inherited, not re-decided
+Usable here at its **release**, not its merge. From U16 on, Palimpsests
+plans and costs the work (`CONSUMER-SURFACE.md` r2); this table keeps only
+status and what it unblocks.
 
-Same discipline as Palimpsests, because a compliance tool with sloppy
-provenance is self-refuting:
-
-- Every change via a **non-draft PR** with **non-author review**
-  (Oleksandr). No direct commits to `main`, including docs.
-- DCO sign-off on every commit.
-- REUSE-compliant headers on every file; `reuse lint` in CI.
-- `ruff` pinned to the exact version CI runs. Local and CI must agree
-  byte-for-byte on lint.
-- Coverage gate on the sidecar: statement ≥ 90, branch ≥ 80, same as
-  upstream.
-- Release tagging by the non-author of the version-bump PR, satisfying
-  two-person review.
-- Commits, comments, docs and PR text in English. Working discussion in
-  Ukrainian.
-
-## 2. Track U — upstream, in `Assault-Consulting/Palimpsests`
-
-These are prerequisites, not nice-to-haves: building them in the shell
-violates invariant L1. Each is an ordinary PR into the upstream repo, and
-each is independently useful there (the CLI and any third-party verifier
-get them too).
-
-An item becomes usable here at its **release**, not at its merge: Auditor
-installs `palimpsests` from PyPI, and Palimpsests cuts releases on its own
-schedule rather than this project's.
-
-| PR | Content | Days | Blocks |
-|---|---|---|---|
-| ✓ U1 | Drift series per boot as structured advisory output: `d_i = (wall_i − wall_0) − (mono_i − mono_0)`, slope in ppm. Pure arithmetic on existing header fields, O(n), no wire change. | 2 | F6, F12 |
-| ✓ U2 | Step catalog: each detected discontinuity with magnitude, direction, `seq`, classified slew / step / regression. | 2 | F6, F12 |
-| ✓ U3 | Per-boot statistics: record counts, uptime by monotonic, anchor cadence and lag distribution, span durations, open-span rate. | 2 | F12 |
-| ✓ U4 | Header field map exported for rendering, so a hex inspector can highlight fields without knowing offsets. | 1 | F7 |
-| ✓ U5 | Merkle inclusion proofs for a `seq` range, over the existing RFC 6962 aggregation. | 3 | F13 |
-| ✓ U6 | Verification-report model as a package dataclass — one owner for the `pala-verification-report/1` schema. | 2 | F11 |
-| ✓ U7 | `time_trust` / `assurance_tier` constant→name tables exported, following the §10.5 pattern already used for kinds. | 0.5 | F2, F6 |
-| ✓ U9 | Ship the published vectors — core and inference-profile — in the distribution, behind one accessor. A vector set reachable only by cloning the repository is checkable only by those who least need to check it, which is the opposite of what publishing one is for. Cheap, and it unblocks the conformance half of B-10. | 1 | B-10(b) |
-| ✓ U8 | Evidence-bundle assembly as a library command (`pala bundle`): records + inclusion proofs + verification + manifest + the explicit time-claims section. By this plan's own Track-U criterion — independently useful without the shell (any CLI user or third-party tool gets it) — assembly belongs upstream; the shell invokes and presents (E-01). | 4 | E-01 |
-| ✓ U10 | A record's own hash, on `DecodedRecord`. `Header.prev_hash` and `Header.body_digest` are already there; the record's own hash is not, because nothing downstream of `decode_record` keeps the header bytes `pala.record_hash(header_bytes)` needs. Computed once during decode, from bytes the reader already has and discards, and cached on the dataclass — not re-derived by any caller. Confirmed against the installed 0.10.0 wheel by reading `palimpsests.audit.reader` directly rather than assumed. | 1 | C-06c |
-| ✓ U11 | `origin_at()` to distinguish "never declared" from "declared, then unloaded". Read directly rather than assumed: a `KIND_MODEL_UNLOAD` sets the running origin to `None`, exactly the value it starts at before any `MODEL_LOAD` — the two collapse. F9 asks for different wording for each ("not stated in this file" vs "no model active"); producing that distinction on this side of the seam would mean re-walking records for the last unload ourselves, the second-implementation mistake ADR-0001 rules out. | 1 | C-08(b) |
-| ✓ U12 | `detail` decoded from `EVT_DETAIL` onto `DecodedRecord`, the same way `origin_at()` already decodes named TLV fields into `OriginView` rather than leaving them as raw bytes. Confirmed present and readable: the reader's own `body_tlvs` already carries `(type, value)` pairs for a cleartext body, and `EVT_DETAIL = 4` is a published constant — nothing to discover, only to expose. Blocks F8's detail text and its recurrence count, and separately unblocks half of C-09d (free text still needs §22.3 decided). | 1 | C-07b, C-09d(b) |
-| ✓ U13 | Acknowledged/unacknowledged state for `INCIDENT_CANDIDATE` records — `AuditReader.acknowledged_candidates()`, hash-verified through the same resolution `_check_reference` already used for the *broken*-reference advisory codes. **Released in 0.11.0** (Assault-Consulting/Palimpsests#199). The `U10` dependency in the original scoping was wrong, confirmed by actually building this: the package resolves a target's hash from the raw header bytes it already holds (`self._headers`), never from a `DecodedRecord.record_hash` field — U10 remains needed only for showing a record's own hash in Auditor's UI (C-06c), not for this resolution. | 1 | C-07c(a) |
-| ✓ U15 | The rest of the r2 oversight loop `U13`'s original scope named but did not build: an `OVERSIGHT_ACK`'s `operator_id` and disposition, and `KEY_SHRED` target resolution (`shredded_targets()`). **Released in 0.11.0** (Assault-Consulting/Palimpsests#203). "Deadline delta" from the original scoping was never a wire field — confirmed while building this: no `EVT_DEADLINE` constant exists anywhere in the writer. It is `wall_clock_ns(ack) − wall_clock_ns(candidate)`, both already readable once a caller knows which ack resolves to which candidate (`acknowledged_candidates()`) — an Auditor-side subtraction, not something upstream was missing. | 1 | C-07c(b) |
-| ✓ U14 | Record-decode and verify performance at the scale §19 itself targets. `AuditReader.records()`'s underlying `_decoded_records()` is not the incremental generator its `yield from` syntax suggests — it is an eager list comprehension over every header, computed in full before the first item is yielded, cached afterward. Measured, not assumed: on a synthetic 100k-record / 22.4 MB chain, `open_chain` plus `ChainHandle.verify` (header verify plus `build_report`'s body-digest walk) together cost 4.9 s and reached a peak RSS of 460 MB — roughly 20.6× the file's own size. At 224 MB / 1,000,004 records — a chain slightly *larger* than §19's own "100 MB / ~1M-record" target — the same flow exceeded 3.9 GB of RAM and was killed by the OS before finishing. One partial mitigation is **released in 0.11.0** (Assault-Consulting/Palimpsests#198) and **wired into `ChainHandle.container()` on this side** (§5 below): `build_report()` accepts an already-open reader, so a caller who already paid the decode once does not pay it a second time inside `build_report`'s own separately-opened reader — only reachable, per `build_report`'s own docstring, when no anchor override is requested; `container()`'s anchor-override path still opens its own reader by necessity. The actual cause — `_decoded_records()`'s eager cache — remains as it was on `main` at 17 Oct. **No work on it is in flight:** every `u14-*` branch in Palimpsests (nine of them, harness, results and the PR-6/8/9 changes) is merged, and no upstream document decides between keeping it eager and making it lazy. This plan does not need that decision: with sparse access (U16) a consumer need not walk the eager path for a window, a single record or a count. **Closed in 0.13.0**: U14 closes with U16 and U23, both released, not with U16 alone — found while building U16: `shredded_targets()` and the origin methods still materialise the chain on first call, and Auditor's seam calls both for every record card — rather than with a lazy rewrite nobody has scoped. `docs/U14-decode-performance.md` (revision -01) has the full six-finding account. **0.12.0, measured here** on a 1M-record / 250 MB chain: `verify()` + `build_report(reader=)` 11.3 s / 421 MB (100k: 1.12 s / 61 MB against 0.11.0's 2.74 s / 284 MB) — the verify half of §19 met at the package level; `records()` still eager, 16.9 s / 1.9 GB, and that is the path left. New cheap paths: `safety_records()` (1.6 s at 1M) and `structure()`. | ? | C-10b |
-| ✓ U16 | Public sparse access on `AuditReader`: `record_count`, `record_at`, `record_by_seq`, `header_at`. **Released in 0.13.0** (Assault-Consulting/Palimpsests#294). Measured at 200,002 records: 0.07 s / 95 MB against 3.35 s / 413 MB for `records()`. | — | C-10b(b) |
-| ✓ U23 | Bounded `shredded_targets()` and origin methods. **Released in 0.13.0** (Assault-Consulting/Palimpsests#295). At 1M records: first origin question 2.7 s, each after it under 1 ms, shreds 0.6 s, against 20.6 s / 1.99 GB. | — | C-10b(b) |
-| ✓ U17 | `Verification.manifest`: the segments manifest a verdict consulted — path, status, SHA-256 of the bytes read. **Released in 0.13.0** (Assault-Consulting/Palimpsests#296). | — | C-13 |
-| ✓ U22 | `not_a_container` diagnosis for a file whose byte 0 is not the record magic (it was diagnosed `truncated_tail`). The `NotAContainer` exception first proposed was set aside. **Released in 0.13.0** (Assault-Consulting/Palimpsests#297). | — | C-13 |
-| ✓ U25 | `INTEGRATION-SURFACE.md` refreshed for what 0.13 promises; `CONSUMER-SURFACE.md` r2 beside it. **Done before the 0.13 tag.** | — | — |
-| ✓ U19 + U20 | Re-exports into `reader.__all__`, inference-profile constants in `audit/profiles/inference.py`, and the contract test — one PR. **Released in 0.13.1.** | — | C-13, C-14, C-16 |
-| ✓ U24 | Violation codes parallel to `violations`; `Diagnosis.code` for `record_violation`. **Released in 0.14.0.** | — | C-17(b) |
-| ✓ U26 | `empty_container` diagnosis; the verdict raised as core clarification C-8 (Palimpsests' position: `violation`). **Released in 0.14.0.** | — | C-17(b) |
-| ✓ U21 | `container_check() -> ContainerCheck`. **Released in 0.14.0**; the seam's `container()` uses it since C-17(a). | — | — |
-| ✓ U18 | `verify_segment_set(manifest_path)`, a function. **Released in 0.14.0.** | — | Phase 5 segment sequences |
-| ✓ U28–U31 | Body fields in place (`record_fields_at`, with `detail` — R1), a record's bytes as read (`record_bytes_at` — R2) and its TLV layout (`header_tlv_spans_at`, `body_tlv_spans_at` — R3); `render_html` in channel 2 (R5) and the existence note's wording (R6, #347). **Released in 0.14.0.** R4 (`detail` on a KEY_SHRED) is 0.15's A5, `decode_shred → ShredView`. | — | C-17(a), C-06d |
-| U27 | `docs/WRITER-SURFACE.md` — the writer's own contract. **Before 1.0.** | — | C-15 (fixtures that must stay on the writer) |
-
-**Track U total: ~21.5 days plus U14 and U15; U16 onward is Palimpsests' work, planned and costed there** (~17.5 without U8, which
-blocks only Phase 4). U14 and U15 carry no number: neither is a feature
-to scope but an investigation whose shape is not yet known — inventing
-a duration would be the same overclaim C-06d's `?` already refuses to
-make. U7, U4 and U1 are the cheap ones and should land first — U7 in
-particular is half a day and removes a whole class of "the shell
-re-typed a constant" defects.
-
-Note on U1–U3: these must be **advisory** output, never verdict fields.
-The existing `Advisory` channel shape is already fixed for exactly this
-kind of extension.
-
-**Status against 0.12.0** (released 2026-09-29; checked against the wheel
-rather than the changelog). U1–U13 and U15 are released; U5 and U8 are in the
-wheel as `proofs` and `bundle`. 0.12.0 closes the four findings reported from
-this repository while wiring 0.11.0 in — the PKCS#11 no-PIN read (F1, a
-security fix, #260) and its missing-extra escape (F2), the unlocked decode
-cache (F3), and `build_report` silently dropping an anchor passed with a
-reader (F4, #261) — and releases #236, `acknowledged_candidates()` as a
-`dict[candidate_seq, ack_seq]`. U14 is partial and measured (row above):
-verify is bounded, `records()` is not. U16 is the one upstream
-item C-10b still needs.
-
-**Track U from U16 on is Palimpsests' work (from 22 Oct).** The plan for
-it is `docs/CONSUMER-SURFACE.md` in Palimpsests — proposal r2, agreed: the
-reading surface from 0.13 to the 1.0 contract, with the six open questions
-decided and a work plan. Its definitions, order and decisions are the
-source; the rows above keep only status and which item on this side each
-one blocks, so the two documents cannot disagree about what an item is.
-Auditor follows r2 and works the C track.
-
-**Status against 0.13.0** (tag `v0.13.0`). U16, U17, U22 and U23 are
-released, and U25 is done. Two r2 decisions land on this side: rules 4–7
-(semantics and vocabularies) apply from 0.13, so a consumer pinned to 0.13
-may rely on what its patterns, codes and names mean; and the writer is not
-promised as test support before its own contract (U27), so fixtures move
-to the published vectors where they can (C-15). U19 and U20 followed in
-0.13.1, and the pin moved to `>=0.13.1,<0.14` with C-13a (§5). U24, U26,
-U21 and U18 are merged in Palimpsests `main` and ship in 0.14; two costs
-inside the 0.13.1 reader are written up in `docs/UPSTREAM-FINDINGS-0.13.md`.
-
-Also in 0.12.0, and accounted for where each lands: `EVT_SOURCE` —
-client-reported tool calls, `source`/`source_name` on `DecodedRecord` — as
-C-12 in §5; prefix-consistency proofs as E-07 in §7; kind 10
-`TOOLS_OFFERED_NO_CALL`, which needs nothing here because kind names come
-from the package.
-
-## 3. Phase 0 — scaffold
-
-Target: a window that opens, a frontend that renders, a sidecar that
-boots and answers `/health`, green CI on three OSes. Nothing about PALA-1
-yet.
-
-| PR | Content | Days |
+| Item | Status | Unblocks |
 |---|---|---|
-| ✓ A-01 | Repo skeleton: `README`, `FUNCTIONALITY.md`, `ARCHITECTURE.md`, `ENVIRONMENT.md`, `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, `GOVERNANCE`, `REUSE.toml`, `.gitignore`, `.gitattributes` | 1 |
-| ✓ A-02 | Frontend: Vite 5 + React 18 + TS 5, fixed dev port 1420, `tsconfig` strict | 1 |
-| ✓ A-03 | Tauri 2 shell: `Cargo.toml`, `tauri.conf.json`, `capabilities/default.json`, placeholder icon generator | 1 |
-| ✓ A-04 | Sidecar: FastAPI on `127.0.0.1:8771`, `/health`, `pyproject.toml`, ruff + pytest config | 1 |
-| ✓ A-05 | CI: 3-OS matrix, ruff, pytest, coverage gate, `reuse lint` | 1 |
-| ✓ A-06 | Sidecar lifecycle from Tauri: spawn, per-launch bearer token, health poll, graceful shutdown, orphan cleanup | 2 |
-| ✓ A-07 | Generated typed API client from the sidecar OpenAPI schema; the frontend calls `/health` through it | 1 |
-
-**Phase 0: ~8 days.** Known CI traps to encode from the start, all of
-which have cost a red build before: build the frontend *before*
-`cargo check` (the context macro embeds `frontendDist` at compile time);
-generate `icon.ico` even when bundling is off; do not add an empty
-`.setup(|_app| Ok(()))`; install the Linux webkit/appindicator/rsvg
-system packages explicitly.
-
-**Exit criterion:** green CI on macOS, Linux and Windows; the app starts
-and shows the sidecar version and the `palimpsests` version it links
-against.
-
-## 4. Phase 1 — Verify
-
-The product's minimum viable claim: open a file, get an honest verdict.
-
-| PR | Content | Days | Needs |
-|---|---|---|---|
-| ✓ B-01 | `pala_seam.py` — the single import surface; session store; `POST /session`, file digest, subject metadata | 2 | — |
-| ✓ B-02 | The no-parsing CI test (§20.2) | 0.5 | B-01 |
-| ✓ B-03 | `GET /verify` returning `Verification` verbatim; per-(session, profile) cache | 2 | B-01 |
-| ✓ B-04 | Anchor profiles: manual, file; `ChainedAnchorSource` composition; `/anchors/*` endpoints | 2 | B-03 |
-| ✓ B-10 | Agreement suite against `palimpsests pala verify` (§20.1a), plus the conformance half skipped pending U9 (§20.1b) | 2 | B-03 |
-| ✓ B-05 | Keychain anchor source (`keyring`), three OSes | 2 | B-04 |
-| ✓ B-06a | Frontend can open a file: Tauri dialog permission, drag-drop, the capability argued on its own PR | 1 | A-06 |
-| ✓ B-06b | Typed client for `/session` and `/verify`; session state in the frontend | 1.5 | B-06a, A-07 |
-| ✓ B-06c | UI: verdict triptych, tier-aware wording, not-checked state | 2.5 | B-06b, U7 *released* |
-| ✓ B-07 | UI: anchor provenance flow — answering link highlighted, absent dimmed, error named | 2 | B-04, B-06b |
-| ✓ B-08 | UI: diagnosis card, seven patterns, each with its visual | 3 | B-06b |
-| ✓ B-09 | UI: advisory lane, grouped by code, jump targets | 2 | B-06b |
-| ✓ B-11 | Mutation-demo fixture suite: each mutation → its expected pattern and copy | 2 | B-08 |
-
-**Phase 1: ~22.5 days**, thirteen items rather than eleven. Three changes to
-the order and the granularity, each with a reason:
-
-- **B-10 moved to the front.** It depends only on B-03, and it *is* the
-  phase's exit criterion. Running it first makes that criterion continuously
-  true instead of a final gate, and it means four UI blocks are built on a
-  base that has been compared with an independent runner rather than assumed.
-- **B-05 no longer waits on U7.** A keychain anchor source has nothing to do
-  with tier and time-trust name tables; the dependency was wrong.
-- **B-06 split into three.** As one item it silently contained a security
-  change — the desktop shell has `core:default` and nothing else, so a file
-  dialog means a new Tauri permission, and `CONTRIBUTING.md` requires each
-  permission to be argued on the pull request that introduces it. Bundling
-  that with typography would give a reviewer no way to tell them apart. The
-  middle piece is the frontend actually *using* the generated client, which
-  the plan had no item for at all: today the frontend can render a boot
-  screen and nothing else.
-
-Note the dependency wording on B-06c: **U7 released**, not merged. Auditor
-installs `palimpsests` from PyPI, so an upstream item becomes usable here at
-its release rather than at its merge. Palimpsests cuts releases on its own
-schedule, and this plan should not pretend otherwise.
-
-**Exit criterion:** every mutation fixture produces the correct verdict, the
-correct diagnosis pattern and correct anchor provenance, agreeing with
-`palimpsests pala verify` — checked by a runner, not by eye.
-
-The published vectors are **not** part of this criterion, and saying so is
-the point. They are the independent authority (§20.1b) and they are not
-shipped in the distribution, so conformance cannot be established from an
-installed package until U9 is released. Folding them in would make the
-criterion unmeetable through no fault of the phase; leaving them out
-silently would let "verified against the CLI" pass for conformance, which it
-is not — the CLI shares the library. The skipped test names the gap on every
-run.
-
-## 5. Phase 2 — Browse
-
-| PR | Content | Days | Needs |
-|---|---|---|---|
-| ✓ C-01 | `/boots`, `/spans`, `/records` (paginated, filtered), `/record/{seq}`, `/origin` | 3 | B-01 |
-| ✓ C-02 | `/timeline` density buckets, both axes, boot-gap markers | 2 | C-01, U1 |
-| ✓ C-03 | UI: Chronoscope — date rail with pinned caps, fine strip, axis toggle, wall-gap hatch with the ruler removed inside it, pins row | 5 | C-02 |
-| ✓ C-04 | UI: accordion compression for empty stretches, with explicit marks | 2 | C-03 |
-| ✓ C-05 | UI: boot and span lists; unclosed span as first-class evidence | 2 | C-01 |
-| ✓ C-06a | UI: the record card — envelope, tier and trust badges, type/kind name resolution, body presence state (none / opaque / cleartext / undecoded). An interim `seq` lookup field stands in for the seq-jump button until C-09 exists. | 1.5 | C-01 |
-| ✓ C-06b | `prev_hash` and container `index` on `RecordView`. Both are already on the reader's own objects — `Header.prev_hash`, `DecodedRecord.index` — and are not upstream work at all, just two fields `_record_view` was not copying through. Unlocks the predecessor jump; the record's own hash still waits on U10. | 0.5 | C-06a |
-| ✓ C-06c | Clickable `prev_hash` and the record's own hash. | 1 | **merged** |
-| C-06d | **Buildable since 0.14.0, which released upstream R2 and R3** (`docs/UPSTREAM-REQUESTS-0.14.md`): the bytes of a record as read — not `Header.encode()`, which re-encodes — and the header and body TLV layouts; `HEADER_FIELDS` (U4) covers only the fixed header. Then (a) header hex in the MVP, (b) body hex as fast-follow. Raw hex view with field highlighting, from U4's field map. The remaining, and largest, piece of F7 — nobody has designed it yet, hence `?` rather than a number carried over from an estimate that covered the whole of C-06 before it was known to need three PRs upstream and down. | ? | C-06a, U4 |
-| ✓ C-07a | UI: the SAFETY list, grouped by kind and sorted by seq — the slice buildable on what a record already resolves. No detail text, no acknowledgement state. | 1 | C-01 |
-| ✓ C-07b | Detail text and the recurrence count it enables, once `EVT_DETAIL` is decoded. **Merged** (Assault-Consulting/Auditor#65): `detail` on every record that carries one, `recurrence_count` scoped to SAFETY — null outside that scope, never 0. | ? | U12 *released* |
-| ✓ C-07c | The r2 oversight loop, in full. **Merged** (Assault-Consulting/Auditor#60 binary state and `KEY_SHRED`; #71 the rest): which ack resolved a candidate and the candidate an ack verifiably names — the package's hash-verified `candidate_seq → ack_seq` mapping read both ways (Palimpsests#236, 0.12.0) — the ack's `operator_id` (pseudonymous, never resolved to a person) and disposition, and ack latency by the writer's clock, computed within one boot only and withheld across a restart. **Display only** in the MVP regardless — recording a disposition is the Phase-5 item below, behind its own ADR. | 1 | Palimpsests#236 *released (0.12.0)* |
-| ✓ C-08 | UI: origin card, Recorded badge, `since_seq` jump | 1 | C-01, C-06a |
-| ✓ C-09a | Search bar: seq jump (`#1447`), two of three quick buttons (first record, next warning). Unsupported input named plainly rather than silently ignored. | 1 | C-01, C-06a |
-| ✓ C-09b | Filter chips: `kind:`, `type:`, `tier:`, `boot:`, `span:` on C-11's list. **Merged** (Assault-Consulting/Auditor#68). No name→int mapping was needed after all: `/records` matches `type_name`/`kind_name`/`tier` against the names the package resolved on each record, so no table exists on this side. Date range moved to C-09c, with time jump — both are about the writer's clock. | 1.5 | C-11 |
-| ✓ C-09c | Time jump, date range and the anchor quick button. **Merged** (Assault-Consulting/Auditor#73). `@<instant>` selects the record nearest by the writer's clock through a new `/nearest`, whose answer carries `basis: recorded`, the clock's trust, `wall_follows_seq`, `boot_clock_stepped` and `equally_near` — each rendered as a caution, none dropped. `from:`/`to:` are whole UTC days, matching the rail. The anchor button finds the record whose own hash is the verified head, or says the head names nothing in this file — never a fallback. Instants travel as decimal nanosecond strings (past 2^53 a number rounds). The exit criterion's 22:41 question is a test (`test_the_phase_2_exit_criterion_question_is_answerable`). | 2.5 | C-06c, C-09b |
-| ✓ C-09d | Free text over `detail`. §22.3 decided 3 Nov 2026: MVP. A quoted phrase, ANDed with the chips; literal, case-insensitive (`casefold`), no pattern language; `/records?text=`. Records with an encrypted body are counted in `unsearched` and named on the list, never treated as non-matches. On 0.13 it runs on the full-decode path the other body filters use; it moves to `record_fields_at` once `detail` is there (request R1, `docs/UPSTREAM-REQUESTS-0.14.md`). | 1.5 | §22.3 decided |
-| ✓ C-11 | The records list: paginated, clickable rows driving the same `select` the search bar and origin jump already use. Neither C-09b's chips nor C-10's virtualisation could mean anything without it, and no item built one — a real gap the plan had not itemised, found while scoping C-09's own split. | 1 | C-01 |
-| ✓ C-10a | The three claims §19 bundled as one line, taken apart. "Off-thread verify, window never blocks" — already true, confirmed with a concurrency test rather than left as an assumption. The opening screen's own state model already had an `"opening"` variant `chainLine` rendered correctly; the Open button just never read it, so a slow open looked identical to a stuck one and a second click started a second one — fixed. "Record table virtualised" — C-11's ≤50-row pagination already bounds render cost independent of chain size; a literal virtual-scroll would add nothing this screen does not already have, and reads worse for a forensic review tool than paging does (§C-10 prose below). | 0.5 | C-03, C-11 |
-| ✓ C-10b | §19's size envelope. **Re-scoped after measuring 0.12.0**: the package's verify path now meets it (U14 row); what misses it is this repository's seam, which calls the eager `records()` for `record()`, `records()`, `safety()`, `timeline()`, `subject()` and `open_chain()`'s emptiness check. (a) **Re-scoped while building: on 0.12 nothing on the seam can move honestly.** `safety()` was to move to `safety_records()`, but every row it returns carries `prev_seq = records[index - 1].seq` — the predecessor in the file, usually not a SAFETY record — and 0.12 has no public way to read one record's seq without the full decode; a null there would claim "first record". `spans()` already rides on the package's `structure()`, `boots()` on `boot_statistics()`; `subject()`, `timeline()`, `nearest()` and `open_chain()` need every record's seq or clock. So (a) is the measurement: `scripts/bench_seam.py`, one seam call per fresh process. **Baseline, 0.12.0, 1,000,000 records / 246 MB:** opening a session costs 21.6 s and 2.0 GB peak RSS before the first answer — `open_chain()`'s emptiness check, `any(reader.records())`, decodes every record. On that warm cache: `verify` +13.2 s, `timeline` +3.7 s, `subject` +2.7 s, `boots` +2.4 s, `nearest` +2.3 s, the rest about a second or less; peak 2.0–2.4 GB throughout. (b) **Done, on 0.13.1:** the emptiness check is `record_count == 0`; every structural answer reads one header index built through `header_at()` (no body decoded) and decodes only the rows it returns; SAFETY, acks, shreds and detail counts come from the package's own bounded reads. **Measured at 1M records, one call per fresh process:** opening a session 0.98 s / 272 MB (was 21.6 s / 2.0 GB); `subject`, `records`, `record`, `safety`, `nearest` 5–6 s and `timeline` 7.4 s each from cold, almost all of it building the header index (~5 s), which a session builds once at open and then shares; peak 270–610 MB (was 2.0–2.4 GB). Equivalence with the full-decode seam checked across every fixture and seven mutants of each, out-of-order and duplicated records included: 10,752 comparisons, no difference. **Two limits, both upstream:** filters on a record's body (`kind:`, `source:`, `outcome:`, a record's own hash) still decode every record — 0.13 has no public way to read a kind without the decode; and `verify` on a chain of tool loops is 35.6 s / 2.4 GB, all of it inside `AuditReader.verify()`, whose referential pass decodes every result and the call it names and keeps them in its sparse cache (measured: 999,898 records retained). Both are findings for Palimpsests' U track, not work on this side, written up with reproduction steps in `docs/UPSTREAM-FINDINGS-0.13.md`. | 0.5 + 1.5 | ✓ |
-| ✓ C-12 | Client-reported provenance. **Merged** (Assault-Consulting/Auditor#72). `source` on `RecordView` as the package names it; the card carries the label and the inference profile's own sentence, verbatim (§3, r5: the chain proves the report happened, what it digested and when — never that the tool ran); the records list marks a reported call on its row; `source:` chip. An unknown value is guessed into neither mark. **Scope corrected while building:** the mark cannot appear in the SAFETY list — `EVT_SOURCE` exists only on TOOL_CALL / TOOL_RESULT, which are EVENT records. | 1 | 0.12.0 |
-| ✓ B-12 | `pkcs11` as a fourth anchor source kind, behind the `[pkcs11]` extra. **Merged** (Assault-Consulting/Auditor#66); see the B-12 notes below for the PIN finding it surfaced upstream. | 1 | `anchors_pkcs11` *released* |
-
-**Phase 2: ~22.5 days plus C-06d, C-07b, C-07c, C-09b, C-09c, C-09d and
-C-10b** — 27 as planned, plus B-12 and C-11 (§below), minus the 4.5 days
-C-09's, C-07's and C-10's own splits found they did not need (three
-guesses — two three-day, one three-day — each became a small `a` slice
-plus question marks). The seven question marks left are not the same
-kind of unknown: C-06d is an unstarted design; C-07b and C-07c are gated
-on upstream work this plan has now scoped (U12, and U13 plus U15 —
-U10 dropped from C-07c's own dependency, §5 below); C-09b
-is gated on C-11 landing and partly on the same type-name investigation
-C-06's split opened; C-09c on an upstream release (U10); C-09d on a
-product decision (§22.3) this plan cannot make by itself; C-10b on a
-newly scoped upstream performance item (U14).
-
-**Exit criterion:** a 1M-record chain opens, the timeline stays
-interactive, and "what happened at 22:41 on 6 Aug" is answerable in under
-five interactions.
-
-**0.13 follow-up, not counted in Phase 2.** Four items: two render what
-the 0.13 reader adds, two are this side's commitments in
-`CONSUMER-SURFACE.md` r2. In r2's order, C-13 and C-14 come after U19
-lands in Palimpsests; the pin moves to `>=0.13,<0.14` with them, and
-C-10b(b) follows the pin.
-
-| PR | Content | Days | Needs |
-|---|---|---|---|
-| ✓ C-13 | **Merged** as C-13a (Assault-Consulting/Auditor#77, sidecar and the `>=0.13.1,<0.14` pin) and C-13b (#78, frontend); the advisory wording covers the five `continuation_*` codes 0.13 adds — not six, as this row first said — and `tool_target_not_a_call`, emitted since 0.12 without words here. What 0.13 says that this build could not yet render: guidance for `declared_continuation` (the explained case — a prefix removed under a declared policy; calm, the package's sentence), `continuation_contradicts_manifest` (among the most serious diagnoses; never generic) and `not_a_container` (the file is not a chain — never "interrupted write"); wording for the six `continuation_*` advisory codes; `ContinuationView` fields on a kind-11 card; `Verification.manifest` in the subject digest and change check, so a verdict resting on two files names both; `origin_state_at()` in place of two calls; a hint in the open dialog that segment files (`*.pala.00001`) sit under "All files". Violation codes (U24) and `empty_container` (U26) join when released. | 2 | U19 |
-| ✓ C-14 | **Merged** (Assault-Consulting/Auditor#80). Tool outcome on a TOOL_RESULT card, with the profile's sentence (r6): `ok` means returned to generation, not a confirmed effect; `unobserved` means the recording vantage could not see failure. Same shape as C-12. | 1 | U19 |
-| ✓ C-15 | Test fixtures onto the published vectors where a vector carries the case (r2 decision 5). **Done:** `test_conformance_vectors.py`, all through `open_chain`. The core envelope (pinned §8 constants); the four core demos the vectors carry as plain bytes and hashes — truncated tail, stale anchor, flipped body bit, missing GENESIS — built by concatenating published bytes, never by writing a header; the inference profile's `semantics` block (r2–r6: oversight loop, tool calls and results, source marks, outcomes, a shred, a segment continuation) compared field by field with `RecordView`, every stated field either checked or listed with its reason; and the published ciphertext, the only real encrypted body this repository can test (the writer does not encrypt) — opaque on the card and counted by text search as unsearched. The profile-semantics test, skipped since U9 "pending a body-semantics read path", runs: that path has existed since C-07b. Three demos (`seq_gap`, `unknown_record_type`, `unknown_time_with_clock`) need a header written and stay with the writer-built mutation suite, which keeps every case for the screen's wording. Found on the way: the package decodes `detail` on EVENT and SAFETY only, so the vectors' KEY_SHRED detail is not shown — R4 in `docs/UPSTREAM-REQUESTS-0.14.md`. | 1 | — |
-| ◐ C-16 | r2's two commitments on this side: `check_no_wire_parsing.sh` fails on any `palimpsests` import outside the consumer `__all__`, and a CI job runs the sidecar suite against Palimpsests `main`, non-blocking (Palimpsests decides whether it runs on their PRs). **(a) Done:** the seam now imports only from `reader`, `anchors`, `anchors_pkcs11`, `names` and `report` (channel 2) — `FORMAT_VERSION`, `RT_SAFETY`, `KIND_INCIDENT_CANDIDATE`, `boot_statistics` and `step_catalog` from `reader`, and `ZERO16`/`ZERO32` replaced by `reader`'s `NO_SPAN`/`NO_PREDECESSOR` (same bytes, checked); `pala.codec` and `pala_writer` are gone from it. The script refuses any other module without needing the package installed; `tests/test_consumer_surface.py` checks every imported name against the installed package's `__all__` (the seam on `main` before this fails it eight times). **(b) Prepared, not merged:** `.github/workflows/canary.yml` — the sidecar suite with Palimpsests `main` installed over the pin, daily, on push to `main` and on pull requests, outside `ci-complete`. A workflow file cannot be committed through the tool this work uses; it lands by upload. Run by hand against `main` at `6853939`: 386 passed. | 0.5 | U19 |
-| ✓ C-17(a) | On 0.14.0, the pin to `>=0.14.0,<0.15`. **The body filters stop decoding the chain:** `kind:`, `source:`, `outcome:` and the quoted text search read a record's fields in place through `record_fields_at()` (U29, U30 — R1), the header filters read the index as before, and only the rows returned are decoded; a record's own hash, the one body-side question 0.14 still answers only through a decode, is read one record at a time through `record_at()` — never the whole chain into memory. The header index now notes which bodies are encrypted, so the text search still counts them as unsearched. **The body-digest walk is `container_check()`** (U21) on the session's own reader, with or without an anchor: it is over the bytes, so an anchor no longer costs `verify` a second open of the file. **Measured at 1M records** (one call per fresh process, header index included): `kind:` 13.7 s / 376 MB, text search 12.9 s / 376 MB — against 21.9 s / 2.04 GB for the full decode; about 5.6 s of each is the header index a session builds once. **Equivalence:** the pre-C-17 walk is kept as an oracle in `tests/test_body_filter_equivalence.py` and held against the new path — 1,032 comparisons over a filter grid on a busy chain, both published vector sets (the real ciphertext) and an out-of-order chain; three mutants (encryption ignored, a field crossed, the offset bound) each fail it. `test_bounded_paths.py` now forbids `records()` for the body filters too. | 1 | 0.14.0 |
-| ✓ C-17(b) | What else 0.14 says, rendered. **Codes (U24):** `violation_codes` beside `violations` on `/verify`, as `(seq, code)` pairs, and `Diagnosis.code` for `record_violation` — on the diagnosis card as a **Code** row beside the reason, never in place of it; checked on real bytes (the published vectors without their GENESIS give `[[0, "prefix_absent"]]`, parallel to the sentence), and the record_violation code checked as passed through, since no writer-built chain can carry one. **A file with no records is the package's to name:** a file the package calls `not_a_container` (U22) now **opens** — before, Auditor refused it at open in a sentence of its own, so the C-13b guidance for that pattern could never be reached and the screen disagreed with the CLI's verdict; now the verdict, the diagnosis card and the report (`violation`) are the package's, and question one says the file is not a chain rather than "linked, but not whole". An **empty** file opens too (R7, answered): without an anchor it is `empty_container` (U26), a vacuous pass that means nothing was there (C-8), and since report /1 gives it `partial`, the Report block shows the diagnosis narrative in place of the general sentence for `partial` — branching on the pattern, one function, removed when report /2 (0.15) gives the verdict `empty`; read against an anchor, the same file is `replaced_or_rolled_back`, verdict `violation`, "a log was written and is not here" — the deleted log a refusal at open would have hidden. **Found on the way:** the diagnosis card looked guidance up by plain property access, so a pattern named like an inherited property (`constructor`) would read as known; the same held for advisory codes and outcome names. Every table keyed by a name the package supplies now goes through one own-keys lookup (`api/own.ts`). `verify_segment_set` (U18) waits for segment sequences (Phase 5). | 1 | 0.14.0 |
-
-**Order on this side.** Done: C-10b(a), C-13, C-14, the pin to
-`>=0.13.1,<0.14`, C-10b(b), C-09d, C-15, C-16(a), D-01 (JSON), D-04, D-07,
-and on 0.14.0 C-17(a) and C-17(b). Next: C-06d on 0.14's record bytes and
-TLV maps (R2, R3), D-01's HTML half on R5, D-06 on D-07's command, D-03;
-C-16(b), the canary, by upload.
-
-### Three upstream changes since 0.10.0 that this phase has to account for
-
-**B-12 — a fourth anchor kind exists.** ADR-0004 landed `Pkcs11Anchor` and
-`Pkcs11AnchorStore`: the head as a `CKO_DATA` object on a token the host can
-read but cannot silently rewrite. Both speak the existing `AnchorSource` /
-`AnchorStore` seams and inherit the failure semantics already rendered here —
-absent returns `None`, present-but-unreadable raises `AnchorSourceError` with
-the source identity attached — so the provenance view needs no new outcome
-and no new colour.
-
-What it needs is for `_anchor_source` to stop refusing the kind, and for two
-descriptions to stop enumerating three. `AnchorSourceSpec.kind` and
-`AnchorAttemptModel.source_kind` both read *"'manual', 'file' or
-'keychain'"*. That is the fourth time a field description in this repository
-has become narrower than its field, after `chain_ok`, `total`, and
-`buckets`/`start`.
-
-Behind the `[pkcs11]` extra, per §1.5: a plain install must not require
-`python-pkcs11`. The tier claim stays the package's — ADR-0004 calls this the
-tier-B *mechanism*, and a tier-B *claim* needs a real token. Auditor renders
-whichever tier the records carry and never upgrades one.
-
-(The table's own `—` for this item was wrong, caught only when actually
-checking rather than trusting the Track-U dependency column's absence of an
-entry: `anchors_pkcs11` is not in the installed 0.10.0 wheel at all —
-confirmed directly, `ModuleNotFoundError` — because it landed *after* that
-release, the same "since 0.10.0" this section's own heading already says.
-Corrected above to name what it actually waits on.)
-
-**Closed** (Assault-Consulting/Auditor#66), and it found a P0 upstream on
-the way. Measured against SoftHSM rather than assumed: a head written by
-the package's own `Pkcs11AnchorStore` is a *private* object, invisible to a
-session opened without a PIN, so `Pkcs11Anchor` without one reported it
-*absent* — and a read-write public session, which PKCS#11 allows with no
-PIN at all, could plant a public decoy under the same label that the
-no-PIN reader then returned as *answered*. "The host can read but cannot
-silently rewrite" held only on the PIN path. Auditor's source therefore
-requires a PIN, read from a keychain account at the moment of use and never
-carried in a profile (profiles come back in full from `GET
-/anchors/profiles`). Upstream fixed the reader to refuse an unauthenticated
-read and amended ADR-0004 (Assault-Consulting/Palimpsests#260, released in
-0.12.0).
-
-Two things the same PR fixed on this side: the two field descriptions above
-now list four kinds, and an anchor source of *any* known kind missing what
-it needs (a manual source with no head, a file source with no path) is
-refused with a 422 at `PUT`, where before it was accepted and failed later
-inside `/verify` as a 500.
-
-Open, and deliberately left as a decision rather than slipped in: CI does
-not install SoftHSM, so the four real-token tests in `test_pkcs11.py` skip
-there and pass only where a developer has SoftHSM. A separate ubuntu-only
-job would make them continuous, at the cost of one more `apt-get` in a
-pipeline that has already lost runs to Ubuntu mirrors (§0).
-
-**Rotation makes three of C-05's span states routine.** `RotationPolicy` and
-the record-boundary cut mean a long-lived chain now arrives as a sequence of
-segments by default rather than by accident.
-
-C-05 derived `began-earlier`, `spans-the-file` and the orphan placement from
-first principles: the payload has a parent field and a file has edges. They
-are now the ordinary shape of a rotated chain, which raises two things from
-hypothetical to expected — a fixture built from a genuinely rotated chain, so
-those states are exercised against bytes the writer produced rather than
-hand-made `SpanView` objects; and §C-09's and §22's "several files as one
-chain", which the drop handler currently answers by opening the first and
-saying so. That was an honest refusal while segments were hypothetical. It is
-a gap now.
-
-**The pins row's wording rests on an assumption that is now checkable.** It
-reads *"At tier A there is none to have — the absence is a property of the
-platform, not a gap in the record."*
-
-SCITT registration landed upstream — a chain head as a COSE_Sign1 Signed
-Statement, with receipts, against RFC 9943 — and `scitt.py` does not mention
-tier at all. So whether an external witness is available may not be a
-property of the tier, and that sentence may be asserting a limit the
-mechanism does not have.
-
-Before Phase 4 renders any pin, the sentence is verified or replaced. It is
-currently the only claim in this application that says something is
-*impossible* rather than *absent*, and it was written from an assumption
-rather than from the package.
-
-**Closed — replaced, not verified** (Assault-Consulting/Auditor#69). Checked
-against 0.12.0: `pala/scitt.py` never consults the tier, so a tier-A head
-can be registered and receipted and the sentence asserted a limit the
-mechanism does not have. It was on screen, not only planned, so waiting for
-Phase 4 was the wrong gate. The row now says only what the file shows; a
-test forbids the impossibility wording; and the same sweep found and fixed
-a sibling — question two's tier-A caveat called any anchor "a local anchor
-store", which is now said only of a file or keychain anchor, the two that
-sit on the log's own host.
-
-### C-06 was one PR costed before anyone had read what `RecordView` carries
-
-The three-day estimate assumed the sidecar could already answer everything
-F7 asks for. It cannot. `RecordView` has `body_tlv_types` — which TLV types
-are present, never their values — and no field at all for either hash.
-Building the clickable `prev_hash` link the estimate priced at no extra cost
-would have meant inventing the field on this side of the seam, which ADR-0001
-exists to rule out.
-
-Split into four rather than costed down, for the same reason Phase 1's B-06
-was split rather than shrunk: a security-relevant seam addition (C-06b), an
-upstream item (U10 → C-06c), and an unstarted design (C-06d) are three
-different kinds of work, and one PR covering all of them would give a
-reviewer no way to tell which kind they were approving.
-
-Two of the three gaps turned out to be free. `Header.prev_hash` and
-`DecodedRecord.index` are already on the reader's own objects — confirmed by
-reading `palimpsests.audit.reader` against the installed 0.10.0 wheel rather
-than assumed from the spec — so `_record_view` was simply not copying them
-through. The record's own hash is the real gap: nothing downstream of
-`decode_record` retains the header bytes `pala.record_hash()` needs, which is
-why it is U10 and not a fourth free field.
-
-**C-08's dependency was also wrong, the same way B-05's was.** F9 renders the
-origin card "on any selected record" (§13 of `FUNCTIONALITY.md`), and nothing
-before C-06a gave this application a record to select. The table listed C-08
-as needing only C-01 because C-01 supplies the endpoint — but an endpoint is
-not a selection mechanism, and C-08 built against C-01 alone would have had
-no record to be a card *of*. Corrected above to `C-01, C-06a`.
-
-**Status.** C-06a and C-06b are merged. C-06c is merged too
-(Assault-Consulting/Auditor#58): `record_hash` and `prev_seq` on
-`RecordView`, `prevHash` now a clickable jump when there is somewhere
-to jump to. One finding worth keeping: `prev_hash` chains by *file
-position* (`index`), never by `seq` — confirmed by reading
-`IncrementalVerifier.step()` directly, and empirically, before
-trusting it — so `prev_seq` is resolved via `records[index - 1].seq`,
-never `seq - 1`, which a rotated or segmented chain would get wrong.
-Only C-06d — the raw hex view — remains, still an unstarted design.
-
-(That status paragraph, and the count in §6 below, were themselves written
-inside C-06a's own PR and had already called C-06b "merged" — it was not;
-that PR was C-06a. Both are corrected here.)
-
-### C-08 is merged — the one wording gap closed as C-08(b)
-
-Origin inspection otherwise needed no seam changes: `/session/{id}/origin`
-has answered since C-01, and the card is a straightforward reading of what
-it returns. The gap was narrower than C-06's and did not earn a formal
-split — one sentence F9 asks for ("no model active" after a MODEL_UNLOAD)
-that `origin_at()` alone could not produce, confirmed by reading the
-reader source directly rather than assumed (§2, U11). Before U11 landed, a
-MODEL_UNLOAD and "nothing declared yet" rendered the same honest sentence,
-"not stated in this file", because the data could not tell a reader which
-one it was.
-
-**Closed** (Assault-Consulting/Auditor#62): `/origin` now returns
-`OriginState`, a three-way `state` (`active` / `unloaded` / `not_stated`)
-built on `unloaded_at()` (U11, released 0.11.0) rather than the two-state
-`OriginModel | null` C-08 shipped with. Always 200 — the question is
-always answered, `state` says which answer it is.
-
-### C-09 was one PR costed before anyone counted what F10 actually needs
-
-Three days assumed "search bar" was one thing. Reading F10 and its own
-open question against what exists today says otherwise:
-
-- **Free text is `FUNCTIONALITY.md` §22's own unresolved question** — "is
-  free-text search over `detail` MVP or fast-follow?" — not a gap this
-  plan can close by building one answer into the app. It is also
-  unbuildable regardless of that answer: no record carries a `detail`
-  field yet (C-06d).
-- **Filter chips presuppose a records list.** `kind:`, `type:`, `span:`,
-  `boot:`, `tier:` and date range all narrow *which records a list
-  shows* — and this application renders one selected record at a time,
-  never a list of them. `/records` has supported paging and three of
-  those filters since C-01; nothing client-side has called it for more
-  than a single record. This is a real gap the plan did not itemise
-  anywhere, not a deferral — there is no "C-something: the records list"
-  item for C-09b to depend on, and one is needed before filter chips mean
-  anything.
-- **Time jump** needs the record nearest a wall-clock instant, which
-  `/records`' offset (by seq, not by time) cannot answer.
-- **The anchor quick button** needs a record's own hash to know which
-  record a configured anchor names — the same U10/C-06c gap `prevHash`
-  is waiting on, not a new one.
-
-What needed neither a records list, a product decision, nor an upstream
-release: seq jump (`#1447`, F10's own syntax) and two of the three quick
-buttons. Built as C-09a. Typing anything else into the bar — a filter
-chip, free text, a time — is named plainly as not read yet rather than
-silently ignored, the same discipline `record-note` and `origin-none`
-already keep for what this build cannot show.
-
-### C-11 — the item nothing else's dependency had actually named
-
-C-09's split found the missing records list and stopped there, needing it
-only to explain why C-09b could not be scoped. Adding it as its own item
-surfaced a second place the plan had already made the same mistake C-08's
-dependency did: **C-10's "virtualised record table" needs a table.**
-Nothing built one. C-10 has depended on C-03 since it was written —
-correct, C-10 needs the Chronoscope's data path — but a table to
-virtualise is a second, unstated dependency, the same shape of error as
-C-08 needing C-06a and not just C-01. Corrected above to `C-03, C-11`.
-
-C-11 itself needed nothing new: `/records` has paged and filtered since
-C-01, and the view is a straightforward reading of what it returns, reusing
-`recordCard` per row rather than a second mapping. The one design decision
-worth naming is pagination itself — `offset` is documented as a **seq
-threshold** ("records with `seq >= offset`"), not a row count, so "next
-page" cannot be `offset + limit`: a gap, a segment boundary, or a filter
-can all make that number land short of or past what this page actually
-returned. The only threshold guaranteed correct is one past the last row
-the page carried, which is what `nextOffset` computes. "Previous page" has
-no backward equivalent to derive — the endpoint is forward-only by
-design — so it is answered by remembering the offsets already visited
-rather than computing a new one.
-
-### C-07 was one PR costed before anyone confirmed what F8's data needs
-
-Three days assumed "SAFETY list and the r2 oversight loop" was buildable
-against what the seam already resolves. Reading the reader source
-directly, the way U10 and U11 were confirmed, found otherwise.
-
-**Grouping and counting by kind need nothing new.** `kind_name` is
-already resolved per record — `INCIDENT_CANDIDATE` (102) and
-`OVERSIGHT_ACK` (103) are recognised kind values on `SAFETY` bodies the
-same way `MODEL_LOAD`/`MODEL_UNLOAD` are on `EVENT` bodies — so a list
-sorted by seq and grouped by kind is a straightforward reading of what
-`_record_view` already returns. Built as C-07a.
-
-**Detail text is not.** F8 asks for "detail text and a recurrence count
-for identical details" on every SAFETY record. Nothing on this side of
-the seam decodes a body TLV *value* — `_record_view` reports
-`body_tlv_types`, the set of types present, and stops there by design
-(§5, C-06). `EVT_DETAIL` (TLV type 4) is a published, generically usable
-field — this is not a design question the way C-06d's hex view is, it is
-a single named field the package should expose the way `origin_at()`
-already exposes `role` and the two digests. New Track-U item: U12.
-
-**The r2 oversight loop needs two things, not one.** Resolving whether an
-`INCIDENT_CANDIDATE` has been acknowledged means decoding an
-`OVERSIGHT_ACK`'s `EVT_REF_SEQ` / `EVT_REF_HASH` and matching them
-against the candidate they name. Matching on `seq` alone would be a
-**wrong** answer on occasion, not an incomplete one: an ack whose
-`ref_hash` does not match the candidate at that seq is exactly the
-`reference_hash_mismatch` case `FUNCTIONALITY.md` §9 already names, and
-rendering it as a valid acknowledgement would be the overclaim this
-codebase spends its effort refusing to make elsewhere. Correct resolution
-needs the candidate's own hash — U10, still blocked on an upstream
-release — so U13 depends on it rather than duplicating it.
-
-The package is already doing an equivalent hash-verified match somewhere
-in its own `verify()` path: `PalaWriter.oversight_ack`'s docstring states
-plainly that "whether `candidate_seq`/`candidate_hash` name a real
-candidate is the reader's referential-integrity check, reported as an
-advisory" — which is how `reference_unresolved` and
-`reference_hash_mismatch` get produced today. What does not exist is the
-*positive* case: a candidate with a correctly matching ack produces no
-advisory at all, because nothing is wrong, and silence is not the same
-signal as "acknowledged". U13 asks for that resolution exposed directly,
-the same shape of request U10 already is — not new package behaviour,
-new package surface. Scoped as C-07c — the U10 half of that dependency
-was wrong (below); the binary half of C-07c itself is now merged
-(Assault-Consulting/Auditor#60), with the richer half still open.
-
-(That last dependency was wrong in a way only building U13 surfaced:
-it needed no record hash exposed on `DecodedRecord` at all, only the
-header bytes the package already holds internally — the same
-distinction that made B-05's `U7` dependency and C-08's `C-01`-only
-dependency wrong earlier in this document. U13 split and its
-acknowledged-state half is built; this section's own later subsection
-has the full account.)
-
-The `"safety": {"unacknowledged_candidates": 0, ...}` block in
-`FUNCTIONALITY.md`'s report JSON (§11) is not evidence this is already
-computed here — it is the illustrative shape of `pala-verification-
-report/1`, which Phase 3's D-01 renders from the package's own
-`build_report`, once U6's report model actually carries it. Whether it
-does is worth confirming when D-01 is scoped, not assumed now.
-
-A real bug was found and fixed while building C-07a, worth naming since
-it is the kind this codebase is built to catch: the first draft of
-`/safety` accepted a `limit` query parameter shaped like `/records`'s,
-wired nowhere — `Session.safety()` never took it, so it was silently
-ignored. The fix was not to wire it through but to remove it: `/safety`'s
-answer is cached once per session the way boots and spans are, and a
-caller-visible limit on a cache with no key for it would have let a
-second caller silently receive the first caller's limit. A test asserting
-the parameter actually narrowed the response is what caught it — asserted
-`== 2`, got back all four.
-
-### C-10 was one line bundling three separate claims, only one unmet
-
-§19's actual sentence — "the timeline stays interactive, with the
-record table virtualised. Verify runs off the UI thread; the window
-never blocks" — reads as one requirement. It is three, and they needed
-three different kinds of attention: one already true, one a small gap
-between an existing state model and the screen reading it, one a real
-performance ceiling this repository cannot move.
-
-**"Verify runs off the UI thread; the window never blocks" — already
-true, now proven rather than assumed.** Every route in `main.py` is a
-plain `def`; Starlette runs a sync path operation in a worker thread
-rather than on the event loop, and the frontend's own calls are already
-`fetch`-based, which never blocks the window's own thread waiting on a
-promise. Both were true by construction and neither had a test standing
-behind either half of that sentence. `test_concurrency.py` makes it
-one: a monkeypatched 0.3 s delay on `verify` and a concurrent `/health`
-call, issued after `verify` has started, that must answer in well under
-the delay. It does — proving the sidecar serves a second request from a
-different worker thread rather than queuing it behind the one already in
-flight, deterministically and in well under a second, with no real large
-fixture involved.
-
-**The opening screen's own gap.** `ChainState` has had an `"opening"`
-variant since Phase 1, and `chainLine` already renders it correctly —
-"Opening {path}…" — as the page's footnote. Nobody had wired the Open
-button itself to it: the button's own label never changed, and,
-unlike Verify's `disabled={!canVerify}`, nothing stopped a second click
-from starting a second concurrent open while the first was still
-running. Fixed to match Verify's own pattern: disabled and relabelled
-"Opening…" for the state that already existed and was already computing
-the right sentence one element away.
-
-**"Record table virtualised" — a judgement call, made and written down
-rather than left implicit.** C-11's list renders at most
-`RECORDS_PAGE_SIZE` (50) rows regardless of how large the chain is —
-DOM cost bounded by the page size, not the record count, which is the
-property virtualisation exists to provide. It achieves this through
-pagination rather than a continuously scrollable virtual-scroll
-component, and the two are not the same interaction, but for this
-screen specifically pagination is arguably the better fit, not merely
-an adequate substitute: a discrete page is a stable reference ("page 3,
-record #150") in a way a scroll position is not, and a continuously
-loading feed reads more like a live monitor than the careful, nothing-
-moves-until-asked review surface the rest of this application is built
-to be (`styles.css`'s own words: "a forensic tool that animates while
-you read it is a tool arguing with its own content"). Building a second,
-literal virtual-scroll list alongside it would cost real engineering for
-a DOM-size problem C-11 does not have.
-
-**"100 MB / ~1M records verifies in under 10 s" — the one claim
-actually unmet, and measured rather than guessed.** A synthetic
-100,000-record / 22.4 MB fixture, built with the package's own writer,
-timed through `open_chain` and `ChainHandle.verify` (the header walk
-plus `build_report`'s body-digest pass): 4.9 s total, peak RSS 460 MB —
-about 20.6× the file's own size. A second fixture at 224 MB /
-1,000,004 records — past §19's own "100 MB / ~1M-record" mark, not
-short of it — exceeded 3.9 GB of RAM on the machine this was run on and
-was killed by the OS mid-`verify`, never producing a verdict at all.
-
-The cause, read from the package rather than inferred: `AuditReader
-.records()` is written as `yield from self._decoded_records()`, which
-looks incremental and is not. `_decoded_records()` is a single list
-comprehension over every header, built in full — confirmed directly:
-asking for only the *first* record from a fresh reader on the
-1,000,004-record file took 24 s, the same as asking for all of them,
-because the first `yield` cannot happen until the whole list exists.
-`AuditReader.verify()` pays an equivalent cost independently rather than
-reusing that decode.
-
-Three concurrent calls (`records`, `safety`, `timeline`) issued against
-one freshly opened session were also timed, in case the frontend's own
-parallel fetches on chain-open were compounding this. **The conclusion
-drawn here at the time — that they were not, because three calls
-together took about as long as one, consistent with CPython's GIL
-serialising the underlying CPU-bound work — was wrong, caught only once
-someone tried to reproduce it rather than trust it.**
-
-`_decoded_records()` has no lock: the window between checking
-`self._decoded is None` and finishing the assignment spans the whole
-decode, and on a chain large enough for that decode to take real time,
-three requests against a *fresh* session routinely all see the cache
-unset. Measured directly against the package on a 100k-record fixture:
-`decode()` called 300,006 times for 100,002 records — exactly 3× — and
-6.8 s wall time for three concurrent calls against 1.66 s for one alone,
-worse than plain sequential (~5.0 s), not "serialized for free". The
-mechanism is an unprotected cache, not a scheduler; the test that
-reached the wrong conclusion above (`test_concurrency.py`'s
-`time.sleep(0.3)` monkeypatch) never exercised either the shared state
-or a fixture large enough for the race window to matter — it correctly
-proves a different, real property (a slow route does not queue behind
-another) and was never wrong about that. Closed on this side by a lock
-on `ChainHandle` (A1, `docs/U14-decode-performance.md` §U14-01); the
-underlying eager decode itself stays upstream, tracked below as before.
-
-None of this is buildable in `pala_seam.py`. A faster or genuinely
-incremental decode, and whatever `build_report` is doing to reach a
-20×-of-file-size memory footprint, are both entirely inside the
-package's own reading path — reimplementing either here would be
-exactly the second-implementation mistake ADR-0001 exists to rule out,
-on the single riskiest place in this codebase for it to happen
-unnoticed. Tracked as U14, with the numbers above rather than an
-estimate: what closes the gap is not yet known well enough to cost it,
-the same honesty C-06d's `?` already asks for a design nobody has done
-yet.
-
-Built as C-10a: the concurrency test, the Open-button fix, and this
-section's documented case for pagination over virtual-scroll. C-10b —
-the actual scale target — waited on U14, closed in 0.13.0 (§2).
-
-### U14 was investigated past the point of scoping it, into building part of it
-
-Reading U14's cause precisely — `_referential_advisories()` needing
-every record's kind, `_decoded_records()` never letting that cost be
-partial — surfaced two things worth doing upstream rather than only
-writing down. Both landed in Palimpsests directly, not filed and left
-for later.
-
-**A real correctness bug, found by reading what `_safety_section` did
-with the same hash-verified resolution `_check_reference` already had.**
-`build_report`'s `safety.unacknowledged_candidates` matched an
-`OVERSIGHT_ACK` to its candidate on `EVT_REF_SEQ` alone — no hash check.
-An ack naming the right seq with the wrong `EVT_REF_HASH` counted its
-candidate acknowledged in the report, the same file whose
-`advisory.items` was already saying that exact reference was broken
-(`reference_hash_mismatch`). Fixed upstream by extracting the hash
-check `_check_reference` already did into a shared `_hash_verified_target`,
-and exposing a new public `AuditReader.acknowledged_candidates()` built
-on it — Assault-Consulting/Palimpsests#199, merged. This is U13's
-acknowledged-state half, done rather than merely scoped, and it is
-*where* U13's original `U10` dependency turned out wrong: the hash
-check resolves against `self._headers`, bytes the reader already holds,
-never against a `DecodedRecord.record_hash` field — the thing U10 would
-have added. Corrected above; U13 no longer needs it.
-
-**`build_report`'s own duplicate decode, found while tracing why
-Auditor's verify flow paid U14's cost twice.** `ChainHandle.verify()`
-asks its own session reader to verify, then separately asks
-`build_report` for the body-digest walk — and `build_report` always
-opened a second, independent `AuditReader`, with no way to know the
-caller already had one warm. `build_report` now accepts `reader=`
-(Assault-Consulting/Palimpsests#198, merged) so a caller holding an
-open reader is not charged the decode again. This halves the redundant
-half of U14's cost; it does not touch the cost itself, and Auditor's
-own `ChainHandle.container()` does not pass `reader=` yet — a small,
-safe follow-up once a release carries the parameter, not built now
-because the parameter is not usable from an unreleased dependency.
-
-**The actual cost — `_decoded_records()`'s eager decode — was designed,
-not built.** A lock-protected generator that decodes and caches one
-record per index would let an early-exiting caller (`origin_at`, a
-single-record lookup) pay only for what it reads, while a full walk
-keeps today's shared, cache-once behaviour. Worked through in enough
-detail to be confident it is correct — including why a naive lazy
-rewrite is not enough on its own, since `origin_at`'s real usage
-pattern (repeated lookups at different seqs as a user browses) wants
-early-exit *and* a shared cache across calls, not one or the other.
-Left unbuilt on purpose: it is the first concurrency primitive this
-class would need, it touches all six of `_decoded_records()`'s current
-callers including the r2/r3 resolution `U13`/`U15` depend on, and the
-package's own `docs/INTEGRATION-SURFACE.md` already calls this "backlog,
-not promise" — a design existing is not the same as it being this
-plan's call to build without the maintainers in the room. U14 stays a
-`?` for that reason, not because the shape is unknown anymore.
-
-## 6. Phase 3 — Report
-
-**Rewritten after U6 closed upstream.** The original six items assumed
-Auditor built the attestation document. It does not: `pala report` and
-`palimpsests.audit.report_html.render_html` produce the JSON and the HTML,
-and ADR-0001 gives the package what a report *is*. Building a second one here
-would be the body-digest mistake again — a second implementation is a second
-thing to be wrong.
-
-Checked rather than assumed: `render_html` emits one self-contained page —
-no `<script>`, no `<link>`, no `@import`, no outbound URL — so embedding it
-costs nothing against the air-gap invariant.
-
-| PR | Content | Days | Needs |
-|---|---|---|---|
-| ◐ D-01 | Render the package's report through the seam; the JSON and the HTML, neither rebuilt. **JSON done:** `GET /session/{id}/report?profile=` passes `build_report`'s `pala-verification-report/1` through whole — the dict as the package returned it and its own `to_json_bytes()` text — built once per profile, because a second build would be a second `checked_at`, a different attestation of the same check. The verdict is the package's `derive_verdict`, copied, never re-derived, shown with the package's own sentence for it; the screen says the report attests a check and certifies nothing; the JSON can be copied. Saving it to a file is D-07. **HTML waited:** `report_html.render_html` was not in the declared consumer surface, and since C-16 the seam imports nothing else — R5, answered in 0.14.0 (#347): `render_html` is in channel 2, so the HTML half is buildable now. Found reading the report: its `existence.note` reads "tier A: none available", the assumption #69 removed from this screen — R6. | 1 | U6, B-03 |
-| D-02 | Print and PDF: whether that HTML is fit to print, and what a PDF path costs | ? | D-01 |
-| D-03 | Wording audit against L4 and the no-overclaim rule. Now audits *our* framing around the document; if the package's own wording overclaims, that is an upstream issue and is raised there | 1 | D-01 |
-| ✓ D-04 | Determinism test: same file + same anchor → identical bytes except `checked_at`. Now a check on the package's output rather than on ours. **Done:** `tests/test_report_determinism.py`, through `/report` on separate sessions so the cache cannot answer twice. The package's own text with its one `checked_at` object cut out is compared byte for byte — no re-serialisation on this side — without an anchor and with the same anchor; a different anchor must change the bytes, so the comparison cannot pass for a report that ignores its input; a renamed copy in another directory differs in `subject.filename` alone; and the report carries no part of the reader's path. Cross-platform identity is not claimed: the suite runs on three OSes but compares within one run, and a pinned digest would break on every pin bump, since the report names the package version. | 1 | D-01 |
-| D-06 | JSONL export passthrough with range bounds and the derived-not-authoritative notice | 1 | B-01 |
-| ✓ D-07 | Export surface: where a file lands, and whether the digest travels with it. **Done:** a Tauri command, `save_artifact`, runs the save dialog and writes the file in the shell process, to the path the user just chose there — the webview hands over only a suggested name and the text, never a path, and holds no filesystem permission (`capabilities/default.json` unchanged), the same boundary `pick_chain_file` drew for reading. **The digest travels:** `<name>.sha256` is written beside the file in `sha256sum`'s own format, hashed from the file as read back, so `sha256sum -c` checks the pair with no tool of ours; checked against the real `sha256sum` while building. First use: **Save JSON…** on the Report block (the report's own `to_json_bytes()` text, named `<chain>.report.json`). D-06's export will use the same command. **Found and fixed on the way:** `pick_chain_file` was a synchronous command — which Tauri runs on the main thread — calling the dialog plugin's blocking API, which the plugin documents as freezing the application there; both commands are now `#[tauri::command(async)]`. CI cannot see a window; the live desktop check (R3) is where both dialogs are confirmed. | 1 | D-01 |
-
-D-05 is dropped. The round-trip it tested — rebuild the JSON from a fresh
-reader run and compare — is upstream's own guarantee once the report has one
-schema owner, and re-checking it here would test their code with our test.
-
-**Phase 3: revised downward, and the figure is deliberately not restated.**
-D-02 and D-07 carry `?` because nobody has looked at the printed page yet.
-Replacing ten days with a smaller invented number would be the same overclaim
-the original estimate made in the other direction.
-
-**MVP total: not restated either, for the same reason.** It was ~73 days on
-an estimate that no longer describes Phase 3. The honest statement is that
-Phase 0 and Phase 1 are closed, and Phase 2 stands at twenty-one of
-twenty-two items merged — C-01 through C-05, C-06a, C-06b, C-06c, C-07a,
-C-07b, C-07c, C-08, C-09a, C-09b, C-09c, C-09d, C-10a, C-10b, C-11, C-12
-and B-12. (PR #73's description said eighteen; it miscounted.) The twenty-two
-counts the four splits (C-06 into four, C-09 into four, C-07 into three,
-C-10 into two) and C-12, added after 0.12.0. One remains: C-06d, buildable
-since 0.14.0 released upstream requests R2 and R3.
-
-**The exit criterion is met as far as a script can say; the rest is the
-desktop check.** "What happened at 22:41 on 6 Aug" is answerable in three
-interactions and is a test. "A 1M-record chain opens, the timeline stays
-interactive" is measured through the seam (C-10b row): the container opens
-in under a second, the header index every structural answer shares takes
-about five more, and the timeline and nearest-instant answers then read
-that index rather than the chain. Whether the window *feels* interactive
-at that size is the live desktop session §10's definition of done already
-requires for a UI phase, and it has not been done. C-06d is carried past
-the phase's close as a named item, buildable on 0.14.0.
-
-Phase 3 stays unquantified until D-02 and D-07 have been looked at. If
-the work has to shrink, the cut line is C-06d — not the tests.
-(This used to name C-09b onward and B-05; both have since merged.)
-
-## 7. Phase 4 — evidence artifacts
-
-Where the tool stops being a viewer and starts producing artifacts a third
-party can re-check without it.
-
-| PR | Content | Days | Needs |
-|---|---|---|---|
-| E-01 | Evidence bundle UI: invoke the upstream `pala bundle` (U8) through the seam; present the manifest and the time-claims section. Assembly itself lives upstream — building it here would violate the Track-U criterion and, over time, invariant L1. | 1.5 | U5, U8 |
-| E-02 | Independent re-verification harness for bundles: a from-the-spec script with no Auditor code reproduces every claim. (Cleaner still now that assembly is upstream: the harness checks an artifact no line of this repo produced.) | 3 | E-01 |
-| E-03 | Record health: aggregation and trends over U1–U3 output; the three disciplines enforced in the UI copy | 5 | U1–U3 |
-| E-04 | Health summary into the JSON report, labelled advisory, carrying its caveats | 1 | E-03, D-01 |
-| E-05 | Local witness log: hash-chained record of checks performed, with the honest statement of what it does and does not prove | 3 | B-03 |
-| E-06 | SCITT receipts as external evidence: present a registered head and its receipt as a pin, through the seam. Registration and receipt verification are upstream's (`pala/scitt.py`); the shell displays and never mints. The pins-row gate is closed (§5, Auditor#69): the row no longer says a witness cannot exist. What remains is reading the receipt format against what a pin needs to show. | ? | — |
-| E-07 | Prefix-consistency proofs (0.12.0, `pala/proofs.py`: `consistency_proof`, `verify_consistency`): show that the file held is a prefix of a later chain without handing over the later chain. Pairs with segment sequences (Phase 5), which rotation already made the ordinary shape of a long-lived chain. | ? | 0.12.0 |
-
-**Phase 4: ~13.5 days plus E-06 and E-07** (and U8's 4 days upstream — net neutral,
-honestly placed). E-06 carries `?` for the same reason Phase 3's two items
-do: nobody has read the receipt format against what a pin needs to show.
-
-## 8. Phase 5 — beyond MVP
-
-| Item | Notes |
+| ✓ U1–U13, U15 | released by 0.12.0 | Phases 1–2 |
+| ✓ U14, U16, U17, U22, U23, U25 | released in 0.13.0 | C-10b, C-13 |
+| ✓ U19 + U20 | released in 0.13.1 | C-13, C-14, C-16 |
+| ✓ U18, U21, U24, U26, U28–U31 | released in 0.14.0 | C-17, D-01b |
+| R4 — `decode_shred → ShredView` | planned, 0.15 (A5) | a KEY_SHRED's `detail` |
+| R7 — HTML gloss for an empty container | merged (#353), 0.15 | C-18 |
+| R8 — `HEADER_FIELDS` from `reader` | merged (#356), 0.15 | C-06d |
+| R9 — `export_jsonl` in the declared surface | asked | D-06 |
+| U27 — `WRITER-SURFACE.md` | before 1.0 | C-15's writer-built fixtures |
+| Report format `/2` — verdict `empty` | announced, 0.15 | C-18 |
+
+## Phases
+
+| Phase | State |
 |---|---|
-| Watch mode over `TailingReader` | Read-only tail; live verdict, live SAFETY feed, unacknowledged-candidate alert |
-| Oversight disposition (the one write) | A human records a disposition for a candidate **from the screen** — the operational form of Art. 14 human oversight. This is the single place the reader shell touches writing, and it must never do so by producing wire bytes: the shell sends a disposition command to a live engine's sidecar API, and the *runtime's* writer emits the `OVERSIGHT_ACK` record with an operator id from the local profile. Gated on Watch mode and on a dedicated ADR (ADR-0003 candidate): the read/write boundary is crossed by a documented decision, never by drift |
-| Rekor anchor source | Network. Opens the air-gap layers for the first time — both must be demonstrably enforced before this merges |
-| TSA anchor source (RFC 3161) | Same gate |
-| Segment sequences | Several files as one logical chain; behaviour when a segment is missing. **Promoted in urgency by upstream rotation** (§5): this is now the ordinary shape of a long-lived chain rather than a possibility, and the drop handler's "only the first was opened" is a gap rather than a deferral |
-| Signed installers | macOS notarisation + Windows code signing; needs certificates, which is procurement, not engineering |
-| `uk` localisation pass | Strings are externalised from A-02; this is the translation and review pass |
+| 0 — scaffold (A-01…A-07) | ✓ closed |
+| 1 — verify (B-01…B-11, B-12) | ✓ closed |
+| 2 — browse (C-01…C-12) | 21 of 22; C-06d waits on 0.15 |
+| 0.13–0.14 follow-up (C-13…C-17) | ✓ except C-16(b) |
+| 3 — report (D-01…D-07) | D-01, D-03, D-04, D-07 ✓; D-02 `?`; D-06 waits on R9 |
+| 4 — evidence artifacts (E-01…E-07) | not started |
+| 5 — beyond MVP | not started |
 
-## 9. Risks, and what is actually done about each
+**Phase 2's exit criterion** — a 1M-record chain opens, the timeline stays
+interactive, "what happened at 22:41 on 6 Aug" in under five interactions —
+is met as far as a script can say (C-10b, C-09c). Whether the window *feels*
+interactive is the live desktop check below, not yet done.
 
-**R1 — The shell drifts into being a second format implementation.**
-Highest-consequence risk in the project. Mitigation is mechanical, not
-cultural: one seam module, and a CI test that fails the build on any wire
-primitive outside it (B-02, landing in the first week of Phase 1).
+## Open items
 
-**R2 — Overclaim.** Someone will read a green verdict as certification
-whatever the documentation says. Mitigation: D-03 is a scheduled PR,
-not a review comment; the report's own wording states it is an
-attestation of a check; the product name deliberately says "Auditor"
-(the role) and not "AI Auditor" (the claim).
+| Id | What | Days | Needs |
+|---|---|---|---|
+| C-06d | Raw hex view: the record's bytes as read, every header field and TLV highlighted from the package's maps — (a) header in the MVP, (b) body as fast-follow | ? | 0.15 (R8) |
+| ◐ C-16(b) | The canary: the sidecar suite against Palimpsests `main`, outside `ci-complete`. Prepared as `canary.yml`; a workflow file cannot be committed through the tool this work uses | 0.5 | upload by hand |
+| C-18 | 0.15: report `/2` and its verdict `empty`; remove the report /1 special case (`api/report.ts` — the gloss override and the withheld HTML); pin `>=0.15,<0.16` after the suite runs green on the candidate | 1 | 0.15 |
+| D-02 | Print and PDF of the package's HTML | ? | D-01 |
+| D-06 | JSONL export with range bounds and the derived-not-authoritative notice, saved through D-07 | 1 | R9 |
+| E-01 | Evidence bundle UI over `pala bundle` | 1.5 | — |
+| E-02 | Re-verification harness for bundles, from the spec, with no Auditor code | 3 | E-01 |
+| E-03 | Record health over U1–U3, with F12's three disciplines | 5 | — |
+| E-04 | Health summary in the report, labelled advisory | 1 | E-03 |
+| E-05 | Local witness log, hash-chained, saying what it does and does not prove | 3 | — |
+| E-06 | SCITT receipts as pins, displayed, never minted | ? | — |
+| E-07 | Prefix-consistency proofs | ? | — |
+| Phase 5 | Watch mode; the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); segment sequences; signed installers; `uk` pass | — | — |
 
-**R3 — UI cannot be visually verified in CI.** The 3-OS matrix proves
-compilation and tests, nothing about appearance. Mitigation: frontend
-tests run against recorded sidecar responses so logic is testable
-headlessly; a live desktop session is a scheduled manual gate at the
-close of each UI phase, not an ad-hoc check.
+**Next, in order:** the live desktop check; C-16(b) by upload; C-18 and
+C-06d on 0.15; D-06 on R9. Phase 4 starts by decision, not by default.
 
-**R4 — Track U slips and Phase 1 stalls.** Mitigation: exactly one Phase 1
-item depends on Track U at all — B-06c, on U7 being *released*. Everything
-else in the phase is buildable against the shipped 0.8 surface. U1, U4, U5,
-U6 and U9 block Phase 2, 3 and 4 items, which are later.
+## Done recently
 
-This is stronger than it was: the plan previously listed B-05 as needing U7,
-which was simply wrong — a keychain anchor source has nothing to do with
-name tables — and the error would have idled two days of unblocked work
-behind an upstream release.
+C-17(a) — body filters read fields in place on 0.14 (1M records: 13.7 s /
+376 MB, was 21.9 s / 2.04 GB), held to the old walk over 1,032 comparisons.
+C-17(b) — violation codes; a file with no records opens and the package
+names it (an empty file against an anchor is a deleted log); own-keys
+lookups for every table of package-supplied names. D-07 — save where the
+user chose, SHA-256 beside it; both dialogs off the main thread. D-01b — the
+package's HTML report, sandboxed, savable. D-03 — the wording audit, kept as
+`src/wording.test.ts`; three overclaims of our own removed.
 
-**R5 — Scope creep into analytics.** The boundary is written into the
-non-goals and repeated in F12's three disciplines. The operative rule: no
-analytics PR merges before verify and report are impeccable.
+## Risks
 
-**R6 — Package extraction (`palimpsests-audit`) lands mid-development.**
-Mitigation is §4 of the architecture: one seam file. The extraction is a
-one-file diff plus a dependency change.
+- **R1** — the shell drifts into a second format implementation. One seam;
+  `check_no_wire_parsing.sh` and the C-16 contract test fail the build.
+- **R2** — overclaim. D-03's test; the report says it attests a check.
+- **R3** — CI cannot see a window. A live desktop session closes every UI
+  phase. **Outstanding:** both file dialogs (D-07's fix), the framed HTML
+  report under the shell's CSP (D-01b), empty and non-chain files (C-17b),
+  a 1M-record chain.
+- **R4** — Track U slips. Only what a release carries is built on.
+- **R5** — scope creep into analytics. Nothing about record content.
+- **R6** — the package is split into `palimpsests-audit`. A one-file change.
+- **R7** — the one write erodes read-only. A command to the engine, behind
+  an ADR, never bytes from the shell.
+- **R8** — this plan describes work upstream has done. Read the upstream
+  log since the pinned release before starting a phase.
 
-**R7 — The disposition write path erodes the read-only boundary.** Once
-one write exists, the next one looks cheap. Mitigation: the write is a
-*command to the engine*, never bytes from the shell (the runtime's writer
-emits the record); it lands behind a dedicated ADR; and the boundary
-statement in `FUNCTIONALITY.md` gains an explicit "the one exception"
-clause so any second exception is visibly a rule change, not a precedent.
+## Definition of done, per phase
 
-**R8 — This plan describes work upstream has already done.** New, and it
-has now happened once: Phase 3 was six items and ten days for a report the
-package produces. It was not caught by review; it was caught by reading the
-upstream log while updating the pinned version.
-
-Mitigation is a habit rather than a gate, and it is stated as one: **before
-starting a phase, read the upstream changelog and commit log since the
-pinned release**, and account for anything that touches the phase's subject.
-The failure is silent in both directions — building what exists, and
-missing a mechanism that changes what a screen may claim — so it is not
-something a green CI run will ever raise.
-
-## 10. Definition of done, per phase
-
-A phase closes when all of the following hold:
-
-1. Every PR in the phase is merged with non-author approval — enforced by
-   the ruleset on `main` since 17 August 2026, so this is a fact about the
-   history rather than an aspiration. The bootstrap period, when it was
-   neither, is bounded in *Review and merge* in `GOVERNANCE.md`.
-2. CI green on macOS, Linux and Windows; coverage gate met.
-3. `reuse lint` clean.
-4. The phase's exit criterion is demonstrated on real fixture data, with
-   the demonstration recorded in `CHANGELOG.md`.
-5. A live desktop session review has been done for any phase containing
-   UI work.
-6. No invariant from `FUNCTIONALITY.md` §3 has an exception in the merged
-   code — and if one was needed, it is documented as an ADR, not as a
-   comment.
-7. The upstream log since the pinned release has been read, and anything
-   touching the phase's subject is accounted for in the plan before the
-   phase is called closed (R8).
+1. Every PR merged with non-author approval (ruleset on `main` since
+   17 Aug 2026).
+2. CI green on macOS, Linux, Windows; coverage gate met; `reuse lint` clean.
+3. The exit criterion demonstrated on real fixture data, recorded in
+   `CHANGELOG.md`.
+4. A live desktop session for any phase with UI work.
+5. No exception to `FUNCTIONALITY.md` §3's invariants, unless as an ADR.
+6. The upstream log since the pinned release read and accounted for (R8).

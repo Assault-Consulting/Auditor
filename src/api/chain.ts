@@ -35,8 +35,8 @@ import type { Session } from "./session";
  * The sidecar refused the request's parameters (422).
  *
  * Distinct from NotAChainError even though the status is the same, because
- * the two send a reader to different places. "This file is not a PALA-1
- * container" is about the evidence; "there is no axis called monotonic" is
+ * the two send a reader to different places. "This path could not be read
+ * as a file" is about the evidence; "there is no axis called monotonic" is
  * about the request. Collapsing them would have made a mistyped query
  * parameter report that the operator's file was unreadable.
  *
@@ -51,7 +51,11 @@ export class RefusedError extends Error {
   }
 }
 
-/** The path resolved and the bytes are not a PALA-1 container (422). */
+/**
+ * The path could not be read as a file at all (422) — a directory, no
+ * permission. A file that can be read opens, records or none: since C-17b
+ * the package says what it is.
+ */
 export class NotAChainError extends Error {
   constructor(detail: string) {
     super(detail);
@@ -120,8 +124,8 @@ async function detailOf(response: Response): Promise<string> {
  *
  * `unprocessable` says what a 422 means *for this call*, because the status
  * carries two meanings on this surface: opening a container answers 422 when
- * the bytes are not a chain, and a browse endpoint answers 422 when the
- * parameters were refused. A caller of one must not receive the other's
+ * the path cannot be read as a file, and a browse endpoint answers 422 when
+ * the parameters were refused. A caller of one must not receive the other's
  * error type — the message it produces would send someone to inspect a file
  * that is perfectly fine.
  */
