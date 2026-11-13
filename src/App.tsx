@@ -34,7 +34,7 @@ import { type NearestLine, nearestLine } from "./api/nearest";
 import { type Chip, chipLabel, nextWarning, parseSearch } from "./api/search";
 import { safetyGroupKey } from "./api/safety";
 import { unsearchedLine } from "./api/records";
-import { ATTESTATION, type ReportView, reportView } from "./api/report";
+import { ATTESTATION, HTML_WITHHELD, type ReportView, reportView } from "./api/report";
 import { reportFileName, saveArtifact, savedLine } from "./api/saveFile";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords, useSafety } from "./state";
 
@@ -149,10 +149,12 @@ export default function App() {
   type ReportState =
     | { kind: "idle" }
     | { kind: "building" }
-    | { kind: "ready"; view: ReportView; profile: string; fileName: string }
+    | { kind: "ready"; view: ReportView; profile: string; fileName: string; htmlFileName: string }
     | { kind: "failed"; detail: string };
   const [report, setReport] = useState<ReportState>({ kind: "idle" });
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  // D-01b: the package's HTML page, shown only when asked for.
+  const [showHtml, setShowHtml] = useState(false);
   // D-07. Cancelling the dialog is not a failure, and leaves nothing to say.
   type SaveState =
     | { kind: "idle" }
@@ -164,6 +166,7 @@ export default function App() {
     setReport({ kind: "idle" });
     setCopyState("idle");
     setSaveState({ kind: "idle" });
+    setShowHtml(false);
   }, [openedSessionId]);
   const buildReport = () => {
     const s = sessionOf();
@@ -172,9 +175,16 @@ export default function App() {
     setReport({ kind: "building" });
     setCopyState("idle");
     setSaveState({ kind: "idle" });
+    setShowHtml(false);
     void getReport(s.session, s.id, profile)
       .then((r) =>
-        setReport({ kind: "ready", view: reportView(r), profile, fileName: reportFileName(r.report) }),
+        setReport({
+          kind: "ready",
+          view: reportView(r),
+          profile,
+          fileName: reportFileName(r.report),
+          htmlFileName: reportFileName(r.report, "html"),
+        }),
       )
       .catch((err: unknown) =>
         setReport({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
@@ -1371,6 +1381,41 @@ export default function App() {
                     {saveState.kind === "saving" ? "Saving…" : "Save JSON…"}
                   </button>
                 </div>
+                {/* D-01b — the package's own HTML page for the same report,
+                    never rebuilt here. Shown in a sandboxed frame with no
+                    permissions at all: the page has no script and reaches
+                    nothing, and the frame would not let it if it did. */}
+                {report.view.htmlWithheld ? (
+                  <p className="choose-hint report-html-withheld">{HTML_WITHHELD}</p>
+                ) : (
+                  <>
+                    <div className="report-actions">
+                      <button
+                        className="choose-button"
+                        onClick={() => setShowHtml((v) => !v)}
+                        type="button"
+                      >
+                        {showHtml ? "Hide HTML" : "Show HTML"}
+                      </button>
+                      <button
+                        className="choose-button"
+                        disabled={saveState.kind === "saving"}
+                        onClick={() => saveReport(report.htmlFileName, report.view.htmlText)}
+                        type="button"
+                      >
+                        Save HTML…
+                      </button>
+                    </div>
+                    {showHtml && (
+                      <iframe
+                        className="report-html"
+                        sandbox=""
+                        srcDoc={report.view.htmlText}
+                        title="The report as the package rendered it"
+                      />
+                    )}
+                  </>
+                )}
                 {/* D-07. Where it went and its digest, written beside it —
                     the shell chose the place with the user, never this page. */}
                 {saveState.kind === "saved" && <p className="report-saved">{saveState.line}</p>}
