@@ -196,6 +196,11 @@ class Session:
         windows are not cached."""
         return self.chain.nearest(wall_ns)
 
+    def export(self, from_seq: int | None = None, to_seq: int | None = None):
+        """The package's JSONL export, streamed (D-06). Never cached: it is a
+        stream, and the caller writes it to a file as it arrives."""
+        return self.chain.export(from_seq, to_seq)
+
     def subject(self) -> dict[str, object]:
         """Identity plus structure, as one payload."""
         return {
