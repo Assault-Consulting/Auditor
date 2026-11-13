@@ -569,6 +569,14 @@ bounds. The export is derived, never authoritative; the UI repeats that
 sentence on the export dialog. Deterministic: same container bytes → same
 export bytes.
 
+Built as D-06 on palimpsests 0.14.1 (format `pala-jsonl/1`,
+`docs/specs/export/pala-jsonl-1.md` upstream). The summary line always
+describes the whole file, a range included, and says
+`completeness_checked: false`. The export is **streamed**: the shell reads
+it from the sidecar straight into the file the user chose, with its SHA-256
+beside it, so its size — about 770 MB for a 1M-record chain — never sits in
+memory or passes through the webview.
+
 ---
 
 ## 19. Non-functional requirements
