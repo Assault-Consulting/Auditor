@@ -19,6 +19,15 @@ relies on, and how equivalence can be checked — the same shape as U28/U29
 
 Checked against `main` at the merge of #335.
 
+**Status (0.14.1, cut from `main` this week):** R7, R8 and R9 ship in
+0.14.1, inside the pin — the HTML gloss for an empty container (#353),
+`HEADER_FIELDS` / `HeaderField` / `FIXED_HEADER_LEN` from `reader` (#356),
+and `export_jsonl` with format `pala-jsonl/1` in channel 2 (#357). Auditor
+raises the pin to `>=0.14.1,<0.15` (C-19): the HTML is no longer withheld,
+D-06 exports through it, and C-06d is buildable. Exports made before 0.14.1
+had a `chain_ok` over headers only; Auditor never made, kept or showed one,
+so nothing here needs re-verifying. R4 is 0.15.
+
 **Status (released in 0.14.0):** R1–R3 shipped as U30 and U31 (#337) —
 `RecordFields.detail`, `record_bytes_at()` → `RecordBytes(offset, header,
 body)`, `header_tlv_spans_at()` and `body_tlv_spans_at()`, all in the
@@ -200,15 +209,17 @@ bytes those spans sit after.
 **Ask.** Re-export `HEADER_FIELDS`, `HeaderField` and `FIXED_HEADER_LEN`
 from `reader`, under the contract test.
 
-**Answer (Palimpsests).** Merged (#356), ships in 0.15. The sixteen fields
-cover bytes 0–156 contiguously, each with its offset, length and struct
-code; `magic`, `format_version` and `header_len` are in the map though they
-are not `Header` attributes; every header TLV span starts at or after
-`FIXED_HEADER_LEN`. C-06d starts on 0.15.
+**Answer (Palimpsests).** Merged (#356), ships in **0.14.1**. The sixteen
+fields cover bytes 0–156 contiguously, each with its offset, length and
+struct code; `magic`, `format_version` and `header_len` are in the map
+though they are not `Header` attributes; every header TLV span starts at or
+after `FIXED_HEADER_LEN`. C-06d starts on 0.14.1.
 
 **R7, the HTML half.** The package's own HTML printing "PARTIAL — sound as
-far as checked" for an empty container is fixed in #353, for 0.15. Until
-then Auditor withholds that one page, with a sentence saying why (D-01b).
+far as checked" for an empty container is fixed in #353, shipping in
+**0.14.1**; checked on Palimpsests `main`, the page now says nothing was
+checked and nothing was found intact. D-01b withheld that one page on 0.14.0;
+C-19 shows it again.
 
 ## R9 — the JSONL export in the declared surface (noticed in D-06)
 
@@ -225,6 +236,16 @@ a channel of their own or beside the report in channel 2 — with an
 export is the CLI's affair and a consumer should not produce it, say so,
 and D-06 leaves the plan.
 
+**Answer (Palimpsests).** Merged (#357), ships in **0.14.1**:
+`audit.export.__all__ = ["FORMAT", "export_jsonl"]`, format `pala-jsonl/1`
+in channel 2, described in `docs/specs/export/pala-jsonl-1.md`. Keys are
+open; a body that does not match its digest is marked on its own line
+(`body_digest_mismatch`); the summary carries `consistent` and
+`completeness_checked: false`; pass a mapping of the file rather than a copy.
+Exports made before 0.14.1 had a `chain_ok` over headers only, so a body
+altered after writing went unremarked; Auditor never made, kept or showed
+one. D-06 is built on it, streamed by the shell (C-19).
+
 ## Surface
 
 - R1–R3 go into `reader.__all__`, `INTEGRATION-SURFACE.md` channel 1,
@@ -236,9 +257,9 @@ and D-06 leaves the plan.
 - **C-09d shipped on 0.13** through the full-decode path the other body
   filters used. Since C-17(a), on 0.14, all of them read `record_fields_at`
   (R1): 12.9–13.7 s and 376 MB at 1M records, against 21.9 s and 2.04 GB.
-- **C-06d waits for 0.15.** R2 and R3 shipped in 0.14, but the fixed
-  header's map (R8) ships in 0.15; a hex view that could name every TLV and
-  none of the header fields would be built twice. Rendering re-encoded bytes
-  or computing offsets on this side would break ADR-0001, so nothing is
-  built before the release that carries all three.
-- **D-06 waits for R9.** Nothing is built on an undeclared module.
+- **C-06d starts on 0.14.1.** R2 and R3 shipped in 0.14.0 and the fixed
+  header's map (R8) in 0.14.1; with all three, every header field and TLV
+  is named from the package's maps. Rendering re-encoded bytes or computing
+  offsets on this side would break ADR-0001, so nothing was built before.
+- **D-06 is built on 0.14.1 (R9),** streamed by the shell into the chosen
+  file.
