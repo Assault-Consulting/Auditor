@@ -34,7 +34,8 @@ import { type NearestLine, nearestLine } from "./api/nearest";
 import { type Chip, chipLabel, nextWarning, parseSearch } from "./api/search";
 import { safetyGroupKey } from "./api/safety";
 import { unsearchedLine } from "./api/records";
-import { ATTESTATION, HTML_WITHHELD, type ReportView, reportView } from "./api/report";
+import { ATTESTATION, type ReportView, reportView } from "./api/report";
+import { EXPORT_NOTE, exportFileName, exportRecords, parseRange } from "./api/exportFile";
 import { reportFileName, saveArtifact, savedLine } from "./api/saveFile";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords, useSafety } from "./state";
 
@@ -162,12 +163,41 @@ export default function App() {
     | { kind: "saved"; line: string }
     | { kind: "failed"; detail: string };
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
+  // D-06. The range as typed, and what the last export did.
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
+  type ExportState =
+    | { kind: "idle" }
+    | { kind: "exporting" }
+    | { kind: "saved"; line: string }
+    | { kind: "failed"; detail: string };
+  const [exportState, setExportState] = useState<ExportState>({ kind: "idle" });
   useEffect(() => {
     setReport({ kind: "idle" });
     setCopyState("idle");
     setSaveState({ kind: "idle" });
     setShowHtml(false);
+    setExportFrom("");
+    setExportTo("");
+    setExportState({ kind: "idle" });
   }, [openedSessionId]);
+  const runExport = () => {
+    const opened = openedOf(chain);
+    if (opened === null) return;
+    const range = parseRange(exportFrom, exportTo);
+    if (range.kind === "refused") {
+      setExportState({ kind: "failed", detail: range.reason });
+      return;
+    }
+    setExportState({ kind: "exporting" });
+    void exportRecords(opened.session_id, range, exportFileName(opened.subject.filename))
+      .then((saved) =>
+        setExportState(saved === null ? { kind: "idle" } : { kind: "saved", line: savedLine(saved) }),
+      )
+      .catch((err: unknown) =>
+        setExportState({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
+      );
+  };
   const buildReport = () => {
     const s = sessionOf();
     if (s === null) return;
@@ -1385,36 +1415,30 @@ export default function App() {
                     never rebuilt here. Shown in a sandboxed frame with no
                     permissions at all: the page has no script and reaches
                     nothing, and the frame would not let it if it did. */}
-                {report.view.htmlWithheld ? (
-                  <p className="choose-hint report-html-withheld">{HTML_WITHHELD}</p>
-                ) : (
-                  <>
-                    <div className="report-actions">
-                      <button
-                        className="choose-button"
-                        onClick={() => setShowHtml((v) => !v)}
-                        type="button"
-                      >
-                        {showHtml ? "Hide HTML" : "Show HTML"}
-                      </button>
-                      <button
-                        className="choose-button"
-                        disabled={saveState.kind === "saving"}
-                        onClick={() => saveReport(report.htmlFileName, report.view.htmlText)}
-                        type="button"
-                      >
-                        Save HTML…
-                      </button>
-                    </div>
-                    {showHtml && (
-                      <iframe
-                        className="report-html"
-                        sandbox=""
-                        srcDoc={report.view.htmlText}
-                        title="The report as the package rendered it"
-                      />
-                    )}
-                  </>
+                <div className="report-actions">
+                  <button
+                    className="choose-button"
+                    onClick={() => setShowHtml((v) => !v)}
+                    type="button"
+                  >
+                    {showHtml ? "Hide HTML" : "Show HTML"}
+                  </button>
+                  <button
+                    className="choose-button"
+                    disabled={saveState.kind === "saving"}
+                    onClick={() => saveReport(report.htmlFileName, report.view.htmlText)}
+                    type="button"
+                  >
+                    Save HTML…
+                  </button>
+                </div>
+                {showHtml && (
+                  <iframe
+                    className="report-html"
+                    sandbox=""
+                    srcDoc={report.view.htmlText}
+                    title="The report as the package rendered it"
+                  />
                 )}
                 {/* D-07. Where it went and its digest, written beside it —
                     the shell chose the place with the user, never this page. */}
@@ -1422,6 +1446,50 @@ export default function App() {
                 {saveState.kind === "failed" && <p className="report-failed">{saveState.detail}</p>}
               </div>
             )}
+          </section>
+        )}
+
+        {/* D-06 — the package's record export, streamed by the shell
+            straight into the file the user chooses: it never passes through
+            this page, which only names the session and the range. */}
+        {openedOf(chain) !== null && (
+          <section className="export" aria-labelledby="export-title">
+            <h2 className="export-title" id="export-title">
+              Export
+            </h2>
+            <p className="export-note">{EXPORT_NOTE}</p>
+            <div className="export-range">
+              <label>
+                <span className="choose-hint">from #</span>
+                <input
+                  inputMode="numeric"
+                  onChange={(e) => setExportFrom(e.target.value)}
+                  placeholder="first"
+                  type="text"
+                  value={exportFrom}
+                />
+              </label>
+              <label>
+                <span className="choose-hint">to #</span>
+                <input
+                  inputMode="numeric"
+                  onChange={(e) => setExportTo(e.target.value)}
+                  placeholder="last"
+                  type="text"
+                  value={exportTo}
+                />
+              </label>
+              <button
+                className="choose-button"
+                disabled={exportState.kind === "exporting"}
+                onClick={runExport}
+                type="button"
+              >
+                {exportState.kind === "exporting" ? "Exporting…" : "Export JSONL…"}
+              </button>
+            </div>
+            {exportState.kind === "saved" && <p className="report-saved">{exportState.line}</p>}
+            {exportState.kind === "failed" && <p className="report-failed">{exportState.detail}</p>}
           </section>
         )}
 

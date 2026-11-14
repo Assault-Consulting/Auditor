@@ -64,20 +64,44 @@ pub fn write_with_digest(path: &Path, contents: &[u8]) -> io::Result<SavedArtifa
         ));
     }
     let sha256 = format!("{:x}", Sha256::digest(&on_disk));
-
-    let file_name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let digest_path = digest_path_for(path);
-    fs::write(&digest_path, format!("{sha256}  {file_name}\n"))?;
-
+    let digest_path = write_digest(path, &sha256)?;
     Ok(SavedArtifact {
         path: path.display().to_string(),
         digest_path: digest_path.display().to_string(),
         sha256,
         bytes: on_disk.len() as u64,
     })
+}
+
+/// Write `<path>.sha256` for an artifact already on disk, in `sha256sum`'s
+/// format. Shared by the in-memory save above and the streamed export
+/// (`export.rs`), so the two cannot write the digest differently.
+pub fn write_digest(path: &Path, sha256: &str) -> io::Result<PathBuf> {
+    let file_name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let digest_path = digest_path_for(path);
+    fs::write(&digest_path, format!("{sha256}  {file_name}\n"))?;
+    Ok(digest_path)
+}
+
+/// SHA-256 and size of a file, read in pieces — for an artifact too large to
+/// hold in memory (a streamed export runs to hundreds of megabytes).
+pub fn sha256_of_file(path: &Path) -> io::Result<(String, u64)> {
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 1 << 16];
+    let mut total = 0u64;
+    loop {
+        let n = io::Read::read(&mut file, &mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+        total += n as u64;
+    }
+    Ok((format!("{:x}", hasher.finalize()), total))
 }
 
 #[cfg(test)]

@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- D-06 — the package's record export (`pala-jsonl/1`, palimpsests 0.14.1),
+  streamed. The Export block takes an optional range and a save dialog; the
+  shell reads `GET /session/{id}/export` itself and writes it to the chosen
+  file as it arrives, with its SHA-256 beside it, so a 770 MB export of a
+  1M-record chain never sits in memory or in the webview (measured: the
+  shell at 26 MB). A stream that ends before its summary line leaves no file.
+  The block says what an export is before one is made: derived, never
+  authoritative, completeness not checked.
+
 - D-03 — the wording audit, kept as a test. `src/wording.test.ts` collects
   every string the screen can show from the TypeScript syntax tree and fails
   on any word that attributes intent (L4), and on any certifying word —
@@ -288,6 +297,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `REUSE.toml` and `LICENSES/Apache-2.0.txt`; `reuse lint` runs in CI.
 
 ### Changed
+
+- C-19 — on palimpsests 0.14.1 (pin `>=0.14.1,<0.15`). The package's HTML
+  report is shown for an empty container too: 0.14.1 says there that nothing
+  was checked (R7), so the withheld page and its sentence are gone. The JSON
+  block's gloss for `empty_container` stays until report /2 (0.15).
 
 - `DEVELOPMENT-PLAN.md` is the short plan now: governance, Track U status,
   phases, open items, risks R1–R8 and the definition of done, with every

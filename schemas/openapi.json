@@ -2395,6 +2395,80 @@
         "summary": "Session Boots"
       }
     },
+    "/session/{session_id}/export": {
+      "get": {
+        "description": "The package's record export for this session, streamed (D-06).\n\n`export_jsonl` writes it (channel 2 since 0.14.1); this route only\ncarries the lines out as they are written, so a 1M-record chain is\nnever held whole in memory. The desktop shell reads this stream\nstraight into the file the user chose \u2014 the webview never holds it.\n\nThe export reads no anchor, and its summary says so\n(`completeness_checked: false`): `consistent: true` is about the\nrecords present, never about records missing from the end.\n\n409 if the file changed since the session opened; 422 for a range\nwhose start is after its end \u2014 an empty range would be an answer to\na question nobody meant to ask.",
+        "operationId": "export_session_session__session_id__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First seq to export, inclusive. The summary line still describes the whole container.",
+            "in": "query",
+            "name": "from_seq",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First seq to export, inclusive. The summary line still describes the whole container.",
+              "title": "From Seq"
+            }
+          },
+          {
+            "description": "Last seq to export, inclusive.",
+            "in": "query",
+            "name": "to_seq",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last seq to export, inclusive.",
+              "title": "To Seq"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-ndjson": {}
+            },
+            "description": "`pala-jsonl/1`: one line per record, then one summary line. Derived, never authoritative."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Session"
+      }
+    },
     "/session/{session_id}/nearest": {
       "get": {
         "description": "The record nearest an instant by the writer's clock (C-09c).\n\nAlways answered with the qualifiers attached \u2014 `basis`,\n`time_trust`, `wall_follows_seq`, `boot_clock_stepped`,\n`equally_near` \u2014 because the answer is a statement about a\nRecorded clock and must not travel without saying so.",

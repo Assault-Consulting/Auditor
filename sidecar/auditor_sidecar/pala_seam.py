@@ -12,8 +12,9 @@ package access.
 
 Imports come only from the consumer surface `CONSUMER-SURFACE.md` r2
 defines (C-16): the ``__all__`` of ``reader``, ``anchors``,
-``anchors_pkcs11`` and ``names``, and channel 2: ``report.build_report`` and,
-since 0.14, ``report_html.render_html`` (R5).
+``anchors_pkcs11`` and ``names``, and channel 2: ``report.build_report``,
+since 0.14 ``report_html.render_html`` (R5), and since 0.14.1
+``export.export_jsonl`` (R9).
 ``scripts/check_no_wire_parsing.sh`` refuses any other module, and
 ``tests/test_consumer_surface.py`` checks every name against the installed
 package's ``__all__``.
@@ -31,12 +32,16 @@ the imports move, the rest of the codebase does not notice.
 
 from __future__ import annotations
 
+import io
+import mmap
+import queue
 import threading
 from .keychain import KeychainUnavailable
 from .keychain import read as keychain_read
 from array import array
 from bisect import bisect_left, bisect_right
 from collections import Counter
+from collections.abc import Iterator
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _dist_version
@@ -52,6 +57,7 @@ from palimpsests.audit.anchors_pkcs11 import (
     Pkcs11Anchor,
     Pkcs11Unavailable,
 )
+from palimpsests.audit.export import export_jsonl
 from palimpsests.audit.names import assurance_tier_name, time_trust_name
 from palimpsests.audit.reader import (
     FORMAT_VERSION,
@@ -79,6 +85,16 @@ __all__ = [
     "verifier_identity",
     "wire_format_version",
 ]
+
+#: The export is handed on in blocks of about this many characters (D-06). The
+#: package writes a line at a time; passing each line on its own cost 193 s for
+#: a 1M-record chain against 32 s for the export itself — a million queue
+#: operations and a million HTTP chunks.
+_EXPORT_BLOCK = 256 * 1024
+
+#: Blocks in flight before the package's writer waits: with the block size
+#: above, about 4 MB, however large the chain is.
+_EXPORT_QUEUE_CHUNKS = 16
 
 #: The specification this application reads. Not a marketing string: it is
 #: the family name plus the wire version the *linked* verifier implements,
@@ -1677,6 +1693,79 @@ class ChainHandle:
             "total": total,
             "has_more": total > len(window),
         }
+
+    def export(self, from_seq: int | None = None, to_seq: int | None = None) -> Iterator[str]:
+        """The package's `pala-jsonl/1` export of this container, as it is written (D-06).
+
+        `export_jsonl` (channel 2 since 0.14.1, R9) writes the lines; nothing
+        here composes, reorders or reads one. The summary line always describes
+        the whole container — a range bounds the record lines only — and says
+        `completeness_checked: false`, because the export reads no anchor.
+
+        **Streamed, in bounded memory.** A 1M-record chain exports to about
+        770 MB of text; held whole it took 1.7 GB here. So the package writes
+        from a thread of its own into blocks of about 256 KB, a bounded queue
+        of them, and the caller drains it: about 4 MB in flight, whatever the
+        chain's size.
+
+        **A mapping, not a copy**, as the package asks: the file is mapped
+        read-only, so its bytes are not duplicated in memory. An empty file
+        cannot be mapped and is passed as no bytes — the package exports it
+        as a summary with `records: 0`.
+
+        The file is the session's path, read afresh. A caller checks that the
+        file is still the session's subject before starting (409 otherwise);
+        the summary's own `source_sha256` names the bytes actually exported.
+        """
+        chunks: queue.Queue = queue.Queue(maxsize=_EXPORT_QUEUE_CHUNKS)
+        done = object()
+
+        class _Writer(io.TextIOBase):
+            def __init__(self) -> None:
+                self._parts: list[str] = []
+                self._size = 0
+
+            def writable(self) -> bool:
+                return True
+
+            def write(self, s: str) -> int:
+                if s:
+                    self._parts.append(s)
+                    self._size += len(s)
+                    if self._size >= _EXPORT_BLOCK:
+                        self.flush()
+                return len(s)
+
+            def flush(self) -> None:
+                if self._parts:
+                    chunks.put("".join(self._parts))
+                    self._parts, self._size = [], 0
+
+        def produce() -> None:
+            writer = _Writer()
+            try:
+                with open(self._path, "rb") as f:
+                    if f.seek(0, 2) == 0:
+                        export_jsonl(b"", writer, from_seq=from_seq, to_seq=to_seq)
+                    else:
+                        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as data:
+                            export_jsonl(data, writer, from_seq=from_seq, to_seq=to_seq)
+                writer.flush()
+            except BaseException as exc:  # handed to the consumer, not lost
+                chunks.put(exc)
+            finally:
+                chunks.put(done)
+
+        thread = threading.Thread(target=produce, name="pala-export", daemon=True)
+        thread.start()
+        while True:
+            item = chunks.get()
+            if item is done:
+                break
+            if isinstance(item, BaseException):
+                raise item
+            yield item
+        thread.join()
 
     def subject(self) -> dict[str, object]:
         """What the container is, before any verdict about it.
