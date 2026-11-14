@@ -51,7 +51,7 @@ from .pala_seam import NotAChain, UnknownAnchorKind, verifier_identity
 from .sessions import SessionNotFound, SessionStore, SubjectChanged
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pathlib import Path
 
 #: Not 8765. A fixed, distinctive default avoids colliding with another local
@@ -690,6 +690,61 @@ def build_app(token: str | None = None) -> FastAPI:
             report=built["report"],
             json_text=built["json"],
             html_text=built["html"],
+        )
+
+    @app.get(
+        "/session/{session_id}/export",
+        response_class=StreamingResponse,
+        responses={
+            200: {
+                "content": {"application/x-ndjson": {}},
+                "description": (
+                    "`pala-jsonl/1`: one line per record, then one summary "
+                    "line. Derived, never authoritative."
+                ),
+            }
+        },
+    )
+    def export_session(
+        session_id: str,
+        from_seq: int | None = Query(
+            default=None,
+            ge=0,
+            description=(
+                "First seq to export, inclusive. The summary line still "
+                "describes the whole container."
+            ),
+        ),
+        to_seq: int | None = Query(
+            default=None,
+            ge=0,
+            description="Last seq to export, inclusive.",
+        ),
+    ) -> StreamingResponse:
+        """The package's record export for this session, streamed (D-06).
+
+        `export_jsonl` writes it (channel 2 since 0.14.1); this route only
+        carries the lines out as they are written, so a 1M-record chain is
+        never held whole in memory. The desktop shell reads this stream
+        straight into the file the user chose — the webview never holds it.
+
+        The export reads no anchor, and its summary says so
+        (`completeness_checked: false`): `consistent: true` is about the
+        records present, never about records missing from the end.
+
+        409 if the file changed since the session opened; 422 for a range
+        whose start is after its end — an empty range would be an answer to
+        a question nobody meant to ask.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        if from_seq is not None and to_seq is not None and from_seq > to_seq:
+            raise HTTPException(
+                status_code=422,
+                detail=f"the range starts at {from_seq}, after its end at {to_seq}",
+            )
+        return StreamingResponse(
+            session.export(from_seq, to_seq), media_type="application/x-ndjson"
         )
 
     @app.delete("/session/{session_id}", status_code=204)
