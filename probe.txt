@@ -1,3 +1,1 @@
-A — single
-B \\u2014 double
-C \n newline
+D \u2014 escaped-backslash
