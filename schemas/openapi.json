@@ -106,7 +106,7 @@
             "type": "string"
           },
           "source_detail": {
-            "description": "Which one — a path, or free text.",
+            "description": "Which one \u2014 a path, or free text.",
             "title": "Source Detail",
             "type": "string"
           },
@@ -154,7 +154,7 @@
         "type": "object"
       },
       "AnchorProfile": {
-        "description": "An ordered list of places to look for a trusted head.\n\nOrder is meaningful and is the user's: the first source that answers wins,\nand the ones before it are reported as tried. That is why resolution is\navailability-first — a source that errors does not stop the walk — and why\nthe provenance view has to show what was skipped rather than only what\nanswered.",
+        "description": "An ordered list of places to look for a trusted head.\n\nOrder is meaningful and is the user's: the first source that answers wins,\nand the ones before it are reported as tried. That is why resolution is\navailability-first \u2014 a source that errors does not stop the walk \u2014 and why\nthe provenance view has to show what was skipped rather than only what\nanswered.",
         "properties": {
           "name": {
             "description": "Profile name, used as the verify parameter.",
@@ -218,7 +218,7 @@
         "type": "object"
       },
       "AnchorSourceSpec": {
-        "description": "One place a trusted head might live.\n\nThe shell owns the concrete sources; the package owns what a head means\n(L2). A spec is therefore plain data — no package type appears in a\nrequest model.",
+        "description": "One place a trusted head might live.\n\nThe shell owns the concrete sources; the package owns what a head means\n(L2). A spec is therefore plain data \u2014 no package type appears in a\nrequest model.",
         "properties": {
           "account": {
             "anyOf": [
@@ -323,7 +323,7 @@
         "type": "object"
       },
       "BootBoundary": {
-        "description": "Where one boot begins and ends, on both axes.\n\nRendered as an axis break rather than a seam (§C-03). `monotonic_ns`\nresets across a boot, so no duration spans one — and nothing in this\npayload computes one that does.",
+        "description": "Where one boot begins and ends, on both axes.\n\nRendered as an axis break rather than a seam (\u00a7C-03). `monotonic_ns`\nresets across a boot, so no duration spans one \u2014 and nothing in this\npayload computes one that does.",
         "properties": {
           "boot_id": {
             "description": "Hex boot identifier.",
@@ -403,7 +403,7 @@
             "$ref": "#/components/schemas/SpanStatsModel"
           },
           "time_trust_values": {
-            "description": "Every wall-clock trust level seen inside this boot. More than one means the clock changed status mid-boot, which qualifies every wall-time claim in it — so the set is carried rather than reduced to the latest.",
+            "description": "Every wall-clock trust level seen inside this boot. More than one means the clock changed status mid-boot, which qualifies every wall-time claim in it \u2014 so the set is carried rather than reduced to the latest.",
             "items": {
               "$ref": "#/components/schemas/NamedValue"
             },
@@ -438,7 +438,7 @@
         "type": "object"
       },
       "ChainResult": {
-        "description": "Question one, first half: do these records link to each other?\n\nAlways answerable. It needs no key and no anchor — only the bytes in\nfront of it — which is why it is the one question a chain can never\ndecline to answer.\n\n**It is a header walk.** Whether each record still *is* the bytes its\nheader claims is a separate question, answered by\n:class:`ContainerCheck`. A consumer that renders `chain_ok` alone will\nshow a sound file when a body has been swapped.",
+        "description": "Question one, first half: do these records link to each other?\n\nAlways answerable. It needs no key and no anchor \u2014 only the bytes in\nfront of it \u2014 which is why it is the one question a chain can never\ndecline to answer.\n\n**It is a header walk.** Whether each record still *is* the bytes its\nheader claims is a separate question, answered by\n:class:`ContainerCheck`. A consumer that renders `chain_ok` alone will\nshow a sound file when a body has been swapped.",
         "properties": {
           "breaks": {
             "description": "Sequence numbers where prev_hash does not name the predecessor.",
@@ -449,7 +449,7 @@
             "type": "array"
           },
           "chain_ok": {
-            "description": "Whether every record header links to its predecessor. Headers only — see ContainerCheck.body_digest_mismatches for whether the bodies still match their digests.",
+            "description": "Whether every record header links to its predecessor. Headers only \u2014 see ContainerCheck.body_digest_mismatches for whether the bodies still match their digests.",
             "title": "Chain Ok",
             "type": "boolean"
           },
@@ -472,7 +472,7 @@
             "type": "string"
           },
           "uninterpretable": {
-            "description": "Records with an unknown format version or record type. Chain-checked and reported, never rejected — the verifier not understanding a record is not the same as the record being wrong.",
+            "description": "Records with an unknown format version or record type. Chain-checked and reported, never rejected \u2014 the verifier not understanding a record is not the same as the record being wrong.",
             "items": {
               "type": "integer"
             },
@@ -480,7 +480,7 @@
             "type": "array"
           },
           "violation_codes": {
-            "description": "(seq, code) pairs, parallel to `violations` (U24, palimpsests 0.14). The CODE is what a consumer branches on — an open vocabulary (as of 0.14: prefix_absent, genesis_not_first, genesis_prev_hash_nonzero, header_len_mismatch, malformed_tlv, time_trust_undefined, time_unknown_with_wall_clock, empty_body_digest_nonzero, nonempty_body_digest_zero, encrypted_body_too_short); the reason in `violations` is the verifier's sentence, never parsed.",
+            "description": "(seq, code) pairs, parallel to `violations` (U24, palimpsests 0.14). The CODE is what a consumer branches on \u2014 an open vocabulary (as of 0.14: prefix_absent, genesis_not_first, genesis_prev_hash_nonzero, header_len_mismatch, malformed_tlv, time_trust_undefined, time_unknown_with_wall_clock, empty_body_digest_nonzero, nonempty_body_digest_zero, encrypted_body_too_short); the reason in `violations` is the verifier's sentence, never parsed.",
             "items": {
               "items": {},
               "type": "array"
@@ -514,7 +514,7 @@
         "description": "What the container *is*, stated before any verdict about it.\n\nSeparate from the verification result on purpose: a reader of a report\nmust be able to confirm they are holding the same artifact the check ran\nagainst, independently of whether that check passed.",
         "properties": {
           "assurance_tiers": {
-            "description": "Every assurance tier the chain's records carry, not just the latest. More than one means the platform guarantee changed mid-chain, and the verdict wording cannot then be a single sentence — so the set is reported rather than reduced.",
+            "description": "Every assurance tier the chain's records carry, not just the latest. More than one means the platform guarantee changed mid-chain, and the verdict wording cannot then be a single sentence \u2014 so the set is reported rather than reduced.",
             "items": {
               "$ref": "#/components/schemas/NamedValue"
             },
@@ -641,7 +641,7 @@
                 "type": "null"
               }
             ],
-            "description": "True, False, or null. Null means NO ANCHOR ANSWERED — either none was configured, or every source in the profile was absent — so the question was never asked. It is not a pass and must never be rendered as one.",
+            "description": "True, False, or null. Null means NO ANCHOR ANSWERED \u2014 either none was configured, or every source in the profile was absent \u2014 so the question was never asked. It is not a pass and must never be rendered as one.",
             "title": "Complete To Anchor"
           }
         },
@@ -654,10 +654,10 @@
         "type": "object"
       },
       "ContainerCheck": {
-        "description": "Whether each record is the bytes its own header claims.\n\nA different question from the one `ChainResult` answers. The chain is\nabout how records link to each other; this is about whether a record's\nbody still hashes to the `body_digest` its header carries.\n\n`AuditReader.verify()` does not perform this comparison — that is by\ndesign, and it is why verification needs no keys. The walk comes from the\npackage's report builder, so the shell never decides what a body digest\nmeans.",
+        "description": "Whether each record is the bytes its own header claims.\n\nA different question from the one `ChainResult` answers. The chain is\nabout how records link to each other; this is about whether a record's\nbody still hashes to the `body_digest` its header carries.\n\n`AuditReader.verify()` does not perform this comparison \u2014 that is by\ndesign, and it is why verification needs no keys. The walk comes from the\npackage's report builder, so the shell never decides what a body digest\nmeans.",
         "properties": {
           "body_digest_mismatches": {
-            "description": "Sequence numbers whose body does not hash to the digest their header carries. NON-EMPTY MEANS THE HEADER CHAIN CAN STILL BE INTACT — a swapped body leaves every link verifying, so a consumer that renders chain_ok alone would show a sound file. The answer to 'is what I hold internally consistent?' requires this list to be empty as well.",
+            "description": "Sequence numbers whose body does not hash to the digest their header carries. NON-EMPTY MEANS THE HEADER CHAIN CAN STILL BE INTACT \u2014 a swapped body leaves every link verifying, so a consumer that renders chain_ok alone would show a sound file. The answer to 'is what I hold internally consistent?' requires this list to be empty as well.",
             "items": {
               "type": "integer"
             },
@@ -703,20 +703,20 @@
         "type": "object"
       },
       "ContinuationModel": {
-        "description": "What a SEGMENT_CONTINUATION declares (inference profile r6, §3.2).",
+        "description": "What a SEGMENT_CONTINUATION declares (inference profile r6, \u00a73.2).",
         "properties": {
           "predecessor_head": {
-            "description": "SEG_PREDECESSOR_HEAD, hex — the head the previous segment ended at.",
+            "description": "SEG_PREDECESSOR_HEAD, hex \u2014 the head the previous segment ended at.",
             "title": "Predecessor Head",
             "type": "string"
           },
           "prior_root": {
-            "description": "SEG_PRIOR_ROOT, hex — the derived root of every record before this one, as the writer declared it.",
+            "description": "SEG_PRIOR_ROOT, hex \u2014 the derived root of every record before this one, as the writer declared it.",
             "title": "Prior Root",
             "type": "string"
           },
           "retention_s": {
-            "description": "SEG_RETENTION_S — the declared retention floor in seconds; 0 is none.",
+            "description": "SEG_RETENTION_S \u2014 the declared retention floor in seconds; 0 is none.",
             "title": "Retention S",
             "type": "integer"
           },
@@ -759,7 +759,7 @@
                 "type": "null"
               }
             ],
-            "description": "For record_violation: the violation's code (U24, palimpsests 0.14), the machine field to branch on — `expected` carries the reason as a sentence. Null for every other pattern.",
+            "description": "For record_violation: the violation's code (U24, palimpsests 0.14), the machine field to branch on \u2014 `expected` carries the reason as a sentence. Null for every other pattern.",
             "title": "Code"
           },
           "expected": {
@@ -811,7 +811,7 @@
         "description": "Liveness, and the identity of the verifier behind this service.\n\nThe verifier identity is part of the liveness answer rather than a\nseparate endpoint because a verification result is only meaningful\nalongside the verifier that produced it. A shell that knows the service is\nup but not what it is linked against knows less than it needs.",
         "properties": {
           "authenticated": {
-            "description": "Whether the session token gate is enforced. False means the sidecar was started without a token and any local process can reach it — a development affordance, never a supported configuration.",
+            "description": "Whether the session token gate is enforced. False means the sidecar was started without a token and any local process can reach it \u2014 a development affordance, never a supported configuration.",
             "title": "Authenticated",
             "type": "boolean"
           },
@@ -871,7 +871,7 @@
         "description": "Whether this machine has a usable secret store at all.",
         "properties": {
           "available": {
-            "description": "False means there is nowhere on this machine to keep an anchor — a headless box with no Secret Service, a session without credentials, or the keyring extra not installed. Distinct from 'your anchor was not found', and a UI that conflates the two sends the operator to look for a value that could never have been read.",
+            "description": "False means there is nowhere on this machine to keep an anchor \u2014 a headless box with no Secret Service, a session without credentials, or the keyring extra not installed. Distinct from 'your anchor was not found', and a UI that conflates the two sends the operator to look for a value that could never have been read.",
             "title": "Available",
             "type": "boolean"
           },
@@ -928,7 +928,7 @@
             "title": "Sha256"
           },
           "status": {
-            "description": "matches / contradicts / declared_only — as the diagnosis used it.",
+            "description": "matches / contradicts / declared_only \u2014 as the diagnosis used it.",
             "title": "Status",
             "type": "string"
           }
@@ -943,7 +943,7 @@
         "type": "object"
       },
       "NamedValue": {
-        "description": "A header enum value, with the package's name for it.\n\nBoth halves travel. The name is what a person reads; the number is what\nsurvives a name table changing and what can be checked against the\nspecification. `name` is null when this verifier build has no name for\nthe value — which is a real answer, and better than a label invented to\nfill the gap.",
+        "description": "A header enum value, with the package's name for it.\n\nBoth halves travel. The name is what a person reads; the number is what\nsurvives a name table changing and what can be checked against the\nspecification. `name` is null when this verifier build has no name for\nthe value \u2014 which is a real answer, and better than a label invented to\nfill the gap.",
         "properties": {
           "name": {
             "anyOf": [
@@ -984,12 +984,12 @@
             "type": "string"
           },
           "boot_clock_stepped": {
-            "description": "Whether the package's step catalogue reports a clock step in this record's boot — a stepped boot measures two clocks.",
+            "description": "Whether the package's step catalogue reports a clock step in this record's boot \u2014 a stepped boot measures two clocks.",
             "title": "Boot Clock Stepped",
             "type": "boolean"
           },
           "delta_ns": {
-            "description": "wall_clock_ns − asked_ns. Signed: negative means the record's clock reads before the instant asked about.",
+            "description": "wall_clock_ns \u2212 asked_ns. Signed: negative means the record's clock reads before the instant asked about.",
             "title": "Delta Ns",
             "type": "integer"
           },
@@ -1063,7 +1063,7 @@
             "type": "string"
           },
           "since_seq": {
-            "description": "The record that declared this origin. A reader can jump to it and see the declaration rather than take this on trust — the same reason every other claim here names its source.",
+            "description": "The record that declared this origin. A reader can jump to it and see the declaration rather than take this on trust \u2014 the same reason every other claim here names its source.",
             "title": "Since Seq",
             "type": "integer"
           }
@@ -1079,7 +1079,7 @@
         "type": "object"
       },
       "OriginState": {
-        "description": "What F9 needs said about a record's origin — three states, not\nthe two `AuditReader.origin_at()` alone can tell apart.\n\n`origin_at()` returns null for two different facts: nothing has\nbeen declared yet, and something was declared and then explicitly\nunloaded (a MODEL_UNLOAD record) — both leave its running state at\nnull. `unloaded_at()` (U11, released 0.11.0) is the package's own\nway to tell them apart, additive to `origin_at()` rather than a\nchange to it.",
+        "description": "What F9 needs said about a record's origin \u2014 three states, not\nthe two `AuditReader.origin_at()` alone can tell apart.\n\n`origin_at()` returns null for two different facts: nothing has\nbeen declared yet, and something was declared and then explicitly\nunloaded (a MODEL_UNLOAD record) \u2014 both leave its running state at\nnull. `unloaded_at()` (U11, released 0.11.0) is the package's own\nway to tell them apart, additive to `origin_at()` rather than a\nchange to it.",
         "properties": {
           "origin": {
             "anyOf": [
@@ -1093,7 +1093,7 @@
             "description": "The declared origin, present only when state is 'active'."
           },
           "state": {
-            "description": "One of: active, unloaded, not_stated. 'active' means a model is declared running — see `origin` below. 'unloaded' means one was declared and then explicitly ended by a MODEL_UNLOAD. 'not_stated' means nothing has been declared at or before this record at all.",
+            "description": "One of: active, unloaded, not_stated. 'active' means a model is declared running \u2014 see `origin` below. 'unloaded' means one was declared and then explicitly ended by a MODEL_UNLOAD. 'not_stated' means nothing has been declared at or before this record at all.",
             "title": "State",
             "type": "string"
           }
@@ -1170,7 +1170,7 @@
                 "type": "null"
               }
             ],
-            "description": "For an acknowledged INCIDENT_CANDIDATE: wall_clock(ack) − wall_clock(candidate), a RECORDED figure — two claims of the writer's clock subtracted, never proved. Computed only when both records are in the same boot: across a restart the clock may have been set, and a number would span a period nobody observed. acknowledged_by non-null with this null means exactly that — a cross-boot pair. Can be negative, when the writer's clock went backwards; shown as it is rather than clamped.",
+            "description": "For an acknowledged INCIDENT_CANDIDATE: wall_clock(ack) \u2212 wall_clock(candidate), a RECORDED figure \u2014 two claims of the writer's clock subtracted, never proved. Computed only when both records are in the same boot: across a restart the clock may have been set, and a number would span a period nobody observed. acknowledged_by non-null with this null means exactly that \u2014 a cross-boot pair. Can be negative, when the writer's clock went backwards; shown as it is rather than clamped.",
             "title": "Ack Latency Ns"
           },
           "acknowledged": {
@@ -1182,7 +1182,7 @@
                 "type": "null"
               }
             ],
-            "description": "For an INCIDENT_CANDIDATE: whether a hash-verified OVERSIGHT_ACK names it (U13, released 0.11.0). Null for every other kind — 'not acknowledged' and 'not the kind of record that gets acknowledged' are different facts, and collapsing them to false would claim something about a record that never made the claim. Which ack is `acknowledged_by`.",
+            "description": "For an INCIDENT_CANDIDATE: whether a hash-verified OVERSIGHT_ACK names it (U13, released 0.11.0). Null for every other kind \u2014 'not acknowledged' and 'not the kind of record that gets acknowledged' are different facts, and collapsing them to false would claim something about a record that never made the claim. Which ack is `acknowledged_by`.",
             "title": "Acknowledged"
           },
           "acknowledged_by": {
@@ -1206,7 +1206,7 @@
                 "type": "null"
               }
             ],
-            "description": "For an OVERSIGHT_ACK: the seq of the candidate it verifiably acknowledges — the same resolution read backwards. Null for an ack whose reference does not verify, which must not look like it acknowledges anything, and for every other kind.",
+            "description": "For an OVERSIGHT_ACK: the seq of the candidate it verifiably acknowledges \u2014 the same resolution read backwards. Null for an ack whose reference does not verify, which must not look like it acknowledges anything, and for every other kind.",
             "title": "Acknowledges"
           },
           "assurance_tier": {
@@ -1229,7 +1229,7 @@
                 "type": "null"
               }
             ],
-            "description": "TLV types present in the body, or null when this view has none to show — a record type with no body, an encrypted body, or one this build cannot parse. Distinct from [], which would mean a decoded body containing nothing.",
+            "description": "TLV types present in the body, or null when this view has none to show \u2014 a record type with no body, an encrypted body, or one this build cannot parse. Distinct from [], which would mean a decoded body containing nothing.",
             "title": "Body Tlv Types"
           },
           "boot_id": {
@@ -1257,7 +1257,7 @@
                 "type": "null"
               }
             ],
-            "description": "EVT_DETAIL, decoded generically for any record type that carries one — EVENT and SAFETY bodies, the same scope `kind` already has (U12, released 0.11.0). Null when the record carries no detail at all, never an empty string.",
+            "description": "EVT_DETAIL, decoded generically for any record type that carries one \u2014 EVENT and SAFETY bodies, the same scope `kind` already has (U12, released 0.11.0). Null when the record carries no detail at all, never an empty string.",
             "title": "Detail"
           },
           "disposition": {
@@ -1272,7 +1272,7 @@
             "description": "For an OVERSIGHT_ACK: the disposition the writer recorded, with the package's name for it (e.g. DISMISSED). Null for every record that carries none."
           },
           "index": {
-            "description": "Position of this record within THIS FILE, zero-based. Distinct from seq, which a rotated or segmented chain does not start at zero and does not number contiguously across a gap — index always does, because it counts what this file actually holds.",
+            "description": "Position of this record within THIS FILE, zero-based. Distinct from seq, which a rotated or segmented chain does not start at zero and does not number contiguously across a gap \u2014 index always does, because it counts what this file actually holds.",
             "title": "Index",
             "type": "integer"
           },
@@ -1309,7 +1309,7 @@
                 "type": "null"
               }
             ],
-            "description": "The package's name for the kind. Null where the record type has no kind at all — GENESIS, BOOT and ANCHOR do not — which is not the same as a kind this build cannot name.",
+            "description": "The package's name for the kind. Null where the record type has no kind at all \u2014 GENESIS, BOOT and ANCHOR do not \u2014 which is not the same as a kind this build cannot name.",
             "title": "Kind Name"
           },
           "monotonic_ns": {
@@ -1338,7 +1338,7 @@
                 "type": "null"
               }
             ],
-            "description": "On a TOOL_RESULT: the outcome the writer recorded (EVT_OUTCOME), with the package's name — 'ok', 'error', 'timeout', 'cancelled', or 'unobserved' (r6: the result returned and the recording vantage could not observe whether it failed). 'ok' IS A RETURN, NOT A CONFIRMED EFFECT (profile note 5), and a reader cannot treat it as 'the tool did not fail'. Null on every other record, and on a result missing the tag; name null for a value this build cannot interpret."
+            "description": "On a TOOL_RESULT: the outcome the writer recorded (EVT_OUTCOME), with the package's name \u2014 'ok', 'error', 'timeout', 'cancelled', or 'unobserved' (r6: the result returned and the recording vantage could not observe whether it failed). 'ok' IS A RETURN, NOT A CONFIRMED EFFECT (profile note 5), and a reader cannot treat it as 'the tool did not fail'. Null on every other record, and on a result missing the tag; name null for a value this build cannot interpret."
           },
           "parent_span_id": {
             "anyOf": [
@@ -1361,7 +1361,7 @@
                 "type": "null"
               }
             ],
-            "description": "Hex hash of the predecessor's header, or null for a record declaring it has none. PALA-1 spells 'no predecessor' as thirty-two zero bytes — the GENESIS convention (§4.2: 'no predecessor' and 'predecessor removed' must be distinguishable, which is the entire reason GENESIS is a type) — so this field reports null rather than a hash of all zeros, the same choice span_id already makes for 'no span'. This is the record's OWN CLAIM about its predecessor, unverified here: whether it actually matches the predecessor's hash is a chain-link fact, not a structural one, and belongs to /verify, not to this view.",
+            "description": "Hex hash of the predecessor's header, or null for a record declaring it has none. PALA-1 spells 'no predecessor' as thirty-two zero bytes \u2014 the GENESIS convention (\u00a74.2: 'no predecessor' and 'predecessor removed' must be distinguishable, which is the entire reason GENESIS is a type) \u2014 so this field reports null rather than a hash of all zeros, the same choice span_id already makes for 'no span'. This is the record's OWN CLAIM about its predecessor, unverified here: whether it actually matches the predecessor's hash is a chain-link fact, not a structural one, and belongs to /verify, not to this view.",
             "title": "Prev Hash"
           },
           "prev_seq": {
@@ -1373,11 +1373,11 @@
                 "type": "null"
               }
             ],
-            "description": "The seq of the record prev_hash names, or null when there is none in this file. NOT seq - 1: the hash chain links by position in this container (the record immediately before this one), never by seq value, and a seq gap is a wholly independent fact — a rotated or segmented chain can have both at once. Null at the first record in this file, whether that is GENESIS's own declared zero predecessor or a segment's first record naming a predecessor outside this container: either way, nothing here to jump to.",
+            "description": "The seq of the record prev_hash names, or null when there is none in this file. NOT seq - 1: the hash chain links by position in this container (the record immediately before this one), never by seq value, and a seq gap is a wholly independent fact \u2014 a rotated or segmented chain can have both at once. Null at the first record in this file, whether that is GENESIS's own declared zero predecessor or a segment's first record naming a predecessor outside this container: either way, nothing here to jump to.",
             "title": "Prev Seq"
           },
           "record_hash": {
-            "description": "This record's own hex hash (U10, palimpsests 0.11.0) — the SHA-256 the package computes over the header bytes. Always present, even for a record whose header did not otherwise decode: the hash is over the raw bytes, which the chain check hashes regardless of whether this view could read their fields.",
+            "description": "This record's own hex hash (U10, palimpsests 0.11.0) \u2014 the SHA-256 the package computes over the header bytes. Always present, even for a record whose header did not otherwise decode: the hash is over the raw bytes, which the chain check hashes regardless of whether this view could read their fields.",
             "title": "Record Hash",
             "type": "string"
           },
@@ -1395,7 +1395,7 @@
                 "type": "null"
               }
             ],
-            "description": "How many SAFETY records in this container carry this exact detail text, this one included (F8: 'detail text and a recurrence count for identical details'). Scoped to SAFETY the way `acknowledged` is scoped to INCIDENT_CANDIDATE: null for a non-SAFETY record (not applicable) and for a SAFETY record with no detail (nothing to count) — never 0, since a detail that exists recurs at least once, itself.",
+            "description": "How many SAFETY records in this container carry this exact detail text, this one included (F8: 'detail text and a recurrence count for identical details'). Scoped to SAFETY the way `acknowledged` is scoped to INCIDENT_CANDIDATE: null for a non-SAFETY record (not applicable) and for a SAFETY record with no detail (nothing to count) \u2014 never 0, since a detail that exists recurs at least once, itself.",
             "title": "Recurrence Count"
           },
           "seq": {
@@ -1412,7 +1412,7 @@
                 "type": "null"
               }
             ],
-            "description": "Seq of the KEY_SHRED that shreds this record, resolved in the chain and key_id-matched (U15, released 0.11.0), or null when it is not currently shredded. A KEY_SHRED's own target_seqs can name any record, so no kind is excluded structurally — null here means 'not shredded', not 'not shreddable'.",
+            "description": "Seq of the KEY_SHRED that shreds this record, resolved in the chain and key_id-matched (U15, released 0.11.0), or null when it is not currently shredded. A KEY_SHRED's own target_seqs can name any record, so no kind is excluded structurally \u2014 null here means 'not shredded', not 'not shreddable'.",
             "title": "Shredded By"
           },
           "source": {
@@ -1424,7 +1424,7 @@
                 "type": "null"
               }
             ],
-            "description": "On a TOOL_CALL or TOOL_RESULT: how the serving layer learned of it (EVT_SOURCE, inference profile r5), with the package's name — 'parsed-from-wire', the runtime's own observation of a loop it mediated, or 'reported-by-client', the client's assertion faithfully recorded. The chain proves a reported call was reported, what it digested and when — NEVER THAT THE TOOL ACTUALLY RAN. An evidence-quality mark, never a trust upgrade. Null on every other record, where the mark has no meaning; name null for a value this build cannot interpret."
+            "description": "On a TOOL_CALL or TOOL_RESULT: how the serving layer learned of it (EVT_SOURCE, inference profile r5), with the package's name \u2014 'parsed-from-wire', the runtime's own observation of a loop it mediated, or 'reported-by-client', the client's assertion faithfully recorded. The chain proves a reported call was reported, what it digested and when \u2014 NEVER THAT THE TOOL ACTUALLY RAN. An evidence-quality mark, never a trust upgrade. Null on every other record, where the mark has no meaning; name null for a value this build cannot interpret."
           },
           "span_id": {
             "anyOf": [
@@ -1435,7 +1435,7 @@
                 "type": "null"
               }
             ],
-            "description": "Hex span identifier, or null when the record is in no span. PALA-1 spells that as sixteen zero bytes; this field reports null rather than a span named 00000000…",
+            "description": "Hex span identifier, or null when the record is in no span. PALA-1 spells that as sixteen zero bytes; this field reports null rather than a span named 00000000\u2026",
             "title": "Span Id"
           },
           "time_trust": {
@@ -1502,7 +1502,7 @@
             "type": "string"
           },
           "html_text": {
-            "description": "The same report as the package renders it (`render_html`, channel 2 since palimpsests 0.14): one self-contained HTML page — no script, no link, no outbound URL. Built from the same report object, never by this application.",
+            "description": "The same report as the package renders it (`render_html`, channel 2 since palimpsests 0.14): one self-contained HTML page \u2014 no script, no link, no outbound URL. Built from the same report object, never by this application.",
             "title": "Html Text",
             "type": "string"
           },
@@ -1648,7 +1648,7 @@
                 "type": "null"
               }
             ],
-            "description": "The SPAN_END record, or NULL FOR A SPAN NEVER CLOSED. Null is first-class evidence — an interrupted operation looks exactly like this — and must never be filled in with the last record seen.",
+            "description": "The SPAN_END record, or NULL FOR A SPAN NEVER CLOSED. Null is first-class evidence \u2014 an interrupted operation looks exactly like this \u2014 and must never be filled in with the last record seen.",
             "title": "End Seq"
           },
           "parent_span_id": {
@@ -1739,7 +1739,7 @@
         "type": "object"
       },
       "Timeline": {
-        "description": "Record density along one axis, and what breaks the ruler.\n\n**Two axes, and they are not interchangeable (L3).** `seq` is proved\norder: the hash chain establishes it and nothing can reorder it. `wall`\nis the writer's clock — a recorded claim, qualified by `time_trust`.",
+        "description": "Record density along one axis, and what breaks the ruler.\n\n**Two axes, and they are not interchangeable (L3).** `seq` is proved\norder: the hash chain establishes it and nothing can reorder it. `wall`\nis the writer's clock \u2014 a recorded claim, qualified by `time_trust`.",
         "properties": {
           "align": {
             "anyOf": [
@@ -1800,7 +1800,7 @@
                 "type": "null"
               }
             ],
-            "description": "Where the first bucket begins. Equal to the lowest position on this axis for uniform buckets, and THE UTC MIDNIGHT AT OR BEFORE IT when align='day' — the first day is a whole day even when the chain starts in the middle of one.",
+            "description": "Where the first bucket begins. Equal to the lowest position on this axis for uniform buckets, and THE UTC MIDNIGHT AT OR BEFORE IT when align='day' \u2014 the first day is a whole day even when the chain starts in the middle of one.",
             "title": "Start"
           },
           "steps": {
@@ -1850,7 +1850,7 @@
         "type": "object"
       },
       "TimelineBucket": {
-        "description": "One interval of the axis, and what fell inside it.\n\nPresent even when empty. An empty stretch is a fact about the chain —\nthe quiet week, the gap between boots — and a series that omitted empty\nbuckets would draw a dense chain out of a sparse one.",
+        "description": "One interval of the axis, and what fell inside it.\n\nPresent even when empty. An empty stretch is a fact about the chain \u2014\nthe quiet week, the gap between boots \u2014 and a series that omitted empty\nbuckets would draw a dense chain out of a sparse one.",
         "properties": {
           "anchor": {
             "description": "How many of them are ANCHOR records.",
@@ -1878,7 +1878,7 @@
             "type": "integer"
           },
           "stepped": {
-            "description": "Whether the writer's clock stepped inside this bucket. On the wall axis a stepped bucket is measuring two different clocks, so its width means nothing — a UI must mark it rather than draw it like the others.",
+            "description": "Whether the writer's clock stepped inside this bucket. On the wall axis a stepped bucket is measuring two different clocks, so its width means nothing \u2014 a UI must mark it rather than draw it like the others.",
             "title": "Stepped",
             "type": "boolean"
           }
@@ -2039,7 +2039,7 @@
             "type": "string"
           },
           "duration_ns": {
-            "description": "to_wall_ns minus from_wall_ns. CAN BE NEGATIVE — that means the writer's clock moved backwards across the boundary, which the ruler cannot represent and a UI must not hide.",
+            "description": "to_wall_ns minus from_wall_ns. CAN BE NEGATIVE \u2014 that means the writer's clock moved backwards across the boundary, which the ruler cannot represent and a UI must not hide.",
             "title": "Duration Ns",
             "type": "integer"
           },
@@ -2091,7 +2091,7 @@
         "summary": "Keychain Status"
       },
       "put": {
-        "description": "Store a head in the secret store.\n\nThis writes, and the read-only rule still holds: the target is\nAuditor's own anchor store, never an audited container. The rule is\nabout not touching evidence, not about never writing a byte.\n\nIt exists so an operator can seed an anchor from the application\nrather than from a shell one-liner they have to get exactly right —\nand a head seeded with a typo persists, so getting it right matters\nmore here than anywhere else.",
+        "description": "Store a head in the secret store.\n\nThis writes, and the read-only rule still holds: the target is\nAuditor's own anchor store, never an audited container. The rule is\nabout not touching evidence, not about never writing a byte.\n\nIt exists so an operator can seed an anchor from the application\nrather than from a shell one-liner they have to get exactly right \u2014\nand a head seeded with a typo persists, so getting it right matters\nmore here than anywhere else.",
         "operationId": "seed_keychain_anchors_keychain_put",
         "requestBody": {
           "content": {
@@ -2353,7 +2353,7 @@
     },
     "/session/{session_id}/boots": {
       "get": {
-        "description": "The boots in this container, with their statistics.\n\nBrowsing is separate from verifying, and answers no question about\nsoundness. A chain that fails verification is still browsed — half\nthe job is inspecting evidence that did not pass.",
+        "description": "The boots in this container, with their statistics.\n\nBrowsing is separate from verifying, and answers no question about\nsoundness. A chain that fails verification is still browsed \u2014 half\nthe job is inspecting evidence that did not pass.",
         "operationId": "session_boots_session__session_id__boots_get",
         "parameters": [
           {
@@ -2397,7 +2397,7 @@
     },
     "/session/{session_id}/export": {
       "get": {
-        "description": "The package's record export for this session, streamed (D-06).\n\n`export_jsonl` writes it (channel 2 since 0.14.1); this route only\ncarries the lines out as they are written, so a 1M-record chain is\nnever held whole in memory. The desktop shell reads this stream\nstraight into the file the user chose — the webview never holds it.\n\nThe export reads no anchor, and its summary says so\n(`completeness_checked: false`): `consistent: true` is about the\nrecords present, never about records missing from the end.\n\n409 if the file changed since the session opened; 422 for a range\nwhose start is after its end — an empty range would be an answer to\na question nobody meant to ask.",
+        "description": "The package's record export for this session, streamed (D-06).\n\n`export_jsonl` writes it (channel 2 since 0.14.1); this route only\ncarries the lines out as they are written, so a 1M-record chain is\nnever held whole in memory. The desktop shell reads this stream\nstraight into the file the user chose \u2014 the webview never holds it.\n\nThe export reads no anchor, and its summary says so\n(`completeness_checked: false`): `consistent: true` is about the\nrecords present, never about records missing from the end.\n\n409 if the file changed since the session opened; 422 for a range\nwhose start is after its end \u2014 an empty range would be an answer to\na question nobody meant to ask.",
         "operationId": "export_session_session__session_id__export_get",
         "parameters": [
           {
@@ -2471,7 +2471,7 @@
     },
     "/session/{session_id}/nearest": {
       "get": {
-        "description": "The record nearest an instant by the writer's clock (C-09c).\n\nAlways answered with the qualifiers attached — `basis`,\n`time_trust`, `wall_follows_seq`, `boot_clock_stepped`,\n`equally_near` — because the answer is a statement about a\nRecorded clock and must not travel without saying so.",
+        "description": "The record nearest an instant by the writer's clock (C-09c).\n\nAlways answered with the qualifiers attached \u2014 `basis`,\n`time_trust`, `wall_follows_seq`, `boot_clock_stepped`,\n`equally_near` \u2014 because the answer is a statement about a\nRecorded clock and must not travel without saying so.",
         "operationId": "session_nearest_session__session_id__nearest_get",
         "parameters": [
           {
@@ -2522,7 +2522,7 @@
     },
     "/session/{session_id}/origin": {
       "get": {
-        "description": "What was running when a record was written — three states.\n\n**`state` carries the distinction a bare null could not.**\n`origin_at()` alone returns null for two different facts:\nnothing has been declared yet (\"not_stated\"), and something was\ndeclared and then explicitly ended by a MODEL_UNLOAD\n(\"unloaded\") — both left its running state at null before U11\n(released 0.11.0) added `unloaded_at()` to tell them apart. A UI\nmust render each as its own sentence, never as one empty card\nthat reads as \"nothing was running\" regardless of which is true.\n\nAlways 200. The question is always answered; `state` says which\nanswer it is, `origin` carries the declared fields only when\n`state` is `\"active\"`.",
+        "description": "What was running when a record was written \u2014 three states.\n\n**`state` carries the distinction a bare null could not.**\n`origin_at()` alone returns null for two different facts:\nnothing has been declared yet (\"not_stated\"), and something was\ndeclared and then explicitly ended by a MODEL_UNLOAD\n(\"unloaded\") \u2014 both left its running state at null before U11\n(released 0.11.0) added `unloaded_at()` to tell them apart. A UI\nmust render each as its own sentence, never as one empty card\nthat reads as \"nothing was running\" regardless of which is true.\n\nAlways 200. The question is always answered; `state` says which\nanswer it is, `origin` carries the declared fields only when\n`state` is `\"active\"`.",
         "operationId": "session_origin_session__session_id__origin_get",
         "parameters": [
           {
@@ -2573,7 +2573,7 @@
     },
     "/session/{session_id}/record/{seq}": {
       "get": {
-        "description": "One record by sequence number.\n\n404 when the file holds no such record. A segment covering records\n400–900 legitimately has no record 12, and saying so is different\nfrom saying the session is unknown — which the caller can tell apart\nbecause that 404 names the session instead.",
+        "description": "One record by sequence number.\n\n404 when the file holds no such record. A segment covering records\n400\u2013900 legitimately has no record 12, and saying so is different\nfrom saying the session is unknown \u2014 which the caller can tell apart\nbecause that 404 names the session instead.",
         "operationId": "session_record_session__session_id__record__seq__get",
         "parameters": [
           {
@@ -2662,7 +2662,7 @@
             }
           },
           {
-            "description": "Keep only records of this raw type. Filtering by a type that appears nowhere yields an empty window rather than an error — that is the truthful answer to the question asked.",
+            "description": "Keep only records of this raw type. Filtering by a type that appears nowhere yields an empty window rather than an error \u2014 that is the truthful answer to the question asked.",
             "in": "query",
             "name": "record_type",
             "required": false,
@@ -2675,7 +2675,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Keep only records of this raw type. Filtering by a type that appears nowhere yields an empty window rather than an error — that is the truthful answer to the question asked.",
+              "description": "Keep only records of this raw type. Filtering by a type that appears nowhere yields an empty window rather than an error \u2014 that is the truthful answer to the question asked.",
               "title": "Record Type"
             }
           },
@@ -2716,7 +2716,7 @@
             }
           },
           {
-            "description": "Keep only records whose type the package names this, e.g. 'SAFETY'. Matched against the name the package resolves, exactly — no name-to-number table exists on this side.",
+            "description": "Keep only records whose type the package names this, e.g. 'SAFETY'. Matched against the name the package resolves, exactly \u2014 no name-to-number table exists on this side.",
             "in": "query",
             "name": "type_name",
             "required": false,
@@ -2729,7 +2729,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Keep only records whose type the package names this, e.g. 'SAFETY'. Matched against the name the package resolves, exactly — no name-to-number table exists on this side.",
+              "description": "Keep only records whose type the package names this, e.g. 'SAFETY'. Matched against the name the package resolves, exactly \u2014 no name-to-number table exists on this side.",
               "title": "Type Name"
             }
           },
@@ -2752,7 +2752,7 @@
             }
           },
           {
-            "description": "Keep only records whose assurance tier the package names this: 'A', 'B' or 'B+'. There is no 'C' — tier C is asserted post-hoc by a witness record, never by a header.",
+            "description": "Keep only records whose assurance tier the package names this: 'A', 'B' or 'B+'. There is no 'C' \u2014 tier C is asserted post-hoc by a witness record, never by a header.",
             "in": "query",
             "name": "tier",
             "required": false,
@@ -2765,7 +2765,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Keep only records whose assurance tier the package names this: 'A', 'B' or 'B+'. There is no 'C' — tier C is asserted post-hoc by a witness record, never by a header.",
+              "description": "Keep only records whose assurance tier the package names this: 'A', 'B' or 'B+'. There is no 'C' \u2014 tier C is asserted post-hoc by a witness record, never by a header.",
               "title": "Tier"
             }
           },
@@ -2907,7 +2907,7 @@
     },
     "/session/{session_id}/report": {
       "get": {
-        "description": "The package's verification report for this session (D-01).\n\nBuilt by `build_report`, never here; built once per profile, because\na second build would carry a second `checked_at` — a different\nattestation of the same check. The same refusals as /verify: 409 if\nthe file changed, 404 for an unknown profile, 422 for an anchor kind\nthis build does not implement.",
+        "description": "The package's verification report for this session (D-01).\n\nBuilt by `build_report`, never here; built once per profile, because\na second build would carry a second `checked_at` \u2014 a different\nattestation of the same check. The same refusals as /verify: 409 if\nthe file changed, 404 for an unknown profile, 422 for an anchor kind\nthis build does not implement.",
         "operationId": "report_session_session__session_id__report_get",
         "parameters": [
           {
@@ -2959,7 +2959,7 @@
     },
     "/session/{session_id}/safety": {
       "get": {
-        "description": "Every SAFETY record — F8's first-class list, not a filter.\n\nNo caller-adjustable `limit`, unlike `/records`. This answer is\ncached for the life of the session the same way boots and spans\nare — one question, one answer — and a caller-visible limit would\nhave needed a cache keyed by it, the exact class of bug the\n`Session` docstring documents avoiding elsewhere: a second caller\nasking with a different limit would silently receive the first\ncaller's cached answer at the first caller's limit.\n\n`ChainHandle.safety` still bounds the response internally, purely\ndefensively, at a size no caller chooses.\n\nThe same `RecordPage` shape `/records` returns, reused rather than\ngiven one of its own: `total` counts every SAFETY record that\nexists, which can exceed the internal cap on an unusually large\nchain, and `has_more` says so rather than leaving it to be\ninferred from a length that matches the cap by coincidence.\n\nDetail text and its recurrence count are on in full (C-07b,\nU12). So is the oversight loop (C-07c): which ack acknowledged\na candidate, the candidate an ack verifiably acknowledges, the\nack's operator and disposition, and — within one boot only — the\nlatency between them by the writer's clock.",
+        "description": "Every SAFETY record \u2014 F8's first-class list, not a filter.\n\nNo caller-adjustable `limit`, unlike `/records`. This answer is\ncached for the life of the session the same way boots and spans\nare \u2014 one question, one answer \u2014 and a caller-visible limit would\nhave needed a cache keyed by it, the exact class of bug the\n`Session` docstring documents avoiding elsewhere: a second caller\nasking with a different limit would silently receive the first\ncaller's cached answer at the first caller's limit.\n\n`ChainHandle.safety` still bounds the response internally, purely\ndefensively, at a size no caller chooses.\n\nThe same `RecordPage` shape `/records` returns, reused rather than\ngiven one of its own: `total` counts every SAFETY record that\nexists, which can exceed the internal cap on an unusually large\nchain, and `has_more` says so rather than leaving it to be\ninferred from a length that matches the cap by coincidence.\n\nDetail text and its recurrence count are on in full (C-07b,\nU12). So is the oversight loop (C-07c): which ack acknowledged\na candidate, the candidate an ack verifiably acknowledges, the\nack's operator and disposition, and \u2014 within one boot only \u2014 the\nlatency between them by the writer's clock.",
         "operationId": "session_safety_session__session_id__safety_get",
         "parameters": [
           {
@@ -3082,7 +3082,7 @@
             }
           },
           {
-            "description": "Omit for uniform buckets. 'day' makes each bucket one UTC calendar day, which is what a date rail needs: a uniform bucket of roughly a day straddles midnight, so a record just after it would be labelled with the previous date. Needs axis='wall' — sequence numbers have no calendar.",
+            "description": "Omit for uniform buckets. 'day' makes each bucket one UTC calendar day, which is what a date rail needs: a uniform bucket of roughly a day straddles midnight, so a record just after it would be labelled with the previous date. Needs axis='wall' \u2014 sequence numbers have no calendar.",
             "in": "query",
             "name": "align",
             "required": false,
@@ -3095,7 +3095,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Omit for uniform buckets. 'day' makes each bucket one UTC calendar day, which is what a date rail needs: a uniform bucket of roughly a day straddles midnight, so a record just after it would be labelled with the previous date. Needs axis='wall' — sequence numbers have no calendar.",
+              "description": "Omit for uniform buckets. 'day' makes each bucket one UTC calendar day, which is what a date rail needs: a uniform bucket of roughly a day straddles midnight, so a record just after it would be labelled with the previous date. Needs axis='wall' \u2014 sequence numbers have no calendar.",
               "title": "Align"
             }
           }
@@ -3127,7 +3127,7 @@
     },
     "/session/{session_id}/verify": {
       "get": {
-        "description": "The verifier's answer about this session's container.\n\nRe-checks the file digest first. A verdict about bytes that have since\nchanged is worse than no verdict, because it looks like one.\n\nNote what this endpoint does NOT return: a single \"valid\" field. The\nthree questions have three separate answers, one of which can be \"not\nasked\", and collapsing them here would be the shell deciding what a\nverdict means — which is the one thing ADR-0001 exists to prevent.",
+        "description": "The verifier's answer about this session's container.\n\nRe-checks the file digest first. A verdict about bytes that have since\nchanged is worse than no verdict, because it looks like one.\n\nNote what this endpoint does NOT return: a single \"valid\" field. The\nthree questions have three separate answers, one of which can be \"not\nasked\", and collapsing them here would be the shell deciding what a\nverdict means \u2014 which is the one thing ADR-0001 exists to prevent.",
         "operationId": "verify_session_session__session_id__verify_get",
         "parameters": [
           {
