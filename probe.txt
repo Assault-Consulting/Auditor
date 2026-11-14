@@ -1,0 +1,3 @@
+A — single
+B \\u2014 double
+C \n newline
