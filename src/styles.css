@@ -853,7 +853,7 @@ body {
 
    An unclosed span takes a rule open at the bottom — a bracket that has not
    been closed, which is what it is. Not dashed-as-broken, not red: the
-   operation was interrupted and the record of it is intact. */
+   operation was interrupted, and its records are here. */
 .span[data-extent="closed"] {
   border-left-color: var(--vellum-dim);
 }
@@ -1714,11 +1714,6 @@ body {
   background: #ffffff;
 }
 
-.report-html-withheld {
-  display: block;
-  margin-top: var(--step);
-}
-
 .report-json summary {
   cursor: pointer;
   font-family: var(--mono);
@@ -1737,6 +1732,48 @@ body {
   font-size: 0.72rem;
   color: var(--vellum-dim);
   white-space: pre;
+}
+
+/* D-06 — the export. Ruled like the report: an artifact about the file, not
+   a finding. The note is plain prose, read before the button, never a
+   warning: a view of the log is useful, it is just not the log. */
+.export {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.export-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.2);
+}
+
+.export-note {
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-size: 0.86rem;
+  color: var(--vellum-dim);
+}
+
+.export-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--step);
+}
+
+.export-range input {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--vellum);
+  background: var(--ink-raised);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.5) var(--step);
+  width: 12ch;
+  margin-left: calc(var(--step) * 0.5);
 }
 
 .footnote {
