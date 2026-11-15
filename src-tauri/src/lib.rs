@@ -11,11 +11,15 @@
 
 mod artifact;
 mod export;
+mod print;
 mod sidecar;
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Arc;
 
-use tauri::{Manager, RunEvent, State};
+use tauri::webview::PageLoadEvent;
+use tauri::{Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
 use sidecar::{Session, Supervisor};
@@ -152,6 +156,43 @@ fn export_records(
         .map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Each print window gets a label of its own: closing one is asynchronous,
+/// and reusing the label of a window still closing fails the build.
+static PRINT_WINDOWS: AtomicU32 = AtomicU32::new(0);
+
+/// Print the package's HTML report (D-02).
+///
+/// The page opens in a window of its own, from a `data:` URL — an opaque
+/// origin with the app's CSP written in, and a window no capability names, so
+/// the page reaches nothing (print.rs). Once it has loaded, the window asks
+/// the operating system to print it, once; saving as PDF is that dialog's
+/// offer. The window stays open after, showing what was printed, until the
+/// user closes it.
+#[tauri::command(async)]
+fn print_report(app: tauri::AppHandle, html: String) -> Result<(), String> {
+    let url = print::data_url(&html)?
+        .parse::<tauri::Url>()
+        .map_err(|e| e.to_string())?;
+    let label = format!(
+        "report-print-{}",
+        PRINT_WINDOWS.fetch_add(1, Ordering::Relaxed)
+    );
+    let asked = Arc::new(AtomicBool::new(false));
+    WebviewWindowBuilder::new(&app, label, WebviewUrl::External(url))
+        .title("Verification report — print")
+        .inner_size(860.0, 1000.0)
+        .on_page_load(move |window, payload| {
+            if payload.event() == PageLoadEvent::Finished && !asked.swap(true, Ordering::SeqCst) {
+                if let Err(e) = window.print() {
+                    eprintln!("auditor: the print dialog did not open: {e}");
+                }
+            }
+        })
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Spawned before the window exists, so the frontend never renders against
@@ -167,7 +208,8 @@ pub fn run() {
             sidecar_session,
             pick_chain_file,
             save_artifact,
-            export_records
+            export_records,
+            print_report
         ])
         .build(tauri::generate_context!())
         .expect("error while building Palimpsests Auditor")

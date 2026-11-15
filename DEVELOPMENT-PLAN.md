@@ -60,7 +60,7 @@ status and what it unblocks.
 | 1 — verify (B-01…B-11, B-12) | ✓ closed |
 | 2 — browse (C-01…C-12) | ✓ closed (C-06d on 0.14.1) |
 | 0.13–0.14.1 follow-up (C-13…C-19) | ✓ except C-18 (0.15); C-16(b) closed unbuilt |
-| 3 — report (D-01…D-07) | D-01, D-03, D-04, D-06, D-07 ✓; D-02 `?` |
+| 3 — report (D-01…D-07) | ✓ closed (D-02 last) |
 | 4 — evidence artifacts (E-01…E-07) | not started |
 | 5 — beyond MVP | not started |
 
@@ -76,7 +76,7 @@ interactive is the live desktop check below, not yet done.
 | ✓ C-06d | Raw hex view: `GET /session/{id}/record/{seq}/bytes` gives the record's bytes as read (`record_bytes_at`) with `HEADER_FIELDS` and both TLV span lists; the record card's **bytes** lays them out sixteen to a row, every name and boundary the package's, a byte no span covers unnamed. Header and body together — the body's map came in the same release, so (a)/(b) did not need splitting. A body is cut at 4 KiB and says so | 1 | 0.14.1 (R8) |
 | ✗ C-16(b) | The canary against Palimpsests `main`. **Closed unbuilt (T7, 15 Nov 2026).** A workflow file cannot be committed through the tool this work uses, and what the canary would catch early is caught at the bump: the C-16 contract test fails on any name the package stops declaring, the pin's upper bound keeps an unread release out, and C-18's rule is to pin only after the suite runs green on the candidate. Palimpsests now runs this repository's sidecar suite against its every commit (#368), with a ledger of intended breaks — the canary exists, upstream. Reopen if a release ever lands broken past those | — | — |
 | C-18 | 0.15: report `/2` and its verdict `empty`; remove the report /1 gloss override for `empty_container` (`api/report.ts`); R4's `ShredView` for a KEY_SHRED's `detail`; pin `>=0.15,<0.16` after the suite runs green on the candidate | 1 | 0.15 |
-| D-02 | Print and PDF of the package's HTML | ? | D-01 |
+| ✓ D-02 | Print and PDF of the package's HTML. **Print…** in the Report block: the shell opens the page in a window of its own from a `data:` URL (opaque origin, the app's CSP written in, no capability names the window) and asks the OS to print it once loaded; PDF is the OS dialog's offer. A page over 1.4 MB (WebView2's 2 MB `data:` limit, base64) is refused with a sentence pointing at **Save HTML…** | 0.5 | D-01 |
 | ✓ C-19 | 0.14.1: pin `>=0.14.1,<0.15`; R7 — the package's HTML is shown for an empty container too (the withheld page is gone; the JSON block's gloss override stays until report /2) | — | 0.14.1 |
 | ✓ D-06 | **The record export, streamed.** `GET /session/{id}/export` carries `export_jsonl`'s `pala-jsonl/1` out as it is written — from a thread of its own, on a read-only mapping of the file (the package's ask: a mapping, not a copy), in blocks of ~256 KB through a queue of 16 (~4 MB in flight). The shell's `export_records` runs the save dialog, reads the response itself over loopback (no HTTP library: status, headers, chunked or close-framed body), writes it to the file as it arrives with its SHA-256 on the way, checks the last line is the summary (a cut-short stream leaves no file), and writes `.sha256` beside it. The webview names a session and a range only. **Measured at 1M records:** 767 MB in 48.6 s; the shell held 26 MB; the sidecar's peak, 674 MB, is the session's header index (C-10b) — held whole, the export alone took 1.7 GB. Byte-identical to `export_jsonl` for the same file. | 1.5 | 0.14.1 (R9) |
 | E-01 | Evidence bundle UI over `pala bundle` | 1.5 | — |
@@ -120,7 +120,7 @@ three overclaims of our own removed.
   phase. **Outstanding:** both file dialogs (D-07's fix), the framed HTML
   report under the shell's CSP (D-01b), empty and non-chain files (C-17b),
   a 1M-record chain, the export dialog writing a large export (D-06), the
-  export's summary line (T3), and the raw view (C-06d — checked in a headless
+  export's summary line (T3), **Print…** and the PDF it saves (D-02 — no window in CI at all), and the raw view (C-06d — checked in a headless
   browser against the sidecar; the window is what is left).
 - **R4** — Track U slips. Only what a release carries is built on.
 - **R5** — scope creep into analytics. Nothing about record content.

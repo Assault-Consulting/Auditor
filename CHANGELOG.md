@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- D-02 — printing the package's HTML report. **Print…** in the Report block
+  opens the page in a window of its own and asks the operating system to
+  print it; the system's dialog saves it as PDF. The page is loaded from a
+  `data:` URL (tauri feature `webview-data-url`): an opaque origin with the
+  application's CSP written into it, in a window no capability names, so it
+  reaches nothing — as in the sandboxed frame. A page over 1.4 MB is refused
+  with a sentence pointing at **Save HTML…**, since WebView2 does not open a
+  larger `data:` URL.
+
 - C-06d — the raw view of a record. `GET /session/{id}/record/{seq}/bytes`
   returns the record's bytes as the package read them (`record_bytes_at`,
   never re-encoded) with the package's maps: the fixed header's fields

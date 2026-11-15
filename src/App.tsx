@@ -43,7 +43,7 @@ import {
   type SummaryLine,
   summaryLine,
 } from "./api/exportFile";
-import { reportFileName, saveArtifact, savedLine } from "./api/saveFile";
+import { PRINT_OPENED, printReport, reportFileName, saveArtifact, savedLine } from "./api/saveFile";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecords, useSafety } from "./state";
 import { offsetLabel } from "./api/hexView";
 
@@ -176,6 +176,9 @@ export default function App() {
     | { kind: "saved"; line: string }
     | { kind: "failed"; detail: string };
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
+  // D-02. The print window is the shell's; this only says it opened, or why not.
+  type PrintState = { kind: "idle" } | { kind: "opened" } | { kind: "failed"; detail: string };
+  const [printState, setPrintState] = useState<PrintState>({ kind: "idle" });
   // D-06. The range as typed, and what the last export did.
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
@@ -189,6 +192,7 @@ export default function App() {
     setReport({ kind: "idle" });
     setCopyState("idle");
     setSaveState({ kind: "idle" });
+    setPrintState({ kind: "idle" });
     setShowHtml(false);
     setExportFrom("");
     setExportTo("");
@@ -222,6 +226,7 @@ export default function App() {
     setReport({ kind: "building" });
     setCopyState("idle");
     setSaveState({ kind: "idle" });
+    setPrintState({ kind: "idle" });
     setShowHtml(false);
     void getReport(s.session, s.id, profile)
       .then((r) =>
@@ -245,6 +250,13 @@ export default function App() {
       )
       .catch((err: unknown) =>
         setSaveState({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
+      );
+  };
+  const printPage = (html: string) => {
+    void printReport(html)
+      .then(() => setPrintState({ kind: "opened" }))
+      .catch((err: unknown) =>
+        setPrintState({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
       );
   };
   const copyReport = (text: string) => {
@@ -1524,7 +1536,16 @@ export default function App() {
                   >
                     Save HTML…
                   </button>
+                  <button
+                    className="choose-button"
+                    onClick={() => printPage(report.view.htmlText)}
+                    type="button"
+                  >
+                    Print…
+                  </button>
                 </div>
+                {printState.kind === "opened" && <p className="report-saved">{PRINT_OPENED}</p>}
+                {printState.kind === "failed" && <p className="report-failed">{printState.detail}</p>}
                 {showHtml && (
                   <iframe
                     className="report-html"
