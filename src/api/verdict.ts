@@ -16,9 +16,17 @@
  *
  * True twice over. A container cut mid-record reports `chain_ok: true` —
  * every record the reader could read does link to its predecessor — with the
- * truncation carried in `diagnosis`. And the field covers headers only: a
+ * truncation in `container.well_formed`. And the field covers headers only: a
  * body swapped under an intact chain leaves it true as well, which is why
  * the response carries a separate `container` block.
+ *
+ * **Nor is `diagnosis` the answer to it.** The package gives one diagnosis
+ * for all three questions, and two of its patterns are about question two:
+ * a whole chain read against an anchor it has outrun (`unanchored_tail`) or
+ * that names nothing in it (`replaced_or_rolled_back`). Question one is
+ * answered from the facts — the rule `pala verify --json` calls
+ * `consistency.ok` and the export calls `consistent` — and a diagnosis only
+ * decides under which question its sentence is shown.
  */
 
 import type {
@@ -79,6 +87,35 @@ function tierPhrase(subject: ChainSubject): string {
  * behind a PIN) do not share that exposure, so they do not get the caveat.
  */
 const HOST_LOCAL_SOURCES: ReadonlySet<string> = new Set(["file", "keychain"]);
+
+/**
+ * Diagnosis patterns that answer question two, not question one. Their
+ * sentence belongs beside the completeness answer, which already carries the
+ * verifier's own reason for it (`anchor_reason`).
+ */
+const COMPLETENESS_PATTERNS: ReadonlySet<string> = new Set([
+  "unanchored_tail",
+  "replaced_or_rolled_back",
+]);
+
+/**
+ * Diagnosis patterns about question one. Each arrives with the facts below
+ * already failing — a gap, a break, a violation or a cut container — so this
+ * list never turns a yes into a no on its own; it says whose sentence the
+ * narrative is. A pattern in neither list is shown with the facts' answer
+ * and a sentence saying this build has no guidance for it.
+ */
+const CONSISTENCY_PATTERNS: ReadonlySet<string> = new Set([
+  "not_a_container",
+  "empty_container",
+  "truncated_tail",
+  "prefix_absent",
+  "declared_continuation",
+  "continuation_contradicts_manifest",
+  "seq_gap",
+  "chain_break",
+  "record_violation",
+]);
 
 /** Whether every record was written under tier A — the floor. */
 function isTierAOnly(subject: ChainSubject): boolean {
@@ -146,15 +183,40 @@ function consistency(v: VerificationResponse): Panel {
     };
   }
 
-  // BOTH remaining conditions. See the module docstring: chain_ok is true
-  // for a truncated container.
-  if (v.chain.chain_ok && v.diagnosis === null) {
+  // The facts, not the diagnosis (see the module docstring): the headers
+  // link, the container parsed to its end, and every body matched above.
+  // chain_ok alone is true for a truncated container.
+  const pattern = v.diagnosis?.pattern ?? null;
+  const own =
+    v.diagnosis !== null && !COMPLETENESS_PATTERNS.has(v.diagnosis.pattern)
+      ? v.diagnosis.narrative
+      : undefined;
+  if (v.chain.chain_ok && v.container.well_formed) {
+    const linked = `${v.chain.count} records, each linked to the one before it and matching its own body digest.`;
+    if (pattern === null || COMPLETENESS_PATTERNS.has(pattern)) {
+      return { index: "01", question, standing: "answered-yes", answer: linked, basis };
+    }
+    if (CONSISTENCY_PATTERNS.has(pattern)) {
+      // Not reached on 0.14.1 — each of these patterns comes with a failing
+      // fact — but a diagnosis about this question is not overruled here.
+      return {
+        index: "01",
+        question,
+        standing: "answered-no",
+        answer: `${v.chain.count} records read and linked, but the file is not whole.`,
+        basis,
+        narrative: own,
+      };
+    }
+    // A pattern this build does not know: the facts answer, and the
+    // verifier's sentence is shown as what it is.
     return {
       index: "01",
       question,
       standing: "answered-yes",
-      answer: `${v.chain.count} records, each linked to the one before it and matching its own body digest.`,
+      answer: `${linked} The verifier also reported a finding this build has no guidance for.`,
       basis,
+      narrative: own,
     };
   }
 
@@ -167,7 +229,7 @@ function consistency(v: VerificationResponse): Panel {
       ? `${v.chain.count} records read; the chain does not hold.`
       : `${v.chain.count} records read and linked, but the file is not whole.`,
     basis,
-    narrative: v.diagnosis?.narrative,
+    narrative: own,
   };
 }
 
@@ -204,6 +266,21 @@ function completeness(v: VerificationResponse, subject: ChainSubject): Panel {
     ? `${v.anchor.source_kind} — ${v.anchor.source_detail}`
     : "an anchor";
 
+  // A file with no records proves nothing complete. Its head is the empty
+  // chain's — thirty-two zero bytes — and an anchor holding that head
+  // "matches", which is true of nothing. Not a no either: nothing is missing
+  // that the file can show. Report /2 (0.15) names this verdict `empty`;
+  // this panel is computed from the facts, so it says so here.
+  if (complete && v.chain.count === 0) {
+    return {
+      index: "02",
+      question,
+      standing: "not-checked",
+      answer: `This file holds no records, so nothing was checked against the head held by ${from}.`,
+      basis: `Read against ${from}`,
+    };
+  }
+
   if (complete) {
     return {
       index: "02",
@@ -230,7 +307,7 @@ function completeness(v: VerificationResponse, subject: ChainSubject): Panel {
     standing: "answered-no",
     answer:
       lag !== null && lag > 0
-        ? `${lag} records sit beyond the head held by ${from}.`
+        ? `${lag} ${lag === 1 ? "record sits" : "records sit"} beyond the head held by ${from}.`
         : `The head held by ${from} does not name a record in this chain.`,
     basis: `Checked against ${from}`,
     narrative: v.completeness.anchor_reason ?? undefined,
