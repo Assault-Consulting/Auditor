@@ -41,9 +41,11 @@ from fastapi.testclient import TestClient
 
 # The exit-code contract, from `palimpsests pala verify --help`. Written out
 # because FUNCTIONALITY.md §20.1 got it wrong — it listed 0/2/3 and omitted
-# TAMPERED, which is the one code the product exists to surface.
+# code 1, the one code the product exists to surface. Code 1 was named
+# TAMPERED up to 0.14 and is VIOLATION from 0.15 (Palimpsests #368): the
+# number is the contract, and the new name does not accuse.
 EXIT_VERIFIED = 0
-EXIT_TAMPERED = 1
+EXIT_VIOLATION = 1
 EXIT_PARTIAL = 2
 EXIT_UNREADABLE = 3
 
@@ -111,7 +113,7 @@ def test_an_anchor_from_another_chain_agrees(
     _profile(open_client, "stranger", [{"kind": "manual", "head": stranger}])
     ours = _sidecar(open_client, chain_path, "stranger")
 
-    assert code == EXIT_TAMPERED
+    assert code == EXIT_VIOLATION
     assert cli["completeness"]["ok"] is False
     assert ours["completeness"]["complete_to_anchor"] is False
     assert ours["diagnosis"]["pattern"] == "replaced_or_rolled_back"
@@ -149,7 +151,7 @@ def test_a_truncated_chain_agrees(
     ours = _sidecar(open_client, truncated_chain, "pre-truncation")
 
     # Same verdict in substance: neither side calls this sound.
-    assert code == EXIT_TAMPERED
+    assert code == EXIT_VIOLATION
     assert ours["diagnosis"]["pattern"] == "truncated_tail"
     assert ours["completeness"]["complete_to_anchor"] is False
 
@@ -211,7 +213,7 @@ def test_a_swapped_body_is_seen_by_both(
     someone thought to build.
     """
     code, cli = _cli(body_swapped_chain)
-    assert code == EXIT_TAMPERED
+    assert code == EXIT_VIOLATION
     assert cli["consistency"]["ok"] is False
 
     ours = _sidecar(open_client, body_swapped_chain)
@@ -234,19 +236,20 @@ def test_a_file_that_was_never_a_chain_is_named_by_the_package(
 ) -> None:
     """Once a recorded divergence; since 0.14 an agreement.
 
-    Given a file that is not a container at all, the CLI exits TAMPERED, and
-    Auditor used to refuse to open it rather than repeat an accusation about
-    a file that never had a history (L4, L6). Since 0.13/0.14 the package
-    itself says what the file is — ``not_a_container`` (U22), a pattern that
-    names no intent — and its report verdict is ``violation``. So Auditor
-    opens it and shows the package's verdict (C-17b): the two agree on the
-    verdict, and neither screen calls a text file tampered.
+    Given a file that is not a container at all, the CLI exits 1 (named
+    TAMPERED up to 0.14), and Auditor used to refuse to open it rather than
+    repeat an accusation about a file that never had a history (L4, L6).
+    Since 0.13/0.14 the package itself says what the file is —
+    ``not_a_container`` (U22), a pattern that names no intent — and its
+    report verdict is ``violation``. So Auditor opens it and shows the
+    package's verdict (C-17b): the two agree on the verdict, and neither
+    screen calls a text file tampered.
     """
     junk = tmp_path / "notes.txt"
     junk.write_bytes(b"this was never a container" * 20)
 
     code, cli = _cli(junk)
-    assert code == EXIT_TAMPERED
+    assert code == EXIT_VIOLATION
     assert cli["consistency"]["malformed_container"]
 
     ours = _sidecar(open_client, junk)
