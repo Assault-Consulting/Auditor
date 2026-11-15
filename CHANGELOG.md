@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- T3 — the export says what its own summary says. After the save, the
+  Export block shows the package's `consistent` from the export's summary
+  line, with the reasons when it is false — the container does not parse to
+  its end, record bodies (named) do not match their digests, the header chain
+  does not link — and says when the summary does not say. The shell reads
+  these fields out of the summary it already checks for; the save is never
+  refused for them, since an export of a failing file is what someone
+  examining it needs.
+
 - D-06 — the package's record export (`pala-jsonl/1`, palimpsests 0.14.1),
   streamed. The Export block takes an optional range and a save dialog; the
   shell reads `GET /session/{id}/export` itself and writes it to the chosen
