@@ -311,6 +311,19 @@ export interface HTTPValidationError {
 }
 
 /**
+ * Where one fixed-header field sits in a record's bytes — the package's
+ * `HEADER_FIELDS` entry, copied (R8).
+ */
+export interface HeaderFieldSpan {
+  /** The package's name for the field. */
+  name: string;
+  /** From the record's first byte. */
+  offset: number;
+  /** In bytes. */
+  length: number;
+}
+
+/**
  * Liveness, and the identity of the verifier behind this service.
  *
  * The verifier identity is part of the liveness answer rather than a
@@ -452,6 +465,35 @@ export interface OriginState {
   state: string;
   /** The declared origin, present only when state is 'active'. */
   origin: OriginModel | null;
+}
+
+/**
+ * One record as the file holds it, with the package's maps of it (C-06d).
+ *
+ * The bytes are the package's `record_bytes_at`, never re-encoded. Every
+ * span is the package's; a byte no span covers is shown, unnamed.
+ */
+export interface RecordBytesView {
+  /** Sequence number. */
+  seq: number;
+  /** Position within this file, zero-based. */
+  index: number;
+  /** Where the record starts in the file, in bytes. */
+  offset: number;
+  /** The fixed header and its TLVs as stored, lowercase hex. */
+  header_hex: string;
+  /** The body as stored — ciphertext for an encrypted one — up to body_shown bytes, lowercase hex. The body starts where the header ends. */
+  body_hex: string;
+  /** The stored body's whole length in bytes. */
+  body_len: number;
+  /** How many of the body's bytes body_hex carries. Less than body_len means the rest was not sent, never that it is absent. */
+  body_shown: number;
+  /** The fixed header's fields. Null when the package does not accept this header — an unknown format version among the cases — since the map would then name a layout this record may not have. */
+  header_fields: Array<HeaderFieldSpan> | null;
+  /** The header's TLVs, in order; null exactly when header_fields is. */
+  header_tlvs: Array<TlvSpan> | null;
+  /** The body's TLVs, in order. Null when the package gives no TLV layout for this body: a header it rejects, an encrypted body, an empty or a malformed one. Offsets may lie past body_shown. */
+  body_tlvs: Array<TlvSpan> | null;
 }
 
 /**
@@ -687,6 +729,18 @@ export interface TimelineBucket {
   anchor: number;
   /** Whether the writer's clock stepped inside this bucket. On the wall axis a stepped bucket is measuring two different clocks, so its width means nothing — a UI must mark it rather than draw it like the others. */
   stepped: boolean;
+}
+
+/**
+ * One TLV's value, where the package says it sits (U31).
+ */
+export interface TlvSpan {
+  /** The TLV's raw type number. */
+  type: number;
+  /** Where the VALUE starts, from the record's first byte. The bytes that introduce it are not given a span of their own: the package names the value, and nothing here works out the rest. */
+  value_offset: number;
+  /** The value's length in bytes. */
+  length: number;
 }
 
 export interface ValidationError {

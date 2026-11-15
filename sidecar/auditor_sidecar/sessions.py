@@ -133,6 +133,10 @@ class Session:
         """One record, or None when the container holds no such sequence."""
         return self.chain.record(seq)
 
+    def record_bytes(self, seq: int) -> dict | None:
+        """One record's stored bytes and the package's maps of them (C-06d)."""
+        return self.chain.record_bytes(seq)
+
     def timeline(
         self, axis: str = "seq", buckets: int = 120, align: str | None = None
     ) -> dict:

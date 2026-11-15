@@ -807,6 +807,33 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HeaderFieldSpan": {
+        "description": "Where one fixed-header field sits in a record's bytes \u2014 the package's\n`HEADER_FIELDS` entry, copied (R8).",
+        "properties": {
+          "length": {
+            "description": "In bytes.",
+            "title": "Length",
+            "type": "integer"
+          },
+          "name": {
+            "description": "The package's name for the field.",
+            "title": "Name",
+            "type": "string"
+          },
+          "offset": {
+            "description": "From the record's first byte.",
+            "title": "Offset",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "offset",
+          "length"
+        ],
+        "title": "HeaderFieldSpan",
+        "type": "object"
+      },
       "HealthResponse": {
         "description": "Liveness, and the identity of the verifier behind this service.\n\nThe verifier identity is part of the liveness answer rather than a\nseparate endpoint because a verification result is only meaningful\nalongside the verifier that produced it. A shell that knows the service is\nup but not what it is linked against knows less than it needs.",
         "properties": {
@@ -1103,6 +1130,105 @@
           "origin"
         ],
         "title": "OriginState",
+        "type": "object"
+      },
+      "RecordBytesView": {
+        "description": "One record as the file holds it, with the package's maps of it (C-06d).\n\nThe bytes are the package's `record_bytes_at`, never re-encoded. Every\nspan is the package's; a byte no span covers is shown, unnamed.",
+        "properties": {
+          "body_hex": {
+            "description": "The body as stored \u2014 ciphertext for an encrypted one \u2014 up to body_shown bytes, lowercase hex. The body starts where the header ends.",
+            "title": "Body Hex",
+            "type": "string"
+          },
+          "body_len": {
+            "description": "The stored body's whole length in bytes.",
+            "title": "Body Len",
+            "type": "integer"
+          },
+          "body_shown": {
+            "description": "How many of the body's bytes body_hex carries. Less than body_len means the rest was not sent, never that it is absent.",
+            "title": "Body Shown",
+            "type": "integer"
+          },
+          "body_tlvs": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TlvSpan"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The body's TLVs, in order. Null when the package gives no TLV layout for this body: a header it rejects, an encrypted body, an empty or a malformed one. Offsets may lie past body_shown.",
+            "title": "Body Tlvs"
+          },
+          "header_fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HeaderFieldSpan"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The fixed header's fields. Null when the package does not accept this header \u2014 an unknown format version among the cases \u2014 since the map would then name a layout this record may not have.",
+            "title": "Header Fields"
+          },
+          "header_hex": {
+            "description": "The fixed header and its TLVs as stored, lowercase hex.",
+            "title": "Header Hex",
+            "type": "string"
+          },
+          "header_tlvs": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TlvSpan"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The header's TLVs, in order; null exactly when header_fields is.",
+            "title": "Header Tlvs"
+          },
+          "index": {
+            "description": "Position within this file, zero-based.",
+            "title": "Index",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Where the record starts in the file, in bytes.",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "seq": {
+            "description": "Sequence number.",
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "index",
+          "offset",
+          "header_hex",
+          "body_hex",
+          "body_len",
+          "body_shown",
+          "header_fields",
+          "header_tlvs",
+          "body_tlvs"
+        ],
+        "title": "RecordBytesView",
         "type": "object"
       },
       "RecordPage": {
@@ -1894,6 +2020,33 @@
         "title": "TimelineBucket",
         "type": "object"
       },
+      "TlvSpan": {
+        "description": "One TLV's value, where the package says it sits (U31).",
+        "properties": {
+          "length": {
+            "description": "The value's length in bytes.",
+            "title": "Length",
+            "type": "integer"
+          },
+          "type": {
+            "description": "The TLV's raw type number.",
+            "title": "Type",
+            "type": "integer"
+          },
+          "value_offset": {
+            "description": "Where the VALUE starts, from the record's first byte. The bytes that introduce it are not given a span of their own: the package names the value, and nothing here works out the rest.",
+            "title": "Value Offset",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "type",
+          "value_offset",
+          "length"
+        ],
+        "title": "TlvSpan",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -2618,6 +2771,55 @@
           }
         },
         "summary": "Session Record"
+      }
+    },
+    "/session/{session_id}/record/{seq}/bytes": {
+      "get": {
+        "description": "One record's bytes as the file holds them, and where the package\nsays each field and TLV sits (C-06d).\n\n404 when the file holds no such record, as for `/record/{seq}`.",
+        "operationId": "session_record_bytes_session__session_id__record__seq__bytes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "seq",
+            "required": true,
+            "schema": {
+              "title": "Seq",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordBytesView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session Record Bytes"
       }
     },
     "/session/{session_id}/records": {
