@@ -116,7 +116,10 @@ fn save_artifact(
 /// webview, which a report's text does pass through. The webview names a
 /// session and a range; the path comes from the dialog here, and the port
 /// and token are this process's own. Beside the file goes its SHA-256, as
-/// for any artifact (D-07).
+/// for any artifact (D-07), and back to the webview goes what the export's
+/// own summary says about the file — whether it is consistent, and why not.
+/// A file that is not consistent is still exported: that is a finding to
+/// show, not a reason to refuse.
 ///
 /// `Ok(None)` is a cancelled dialog, not an error.
 #[tauri::command(async)]
@@ -127,7 +130,7 @@ fn export_records(
     from_seq: Option<u64>,
     to_seq: Option<u64>,
     suggested_name: String,
-) -> Result<Option<artifact::SavedArtifact>, String> {
+) -> Result<Option<export::ExportedArtifact>, String> {
     if !export::valid_session_id(&session_id) {
         return Err("not a session id".to_owned());
     }
