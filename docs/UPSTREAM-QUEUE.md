@@ -24,11 +24,13 @@ Items marked **question** are not defect reports. They are places where the
 two implementations diverge and we believe ours is right, which is exactly
 the situation that deserves a second opinion rather than a silent fork.
 
-Verified against **palimpsests 0.9.0** unless stated otherwise.
+Verified against **palimpsests 0.9.0** unless stated otherwise. **Re-read
+against 0.14.1 on 15 November 2026** (the surface review): each entry below
+carries its status as of then, and the answers Palimpsests gave.
 
 ---
 
-## Q1 — a file that was never a chain is reported as TAMPERED
+## Q1 — a file that was never a chain is reported as TAMPERED — answered
 
 **Observed.** `palimpsests pala verify <any non-PALA file>` exits **1
 (TAMPERED)**:
@@ -71,9 +73,18 @@ indistinguishable from junk, so the classification is deliberately
 conservative. If so, the 18-byte case above supports it and the 360-byte
 case (clean `bad magic`, nothing ambiguous) does not.
 
+**Answer (Palimpsests #368, ships in 0.15).** The code stays **1**: the file
+was read, and it did not pass the check, so it is not 3 ("could not be
+read"). But the *name* changes: `TAMPERED` named a cause the tool cannot
+know — for a file that was never a chain, and for a tail cut by a crash
+alike. Exit code 1 is called `VIOLATION` from 0.15, and the word is gone
+from the code's name, from `--help` and from `palimpsests audit verify`'s
+output. Our concern was the accusation, not the number, so this closes Q1.
+Auditor's own documents and tests already say `VIOLATION` (T16).
+
 ---
 
-## U4-followup — `iter_records` still reads offsets as literals
+## U4-followup — `iter_records` still reads offsets as literals — closed
 
 **Observed.** After U4 shipped `HEADER_FIELDS`, the codec's own container
 walk continues to use hard-coded offsets:
@@ -92,9 +103,16 @@ breaks parsing loudly instead of only breaking a hex view.
 Raised in the U4 pull request as a follow-up and deliberately not bundled
 with it: this is the format's hot path and deserves its own review.
 
+**Answer (Palimpsests, November 2026): not changed, deliberately.** It is the
+hot path of a frozen codec, and the drift we were worried about is caught
+another way: since #356 a contract test holds the field map and the decoder
+to each other, so a map that disagreed with the bytes the decoder reads
+fails there, loudly. The derivation is load-bearing in the test rather than
+in the parse. Closed.
+
 ---
 
-## U9 — the published vectors are not shipped
+## U9 — the published vectors are not shipped — closed
 
 **Observed.** `importlib.metadata.files("palimpsests")` lists neither
 `test-vectors.json` nor `profiles/inference-vectors.json`. Both exist only
@@ -107,6 +125,10 @@ suite (`FUNCTIONALITY.md` §20.1b): we can compare ourselves against the CLI,
 which shares the library, but not against an independent authority.
 
 Our conformance tests exist and skip with that reason printed on every run.
+
+**Closed.** The vectors ship with the package, and the conformance tests run
+(`test_conformance_vectors.py`, C-15) — the profile-semantics test, skipped
+since U9, runs too. Kept below for the composition note.
 
 **Note on composition**, because it was miscounted once in discussion: both
 files carry twelve records, but different ones. The core set covers one
