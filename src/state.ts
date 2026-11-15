@@ -17,13 +17,14 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, getRecords, getSafety, listProfiles } from "./api/chain";
+import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, getRecordBytes, getRecords, getSafety, listProfiles } from "./api/chain";
 import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
 import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { type RecordFilters, filtersKey } from "./api/filters";
 import { type Chronoscope, chronoscope } from "./api/chronoscope";
 import type { AnchorProfile } from "./api/generated/types";
 import { onChainFilesDropped, pickChainFile } from "./api/openFile";
+import { type HexView, hexView } from "./api/hexView";
 import { type OriginCard, originCard } from "./api/origin";
 import { type RecordCard, recordCard } from "./api/record";
 import { nextOffset, recordsPage, type RecordsPage } from "./api/records";
@@ -305,6 +306,43 @@ export function useOrigin(
   }, [probe, opened, seq]);
 
   return origin;
+}
+
+/**
+ * The raw view of the selected record — C-06d. Asked for only while `shown`:
+ * the bytes answer a question a reader asks on purpose, and a record
+ * selected for its card should not fetch them as a side effect.
+ */
+export function useRecordBytes(
+  probe: Probe,
+  chain: ChainState,
+  seq: number | null,
+  shown: boolean,
+): Fetch<HexView> {
+  const [bytes, setBytes] = useState<Fetch<HexView>>({ kind: "unasked" });
+  const opened = openedOf(chain);
+
+  useEffect(() => {
+    if (!shown || probe.kind !== "ready" || opened === null || seq === null) {
+      setBytes({ kind: "unasked" });
+      return;
+    }
+    let cancelled = false;
+    void getRecordBytes(probe.session, opened.session_id, seq)
+      .then((model) => {
+        if (!cancelled) setBytes({ kind: "found", value: hexView(model) });
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setBytes({ kind: "failed", detail: e instanceof Error ? e.message : String(e) });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [probe, opened, seq, shown]);
+
+  return bytes;
 }
 
 /**

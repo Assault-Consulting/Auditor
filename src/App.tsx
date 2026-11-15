@@ -44,7 +44,8 @@ import {
   summaryLine,
 } from "./api/exportFile";
 import { reportFileName, saveArtifact, savedLine } from "./api/saveFile";
-import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords, useSafety } from "./state";
+import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecords, useSafety } from "./state";
+import { offsetLabel } from "./api/hexView";
 
 // C-11's page size. Well inside the sidecar's own 1000-record ceiling, and
 // small enough that a page reads as a page rather than a scroll.
@@ -81,6 +82,11 @@ export default function App() {
   // record is on screen, not a second selection of their own.
   const selectedSeq = record.kind === "found" ? record.value.seq : null;
   const origin = useOrigin(probe, chain, selectedSeq);
+  // C-06d: the raw view stays open from one record to the next once asked
+  // for, so stepping through records keeps showing their bytes.
+  const [showBytes, setShowBytes] = useState(false);
+  const [hotSegment, setHotSegment] = useState<number | null>(null);
+  const bytes = useRecordBytes(probe, chain, selectedSeq, showBytes);
   const rows = rowsFor(probe, chain, rail, { boots, spans });
   const choiceNote = choiceLine(choice);
   const { panels, live } = panelsFor(chain);
@@ -1217,6 +1223,82 @@ export default function App() {
                       ? "body present, decoded, empty"
                       : `body present, decoded — TLV types ${record.value.body.tlvTypes.join(", ")}`)}
                 </p>
+
+                {/* C-06d — the record as the file holds it. Every name and
+                    boundary is the package's (api/hexView.ts); a byte no
+                    span covers is shown unnamed, never guessed at. */}
+                <div className="hex">
+                  <button
+                    aria-expanded={showBytes}
+                    className="hex-toggle"
+                    onClick={() => setShowBytes(!showBytes)}
+                    type="button"
+                  >
+                    {showBytes ? "hide bytes" : "bytes"}
+                  </button>
+                  {showBytes && bytes.kind === "failed" && (
+                    <p className="hex-failed">{bytes.detail}</p>
+                  )}
+                  {showBytes && bytes.kind === "found" && (
+                    <div className="hex-body" onMouseLeave={() => setHotSegment(null)}>
+                      <p className="hex-head">
+                        at file offset {bytes.value.fileOffset} · header {bytes.value.headerLen}{" "}
+                        bytes, body after it
+                      </p>
+                      <table className="hex-table">
+                        <tbody>
+                          {bytes.value.rows.map((row) => (
+                            <tr key={row.at}>
+                              <th scope="row">{offsetLabel(row.at)}</th>
+                              {row.cells.map((cell) => {
+                                const seg =
+                                  cell.segment === null ? null : bytes.value.segments[cell.segment];
+                                return (
+                                  <td
+                                    data-body={cell.inBody ? "" : undefined}
+                                    data-opens={cell.opens ? "" : undefined}
+                                    data-hot={
+                                      cell.segment !== null && cell.segment === hotSegment
+                                        ? ""
+                                        : undefined
+                                    }
+                                    data-zone={seg?.zone ?? "none"}
+                                    key={cell.at}
+                                    onMouseEnter={() => setHotSegment(cell.segment)}
+                                    title={seg?.label}
+                                  >
+                                    {cell.hex}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {bytes.value.segments.length > 0 && (
+                        <ol className="hex-segments">
+                          {bytes.value.segments.map((seg) => (
+                            <li
+                              data-hot={seg.id === hotSegment ? "" : undefined}
+                              data-zone={seg.zone}
+                              key={seg.id}
+                              onMouseEnter={() => setHotSegment(seg.id)}
+                            >
+                              <span className="hex-at">{offsetLabel(seg.start)}</span>
+                              <span className="hex-len">{seg.end - seg.start} B</span>
+                              <span className="hex-name">{seg.label}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                      {bytes.value.notes.map((n) => (
+                        <p className="hex-note" key={n}>
+                          {n}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {/* F9 — origin, rendered for any selected record. Three
                     states, not the two a bare null used to collapse
