@@ -70,16 +70,24 @@ Twice over, and the second reason was found later than it should have been.
 
 **It is true for a truncated file.** A container cut mid-record reports
 `chain_ok: true` — every record the reader could read does link to its
-predecessor — with the truncation carried in `diagnosis`. Rendering
-`chain_ok` alone would put a green tick on a cut file: truthful about the
-field, misleading about the file. So the answer to "is what I hold
-internally consistent?" is `chain_ok` **and** the absence of a diagnosis.
+predecessor — with the truncation carried in `container.well_formed` (and
+named in `diagnosis`). Rendering `chain_ok` alone would put a green tick on
+a cut file: truthful about the field, misleading about the file.
 
 **And it covers headers only.** `AuditReader.verify()` does not compare
 record bodies against the `body_digest` their headers carry — still true on
 0.10, checked rather than assumed. That is a separate walk, and the response
 carries its result in `container`. The answer to question one is `chain_ok`,
-**and** no diagnosis, **and** an empty `body_digest_mismatches`.
+**and** `container.well_formed`, **and** an empty `body_digest_mismatches` —
+the rule `pala verify --json` calls `consistency.ok`.
+
+**Nor is `diagnosis` the answer to it.** The package gives one diagnosis for
+all three questions: `unanchored_tail` and `replaced_or_rolled_back` are
+about question two, and a whole chain read against an outrun or foreign
+anchor carries one of them while every fact of question one holds. Reading
+"no diagnosis" as part of question one once answered "not whole" about a
+whole chain (T1). A diagnosis decides under which question its sentence is
+shown, never the answer.
 
 ### Unknown is reported, never rejected
 
@@ -210,6 +218,14 @@ matters most.
 For the same reason `subject_sha256` is repeated on the verification
 response: the pairing has to survive being copied into a report, a ticket or
 an email.
+
+### Local paths stay local
+
+`/verify`'s `manifest.path` is the full path of the segments manifest on this
+machine — what the session watches for changes. It is for this screen, not
+for export: the report (`/2`, palimpsests 0.15) names the manifest by its
+file name only. If a `/verify` response is ever written into a bundle or an
+export, the path is reduced to its file name there (T6).
 
 ### The empty anchor profile is a real profile
 
