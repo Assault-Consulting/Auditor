@@ -17,7 +17,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# `webview-data-url`: the print window loads the package's HTML report from a
+# `data:` URL — an opaque origin, with the app's CSP written into it (D-02,
+# print.rs).
+tauri = { version = "2", features = ["webview-data-url"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The per-launch session token must come from the OS CSPRNG (ADR-0002).

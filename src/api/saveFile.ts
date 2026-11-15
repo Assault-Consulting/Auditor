@@ -41,6 +41,24 @@ export async function saveArtifact(
   }
 }
 
+/**
+ * Ask the shell to print the package's HTML report (D-02). It opens the page
+ * in a window of its own and asks the operating system to print it; saving
+ * as PDF is that dialog's offer. A page too large for that window is refused
+ * with the shell's sentence, which names the way round.
+ */
+export async function printReport(html: string): Promise<void> {
+  try {
+    await invoke("print_report", { html });
+  } catch (err) {
+    throw saveError(err);
+  }
+}
+
+/** What the Report block says once the print window has opened. */
+export const PRINT_OPENED =
+  "The report opened in a window of its own; the print dialog there can save it as PDF.";
+
 /** The shell's own refusal arrives as a string; anything else means no shell. */
 export function saveError(err: unknown): Error {
   return typeof err === "string" ? new Error(err) : new NoShellError();
