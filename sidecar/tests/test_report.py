@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+from auditor_sidecar import __version__
 from auditor_sidecar.pala_seam import open_chain
 from palimpsests.audit.report import build_report, derive_verdict
 from palimpsests.audit.report_html import render_html
@@ -32,7 +33,9 @@ def test_the_report_is_the_packages_own(open_client, chain_path) -> None:
     assert json.loads(body["json_text"]) == report
     # The verdict is the package's rule applied to the package's report.
     assert body["verdict"] == report["verdict"] == derive_verdict(report)
-    assert report["verifier"]["tool"] == "palimpsests-auditor-sidecar"
+    # The tool is named with its version (T4), as the report schema describes
+    # the field: "palimpsests-auditor X.Y.Z".
+    assert report["verifier"]["tool"] == f"palimpsests-auditor-sidecar {__version__}"
     assert report["subject"]["sha256"] == body["subject_sha256"]
 
 
@@ -44,7 +47,7 @@ def test_the_report_is_what_build_report_gives(chain_path) -> None:
         ours = handle.report()
     finally:
         handle.close()
-    theirs = build_report(chain_path, tool="palimpsests-auditor-sidecar")
+    theirs = build_report(chain_path, tool=f"palimpsests-auditor-sidecar {__version__}")
     a, b = json.loads(ours["json"]), json.loads(theirs.to_json_bytes())
     a.pop("checked_at")
     b.pop("checked_at")

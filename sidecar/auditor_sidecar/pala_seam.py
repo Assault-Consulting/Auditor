@@ -36,6 +36,7 @@ import io
 import mmap
 import queue
 import threading
+from . import __version__
 from .keychain import KeychainUnavailable
 from .keychain import read as keychain_read
 from array import array
@@ -95,6 +96,11 @@ _EXPORT_BLOCK = 256 * 1024
 #: Blocks in flight before the package's writer waits: with the block size
 #: above, about 4 MB, however large the chain is.
 _EXPORT_QUEUE_CHUNKS = 16
+
+#: How a report names the tool that built it: the package documents the field
+#: as "palimpsests-auditor X.Y.Z", so the version travels with the name — a
+#: report read later says which build of this shell made it (T4).
+_REPORT_TOOL = f"palimpsests-auditor-sidecar {__version__}"
 
 #: The specification this application reads. Not a marketing string: it is
 #: the family name plus the wire version the *linked* verifier implements,
@@ -618,14 +624,14 @@ class ChainHandle:
             built = build_report(
                 self._path,
                 anchor_source=_anchor_source(specs),
-                tool="palimpsests-auditor-sidecar",
+                tool=_REPORT_TOOL,
             )
         else:
             with self._lock:
                 built = build_report(
                     self._path,
                     reader=self._reader,
-                    tool="palimpsests-auditor-sidecar",
+                    tool=_REPORT_TOOL,
                 )
         # The HTML is the package's rendering of the same report (render_html,
         # channel 2 since 0.14, R5) — one self-contained page, no script, no

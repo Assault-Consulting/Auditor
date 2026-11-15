@@ -307,6 +307,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- T4 — the report names the sidecar's version. `tool` in the report's
+  header reads `palimpsests-auditor-sidecar <version>`, the version the
+  sidecar reports about itself, so two reports of one file made by different
+  builds say so. Reports from one build stay byte-identical, `checked_at`
+  apart.
+
+- T5, T16 — documents re-read against 0.14.1. `docs/UPSTREAM-QUEUE.md`
+  records Palimpsests' answers: Q1 (#368 — exit code 1 stays, its name
+  changes from `TAMPERED` to `VIOLATION` in 0.15), U4-followup (closed; a
+  contract test holds the field map and the decoder together) and U9
+  (closed; the vectors ship). `FUNCTIONALITY.md` §6 and `docs/API.md` state
+  question one's rule as built in T1 — `chain_ok`, the container well
+  formed, no body digest mismatches — and that the diagnosis only decides
+  which panel carries its narrative. §20.1 names exit code 1 `VIOLATION`,
+  and the agreement test calls it `EXIT_VIOLATION`.
+
+- T6 — `docs/API.md` says, in its own section, that local paths stay
+  local: `/verify`'s `manifest.path` is the full path on this machine and is
+  for this screen. If it is ever written into a bundle or an export, it is
+  reduced to its file name there, as report /2 (palimpsests 0.15) does.
+
 - C-19 — on palimpsests 0.14.1 (pin `>=0.14.1,<0.15`). The package's HTML
   report is shown for an empty container too: 0.14.1 says there that nothing
   was checked (R7), so the withheld page and its sentence are gone. The JSON
