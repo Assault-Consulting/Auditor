@@ -134,9 +134,3 @@ def test_no_such_record_is_a_404_naming_the_record(
     r = open_client.get(f"/session/{sid}/record/99/bytes")
     assert r.status_code == 404
     assert "no record 99" in r.json()["detail"]
-
-
-def test_a_changed_file_is_refused(open_client: TestClient, chain_path: Path) -> None:
-    sid = _open(open_client, chain_path)
-    chain_path.write_bytes(chain_path.read_bytes() + b"\x00")
-    assert open_client.get(f"/session/{sid}/record/1/bytes").status_code == 409

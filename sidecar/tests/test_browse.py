@@ -1250,7 +1250,8 @@ def test_safety_and_records_agree_on_the_same_record(
 
 
 BROWSE_VIEWS = [
-    "boots", "spans", "records", "record/0", "origin?seq=0", "safety", "nearest?wall_ns=0",
+    "boots", "spans", "records", "record/0", "record/0/bytes", "origin?seq=0", "safety",
+    "nearest?wall_ns=0",
 ]
 
 
