@@ -67,7 +67,7 @@ const ANSWERED = {
 
 // --- question one -----------------------------------------------------------
 
-group("question one is chain_ok AND no diagnosis", () => {
+group("question one is the facts — chain_ok, a whole container, matching bodies", () => {
   it("a sound chain is answered yes", () => {
     const [q1] = triptych(response(), TIER_A);
     expect(q1.standing).toBe("answered-yes");
@@ -277,6 +277,131 @@ group("question two keeps its third state", () => {
       TIER_A,
     );
     expect(q2.answer).toContain("295 records");
+  });
+
+  it("one record past the anchor is one record, not 'records'", () => {
+    const [, q2] = triptych(
+      response({
+        completeness: { complete_to_anchor: false, anchor_lag: 1, anchor_reason: null },
+        anchor: ANSWERED,
+      }),
+      TIER_A,
+    );
+    expect(q2.answer).toContain("1 record sits beyond");
+  });
+
+  it("a file with no records is never complete — not even to the empty chain's head", () => {
+    // The empty chain's head is thirty-two zero bytes; an anchor holding it
+    // "matches" a file that holds nothing. Measured on 0.14.1:
+    // complete_to_anchor true, count 0, diagnosis empty_container.
+    const [, q2] = triptych(
+      response({
+        chain: { ...response().chain, count: 0, head: "00".repeat(32) },
+        completeness: { complete_to_anchor: true, anchor_lag: null, anchor_reason: null },
+        anchor: { ...ANSWERED, source_kind: "manual", head: "00".repeat(32) },
+        diagnosis: {
+          pattern: "empty_container",
+          at_seq: null,
+          expected: "at least one record, beginning with a GENESIS",
+          narrative: "The container holds no records.",
+        },
+      }),
+      TIER_A,
+    );
+    expect(q2.standing).toBe("not-checked");
+    expect(q2.answer).toContain("nothing was checked");
+    expect(q2.answer).not.toContain("Complete");
+  });
+});
+
+// --- a finding about question two is not a finding about question one --------
+
+// The responses below are the sidecar's own /verify answers on palimpsests
+// 0.14.1 for a whole three-record chain, cut to what the panels read. The
+// package gives one diagnosis for all three questions; these two are about
+// completeness, and question one must not answer no because of them.
+group("a whole chain read against an anchor it has outrun or that names nothing", () => {
+  const LAGGING = response({
+    chain: { ...response().chain, count: 3 },
+    completeness: {
+      complete_to_anchor: false,
+      anchor_lag: 1,
+      anchor_reason:
+        "chain extends 1 record(s) beyond the anchored head — an unanchored tail, not a replacement",
+    },
+    anchor: { ...ANSWERED, source_kind: "manual", source_detail: "" },
+    diagnosis: {
+      pattern: "unanchored_tail",
+      at_seq: null,
+      expected: "the head equal to the anchored head",
+      narrative:
+        "The chain extends 1 record(s) past the anchored head; the evidence is consistent with an unanchored tail (a crash between write and anchoring), not a replacement.",
+    },
+  });
+  const FOREIGN = response({
+    chain: { ...response().chain, count: 3 },
+    completeness: {
+      complete_to_anchor: false,
+      anchor_lag: null,
+      anchor_reason:
+        "the anchored head names no record in this chain — the log was replaced, rolled back, or truncated",
+    },
+    anchor: { ...ANSWERED, source_kind: "manual", source_detail: "", head: "ab".repeat(32) },
+    diagnosis: {
+      pattern: "replaced_or_rolled_back",
+      at_seq: null,
+      expected: "the anchored head present somewhere in the chain",
+      narrative:
+        "The anchored head names no record in this chain; the evidence is consistent with the log having been replaced or rolled back.",
+    },
+  });
+
+  it("an anchor the chain has outrun: question one yes, question two no", () => {
+    const [q1, q2] = triptych(LAGGING, TIER_A);
+    expect(q1.standing).toBe("answered-yes");
+    expect(q1.answer).not.toContain("not whole");
+    expect(q1.narrative).toBeUndefined();
+    expect(q2.standing).toBe("answered-no");
+    expect(q2.answer).toContain("1 record sits beyond");
+    expect(q2.narrative).toContain("unanchored tail");
+  });
+
+  it("an anchor that names nothing here: question one yes, question two no", () => {
+    const [q1, q2] = triptych(FOREIGN, TIER_A);
+    expect(q1.standing).toBe("answered-yes");
+    expect(q1.narrative).toBeUndefined();
+    expect(q2.standing).toBe("answered-no");
+    expect(q2.answer).toContain("does not name a record");
+  });
+
+  it("a pattern this build does not know: the facts answer, and the sentence is shown as unguided", () => {
+    const [q1] = triptych(
+      response({
+        diagnosis: {
+          pattern: "something_new",
+          at_seq: null,
+          expected: null,
+          narrative: "A sentence from a newer verifier.",
+        },
+      }),
+      TIER_A,
+    );
+    expect(q1.standing).toBe("answered-yes");
+    expect(q1.answer).toContain("no guidance");
+    expect(q1.narrative).toBe("A sentence from a newer verifier.");
+  });
+
+  it("a cut container is still no, whatever chain_ok says", () => {
+    const [q1] = triptych(
+      response({
+        chain: { ...response().chain, count: 2 },
+        container: { ...response().container, well_formed: false, malformed: "truncated record" },
+        diagnosis: null,
+      }),
+      TIER_A,
+    );
+    expect(q1.standing).toBe("answered-no");
+    expect(q1.answer).toContain("not whole");
   });
 });
 
