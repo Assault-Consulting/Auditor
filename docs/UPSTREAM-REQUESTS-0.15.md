@@ -124,3 +124,51 @@ lets the plan say so instead of "when it ships".
 - D-02 (print and PDF of the package's HTML report) and the live desktop
   check proceed: neither needs anything here.
 - On 0.15: C-18 first, then stage 2, then E-01 / E-07 as R10 allows.
+
+---
+
+## Answers (Palimpsests, 15 November 2026)
+
+R10–R13 are done in one pull request, **#373**, CI green including the
+consumer canary. Checked here against its head (`8485497`), not taken on
+trust:
+
+- **R10.** `pala.proofs`, `pala.bundle`, `timehealth`, `bootstats`,
+  `pala.selftest` and `pala.vectors` declare `__all__`, result types and
+  format ids included; the package's contract test holds each to the
+  surface document. Confirmed by import.
+- **R11.** For a file anchor, `anchor.source_detail` is the file's name in
+  report `/2` and in the bundle's `verification.json`, attempts included;
+  an attempt's error that quoted the path names the file. Confirmed: no
+  part of the anchor's directory appears in either. The reader's own
+  `Verification.anchor` still carries the full path — local, so T6 applies
+  to what Auditor renders from it. In `pala-bundle/1` this is a changed
+  value under the same key and format id, said so in the spec; a bundle is
+  now the same bytes on any machine.
+- **R12.** `assemble_bundle(..., reader=…)`, the rule of `build_report`:
+  used as given, never closed, `ValueError` beside `anchor_source`.
+  Confirmed: the archive is byte-identical with and without a reader.
+  Measuring it found a defect upstream — a range of proofs rebuilt its
+  checkpoint's tree for every record — fixed in the same PR. On 10⁶
+  records: 1,000 records 63 s / 583 MB → 9 s / 406 MB; 100,000 records
+  14 s / 1.3 GB, a 239 MB archive; the whole chain does not fit in 8 GB.
+  **A bundle is for a selection**, and E-01 must bound it; a streamed
+  whole-chain bundle is not planned for 0.15.
+- **R13.** The bundle reads `seq`, `time_trust`, `monotonic_ns`,
+  `wall_clock_ns` through `HEADER_FIELDS`; a test moves the map and checks
+  the bundle follows. Confirmed in the source.
+- **R14.** 0.15 is targeted to be tagged by **24 December 2026**, not
+  waiting on R10–R13. Still open before the tag: the support policy, the
+  stability class of the serve HTTP surface, the release checks.
+
+Auditor's sidecar suite against #373: 435 passed, 5 skipped, 2 failed — the
+same two the canary's ledger lists, which leave it with C-18.
+
+Also in 0.15 since `ed36689`, noted for later: SCITT statements are a public
+channel (#371, `StatementRefused` with a `code`); COSE alg `-19` and a
+key-type check (#372, refusal code `key_type_mismatch`, which was
+`signature_invalid` before); writer durability (#370), nothing for a reader.
+
+**Left for E-01, not asked:** the 9 s at 1,000 records is the whole-file
+verification every bundle carries; with the session's reader, already
+verified, it should cost less. Measured on 0.15 before the bound is set.

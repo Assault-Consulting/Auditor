@@ -51,6 +51,11 @@ status and what it unblocks.
 | R9 — `export_jsonl`, `pala-jsonl/1`, channel 2 | merged (#357), **0.14.1** | D-06 ✓ |
 | U27 — `WRITER-SURFACE.md` | before 1.0 | C-15's writer-built fixtures |
 | Report format `/2` — verdict `empty` | announced, 0.15 | C-18 |
+| R10 — `__all__` on channels 3–6 | in #373, 0.15 | E-01, E-07, selftest |
+| R11 — anchor file named, not pathed, in report `/2` and bundle | in #373, 0.15 | E-01; T6 holds for what leaves |
+| R12 — `assemble_bundle(reader=…)`; a bundle is for a selection | in #373, 0.15 | E-01 (with a bound) |
+| R13 — the bundle reads time claims through `HEADER_FIELDS` | in #373, 0.15 | — |
+| **0.15 target: tagged by 24 December 2026** (R14) | announced | C-18, stage 2, Phase 4 |
 
 ## Phases
 
@@ -79,13 +84,13 @@ interactive is the live desktop check below, not yet done.
 | ✓ D-02 | Print and PDF of the package's HTML. **Print…** in the Report block: the shell opens the page in a window of its own from a `data:` URL (opaque origin, the app's CSP written in, no capability names the window) and asks the OS to print it once loaded; PDF is the OS dialog's offer. A page over 1.4 MB (WebView2's 2 MB `data:` limit, base64) is refused with a sentence pointing at **Save HTML…** | 0.5 | D-01 |
 | ✓ C-19 | 0.14.1: pin `>=0.14.1,<0.15`; R7 — the package's HTML is shown for an empty container too (the withheld page is gone; the JSON block's gloss override stays until report /2) | — | 0.14.1 |
 | ✓ D-06 | **The record export, streamed.** `GET /session/{id}/export` carries `export_jsonl`'s `pala-jsonl/1` out as it is written — from a thread of its own, on a read-only mapping of the file (the package's ask: a mapping, not a copy), in blocks of ~256 KB through a queue of 16 (~4 MB in flight). The shell's `export_records` runs the save dialog, reads the response itself over loopback (no HTTP library: status, headers, chunked or close-framed body), writes it to the file as it arrives with its SHA-256 on the way, checks the last line is the summary (a cut-short stream leaves no file), and writes `.sha256` beside it. The webview names a session and a range only. **Measured at 1M records:** 767 MB in 48.6 s; the shell held 26 MB; the sidecar's peak, 674 MB, is the session's header index (C-10b) — held whole, the export alone took 1.7 GB. Byte-identical to `export_jsonl` for the same file. | 1.5 | 0.14.1 (R9) |
-| E-01 | Evidence bundle UI over `pala bundle` | 1.5 | — |
+| E-01 | Evidence bundle UI over `assemble_bundle(reader=…)` from the session. **Bounded selection** — a bundle carries a proof path per record and outgrows its source (R12: 1,000 records 9 s / 406 MB; 100,000 records 14 s / 1.3 GB; the whole of 10⁶ does not fit in 8 GB); the bound is set by measuring on 0.15 | 1.5 | 0.15 (R10, R12) |
 | E-02 | Re-verification harness for bundles, from the spec, with no Auditor code | 3 | E-01 |
 | E-03 | Record health over U1–U3, with F12's three disciplines | 5 | — |
 | E-04 | Health summary in the report, labelled advisory | 1 | E-03 |
 | E-05 | Local witness log, hash-chained, saying what it does and does not prove | 3 | — |
 | E-06 | SCITT receipts as pins, displayed, never minted | ? | — |
-| E-07 | Prefix-consistency proofs | ? | — |
+| E-07 | Prefix-consistency proofs (`consistency_proof`, `chain_root`) | ? | 0.15 (R10) |
 | Phase 5 | Watch mode; the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); segment sequences; signed installers; `uk` pass | — | — |
 
 **Next, in order:** the live desktop check; C-18 and the surface review's
