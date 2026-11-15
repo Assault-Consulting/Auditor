@@ -81,13 +81,14 @@ def test_an_untouched_chain_has_no_diagnosis(chain_path, head_hex) -> None:
 
 def test_a_cut_tail_is_truncated_tail(chain_path, head_hex) -> None:
     """And chain_ok stays TRUE, which is the whole reason the triptych keys
-    question one on chain_ok *and* the absence of a diagnosis.
+    question one on chain_ok *and* a container that parsed to its end.
 
     This was an argument in a comment until this fixture existed."""
     chain_path.write_bytes(chain_path.read_bytes()[:-40])
     result = _verify(chain_path, head_hex)
     assert _pattern(result) == "truncated_tail"
     assert result["chain"]["chain_ok"] is True
+    assert result["container"]["well_formed"] is False
 
 
 def test_a_missing_prefix_is_prefix_absent(chain_path, head_hex) -> None:
@@ -155,6 +156,29 @@ def test_a_lagging_anchor_and_a_stranger_anchor_are_told_apart(
         is False
     )
     assert _pattern(lagging) != _pattern(stranger)
+
+
+def test_a_finding_about_completeness_leaves_the_file_consistent(
+    chain_path, lagging_chain
+) -> None:
+    """One diagnosis for three questions, and these two are about question two.
+
+    Read against an anchor it has outrun, or one that names nothing in it, a
+    whole chain still links, still parses to its end and still matches every
+    body digest — the facts question one is answered from — while the
+    diagnosis names a completeness pattern. The Q1 panel once answered "not
+    whole" here because it read the diagnosis instead of the facts (T1).
+    """
+    lagging_path, early_head, _ = lagging_chain
+    for result, pattern in (
+        (_verify(lagging_path, early_head), "unanchored_tail"),
+        (_verify(chain_path, "aa" * 32), "replaced_or_rolled_back"),
+    ):
+        assert result["chain"]["chain_ok"] is True
+        assert result["container"]["well_formed"] is True
+        assert result["container"]["body_digest_mismatches"] == []
+        assert result["completeness"]["complete_to_anchor"] is False
+        assert _pattern(result) == pattern
 
 
 # --- what this suite cannot build, said out loud ----------------------------

@@ -342,6 +342,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Panel 01 answered "the file is not whole" about a whole chain read against
+  an anchor it had outrun (`unanchored_tail`) or one that named nothing in it
+  (`replaced_or_rolled_back`). The package gives one diagnosis for all three
+  questions, and these two are about question two. Question one is now
+  answered from the facts — `chain_ok`, a well-formed container and no body
+  digest mismatch, the rule `pala verify --json` calls `consistency.ok` — and
+  a diagnosis only decides which panel carries its sentence. A pattern this
+  build does not know is shown as unguided beside the facts' answer.
+- Panel 02 answered "Complete" for a file with no records read against the
+  empty chain's head (thirty-two zero bytes). It now says nothing was checked.
+  "1 records sit beyond" reads "1 record sits beyond".
+
 - Three overclaims of our own, found by D-03. The `record_violation` guidance
   said "the chain around it is intact", which the card cannot know — whether
   the chain holds is question one's answer; and the `span_unclosed` note said
