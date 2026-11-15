@@ -1340,6 +1340,102 @@ body {
   color: var(--vellum-dim);
 }
 
+/* C-06d's raw view. Named bytes in vellum, unnamed ones dimmed; the three
+   zones differ by their underline, never by the Proved / Recorded colours,
+   which mean something else on this screen. */
+.hex {
+  margin-top: calc(var(--step) * 1.5);
+}
+
+.hex-toggle {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+}
+
+.hex-head,
+.hex-note {
+  margin: calc(var(--step) * 0.75) 0 0;
+  font-size: 0.8rem;
+  color: var(--vellum-dim);
+}
+
+.hex-failed {
+  margin: calc(var(--step) * 0.75) 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--vellum-dim);
+}
+
+.hex-table {
+  margin-top: calc(var(--step) * 0.75);
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.hex-table th {
+  padding-right: var(--step);
+  font-weight: normal;
+  color: var(--unchecked);
+  text-align: right;
+}
+
+.hex-table td {
+  padding: 0 0.2em;
+  color: var(--vellum);
+  border-bottom: 1px solid transparent;
+}
+
+.hex-table td[data-zone="none"] {
+  color: var(--unchecked);
+}
+
+.hex-table td[data-zone="field"] {
+  border-bottom-color: var(--vellum-dim);
+}
+
+.hex-table td[data-zone="header-tlv"] {
+  border-bottom: 1px dashed var(--vellum-dim);
+}
+
+.hex-table td[data-zone="body-tlv"] {
+  border-bottom: 1px dotted var(--vellum-dim);
+}
+
+.hex-table td[data-opens] {
+  border-left: 1px solid var(--rule);
+}
+
+.hex-table td[data-body] {
+  font-style: italic;
+}
+
+.hex-table td[data-hot],
+.hex-segments li[data-hot] {
+  background: var(--rule);
+}
+
+.hex-segments {
+  margin: calc(var(--step) * 0.75) 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  columns: 2;
+}
+
+.hex-segments li {
+  display: flex;
+  gap: var(--step);
+}
+
+.hex-at,
+.hex-len {
+  color: var(--unchecked);
+}
+
 /* F9's origin card, nested inside the record card it answers "on any
    selected record" for. Ruled off with a dashed top border rather than
    its own box — it is a fact about the same record, not a separate

@@ -177,6 +177,16 @@ holds no such record, and the message names the record. A segment covering
 unknown session because that 404 says "no such session" instead — two
 absences, two messages.
 
+`GET /session/{id}/record/{seq}/bytes` answers the same way. It is the one
+route that returns wire bytes, and it returns them **as the package read
+them** (`record_bytes_at`), never re-encoded, beside the package's own maps:
+the fixed header's fields (`HEADER_FIELDS`) and the header's and body's TLV
+spans. A field map that does not apply — a header the package does not
+accept — is null rather than drawn over bytes it may not describe, and a
+TLV layout the package does not give — an encrypted body among others — is
+null too. A body longer than 4 KiB is cut, and `body_shown` against
+`body_len` says so (C-06d).
+
 ### Filtering by something absent is an empty answer
 
 `/records` accepts `record_type`, `boot_id` and `span_id`, ANDed. A value

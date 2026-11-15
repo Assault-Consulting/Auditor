@@ -62,6 +62,7 @@ from palimpsests.audit.export import export_jsonl
 from palimpsests.audit.names import assurance_tier_name, time_trust_name
 from palimpsests.audit.reader import (
     FORMAT_VERSION,
+    HEADER_FIELDS,
     KIND_INCIDENT_CANDIDATE,
     NO_PREDECESSOR,
     NO_SPAN,
@@ -101,6 +102,11 @@ _EXPORT_QUEUE_CHUNKS = 16
 #: as "palimpsests-auditor X.Y.Z", so the version travels with the name — a
 #: report read later says which build of this shell made it (T4).
 _REPORT_TOOL = f"palimpsests-auditor-sidecar {__version__}"
+
+#: How much of a body the bytes view carries (C-06d). A header is at most a
+#: few hundred bytes; a body can be megabytes, and a hex view of a megabyte
+#: is not something anyone reads. The rest is counted, never dropped silently.
+_BODY_BYTES_SHOWN = 4096
 
 #: The specification this application reads. Not a marketing string: it is
 #: the family name plus the wire version the *linked* verifier implements,
@@ -443,6 +449,13 @@ class _HeaderIndex:
                 return False
             prev = w
         return True
+
+
+def _tlv_spans(spans: list[tuple[int, int, int]] | None) -> list[dict[str, int]] | None:
+    """The package's ``(type, value_offset, length)`` triples, named."""
+    if spans is None:
+        return None
+    return [{"type": t, "value_offset": vo, "length": ln} for t, vo, ln in spans]
 
 
 class ChainHandle:
@@ -870,22 +883,65 @@ class ChainHandle:
         the same walk-and-stop the full decode did, read off the header
         index (C-10b) and decoding only the one record returned.
         """
-        idx = self._header_index()
-        if idx.seq_sorted:
-            i = bisect_left(idx.seq, seq)
-            found = i if i < len(idx) and idx.seq[i] == seq else None
-        else:
-            found = None
-            for i in range(len(idx)):
-                if idx.seq[i] >= seq:
-                    found = i if idx.seq[i] == seq else None
-                    break
+        found = self._index_of(seq)
         if found is None:
             return None
         acks, shredded, detail_counts = self._safety_context()
         with self._lock:
             record = self._reader.record_at(found)
         return self._record_view(record, self._prev_seq(found), acks, shredded, detail_counts)
+
+    def _index_of(self, seq: int) -> int | None:
+        """The file position of record ``seq``, by the walk `record` documents."""
+        idx = self._header_index()
+        if idx.seq_sorted:
+            i = bisect_left(idx.seq, seq)
+            return i if i < len(idx) and idx.seq[i] == seq else None
+        for i in range(len(idx)):
+            if idx.seq[i] >= seq:
+                return i if idx.seq[i] == seq else None
+        return None
+
+    def record_bytes(self, seq: int) -> dict[str, object] | None:
+        """One record's bytes as the file holds them, with the package's maps
+        of them (C-06d), or None when there is no such record.
+
+        Everything here is the package's: the bytes come from
+        ``record_bytes_at`` (U31), the fixed header's fields from
+        ``HEADER_FIELDS`` (R8), the TLVs from ``header_tlv_spans_at`` and
+        ``body_tlv_spans_at``. Nothing is decoded, measured or re-encoded on
+        this side; a span the package does not give is not drawn (ADR-0001).
+
+        The field map is given only for a header the package accepts — when
+        its TLV spans are not None. For a header it rejects, an unknown format
+        version among them, the map describes a layout this file may not
+        have, so the bytes are shown as stored and nothing is named.
+        """
+        found = self._index_of(seq)
+        if found is None:
+            return None
+        with self._lock:
+            raw = self._reader.record_bytes_at(found)
+            header_tlvs = self._reader.header_tlv_spans_at(found)
+            body_tlvs = self._reader.body_tlv_spans_at(found)
+        shown = raw.body[:_BODY_BYTES_SHOWN]
+        return {
+            "seq": seq,
+            "index": found,
+            "offset": raw.offset,
+            "header_hex": raw.header.hex(),
+            "body_hex": shown.hex(),
+            "body_len": len(raw.body),
+            "body_shown": len(shown),
+            "header_fields": None
+            if header_tlvs is None
+            else [
+                {"name": f.name, "offset": f.offset, "length": f.length}
+                for f in HEADER_FIELDS
+            ],
+            "header_tlvs": _tlv_spans(header_tlvs),
+            "body_tlvs": _tlv_spans(body_tlvs),
+        }
 
     def records(
         self,

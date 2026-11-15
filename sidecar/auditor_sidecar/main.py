@@ -38,6 +38,7 @@ from .models import (
     KeychainStatus,
     NearestRecord,
     OriginState,
+    RecordBytesView,
     RecordPage,
     RecordView,
     ReportResponse,
@@ -518,6 +519,22 @@ def build_app(token: str | None = None) -> FastAPI:
                 status_code=404, detail=f"this container holds no record {seq}"
             )
         return RecordView(**record)
+
+    @app.get("/session/{session_id}/record/{seq}/bytes", response_model=RecordBytesView)
+    def session_record_bytes(session_id: str, seq: int) -> RecordBytesView:
+        """One record's bytes as the file holds them, and where the package
+        says each field and TLV sits (C-06d).
+
+        404 when the file holds no such record, as for `/record/{seq}`.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        view = session.record_bytes(seq)
+        if view is None:
+            raise HTTPException(
+                status_code=404, detail=f"this container holds no record {seq}"
+            )
+        return RecordBytesView(**view)
 
     @app.get("/session/{session_id}/origin", response_model=OriginState)
     def session_origin(

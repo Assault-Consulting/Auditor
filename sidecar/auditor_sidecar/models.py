@@ -897,6 +897,75 @@ class RecordView(BaseModel):
     )
 
 
+class HeaderFieldSpan(BaseModel):
+    """Where one fixed-header field sits in a record's bytes — the package's
+    `HEADER_FIELDS` entry, copied (R8)."""
+
+    name: str = Field(description="The package's name for the field.")
+    offset: int = Field(description="From the record's first byte.")
+    length: int = Field(description="In bytes.")
+
+
+class TlvSpan(BaseModel):
+    """One TLV's value, where the package says it sits (U31)."""
+
+    type: int = Field(description="The TLV's raw type number.")
+    value_offset: int = Field(
+        description=(
+            "Where the VALUE starts, from the record's first byte. The bytes "
+            "that introduce it are not given a span of their own: the package "
+            "names the value, and nothing here works out the rest."
+        )
+    )
+    length: int = Field(description="The value's length in bytes.")
+
+
+class RecordBytesView(BaseModel):
+    """One record as the file holds it, with the package's maps of it (C-06d).
+
+    The bytes are the package's `record_bytes_at`, never re-encoded. Every
+    span is the package's; a byte no span covers is shown, unnamed.
+    """
+
+    seq: int = Field(description="Sequence number.")
+    index: int = Field(description="Position within this file, zero-based.")
+    offset: int = Field(description="Where the record starts in the file, in bytes.")
+    header_hex: str = Field(
+        description="The fixed header and its TLVs as stored, lowercase hex."
+    )
+    body_hex: str = Field(
+        description=(
+            "The body as stored — ciphertext for an encrypted one — up to "
+            "body_shown bytes, lowercase hex. The body starts where the "
+            "header ends."
+        )
+    )
+    body_len: int = Field(description="The stored body's whole length in bytes.")
+    body_shown: int = Field(
+        description=(
+            "How many of the body's bytes body_hex carries. Less than "
+            "body_len means the rest was not sent, never that it is absent."
+        )
+    )
+    header_fields: list[HeaderFieldSpan] | None = Field(
+        description=(
+            "The fixed header's fields. Null when the package does not accept "
+            "this header — an unknown format version among the cases — since "
+            "the map would then name a layout this record may not have."
+        )
+    )
+    header_tlvs: list[TlvSpan] | None = Field(
+        description="The header's TLVs, in order; null exactly when header_fields is."
+    )
+    body_tlvs: list[TlvSpan] | None = Field(
+        description=(
+            "The body's TLVs, in order. Null when the package gives no TLV "
+            "layout for this body: a header it rejects, an encrypted body, an "
+            "empty or a malformed one. Offsets may lie past body_shown."
+        )
+    )
+
+
 class RecordPage(BaseModel):
     """A window onto the records.
 

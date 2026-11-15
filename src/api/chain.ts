@@ -21,6 +21,7 @@ import type {
   BootView,
   NearestRecord,
   OriginState,
+  RecordBytesView,
   RecordPage,
   RecordView,
   ReportResponse,
@@ -309,6 +310,23 @@ export async function getRecord(
   });
   if (!response.ok) await raise(response);
   return (await response.json()) as RecordView;
+}
+
+/**
+ * One record's bytes as the file holds them, and the package's maps of them
+ * (C-06d). `NotFoundError` means what it means for `getRecord`: this file
+ * holds no such record.
+ */
+export async function getRecordBytes(
+  session: Session,
+  sessionId: string,
+  seq: number,
+): Promise<RecordBytesView> {
+  const response = await fetch(url(session, `/session/${sessionId}/record/${seq}/bytes`), {
+    headers: headers(session),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as RecordBytesView;
 }
 
 /**
