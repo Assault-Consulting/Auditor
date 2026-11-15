@@ -192,7 +192,7 @@ input.
 
 | # | Question | Source field | "Not checked" possible? |
 |---|---|---|---|
-| 1 | Is what I hold internally consistent? | `chain.chain_ok` **and** `diagnosis` | No — always answerable |
+| 1 | Is what I hold internally consistent? | `chain_ok`, `container.well_formed`, `body_digest_mismatches` | No — always answerable |
 | 2 | Is what I hold all of it? | `complete_to_anchor` | **Yes** — `None` without an anchor |
 | 3 | Did this history exist at time T? | witness receipt | Yes — absent at tier A |
 
@@ -202,7 +202,14 @@ mid-record reports `chain_ok = true` — every record the reader could read
 does link to its predecessor — with the truncation carried in
 `diagnosis.pattern = truncated_tail`. A green tick there would be truthful
 about the field and misleading about the file. The panel is green only when
-`chain_ok` is true **and** no diagnosis is present.
+`chain_ok` is true, the container is well formed, and no body digest
+mismatches — the same three facts `pala verify --json` folds into
+`consistency.ok` (T1).
+
+Nor is `diagnosis` the answer to it. The diagnosis names one primary
+pattern for the whole file; `unanchored_tail` and `replaced_or_rolled_back`
+are question two's patterns, about a file whose own chain is sound. The
+diagnosis decides only which panel carries its narrative.
 
 Question 1 expands into the diagnostics the verifier returns:
 `breaks` (seqs where `prev_hash` does not name the predecessor),
@@ -617,8 +624,9 @@ must not be conflated.
 *(a) Against the package's CLI.* Auditor's answer must agree with
 `palimpsests pala verify <file>` — the command that takes a path; `audit
 verify` operates on the engine's own configured log and cannot be pointed at
-an arbitrary file. Its exit codes are **0 verified, 1 TAMPERED, 2 PARTIAL,
-3 UNREADABLE**.
+an arbitrary file. Its exit codes are **0 verified, 1 VIOLATION, 2 PARTIAL,
+3 UNREADABLE**. Code 1 was named `TAMPERED` up to 0.14 — a cause the tool
+cannot know; the number is unchanged (Palimpsests #368).
 
 This proves the shell does not distort the answer in transit — L1 made
 testable, and worth having because every field is copied by hand at the seam.
@@ -629,16 +637,17 @@ One divergence is known and deliberate, and is pinned by a test rather than
 left to be discovered: the CLI folds "container malformed" into
 `consistency.ok`, while the reader keeps `chain_ok` about the chain and
 reports truncation as a diagnosis. A second one closed in 0.14: for a file
-that was never a chain the CLI exits TAMPERED, and Auditor used to refuse to
-open it, because calling an ordinary text file "tampered" attributes intent
-to a file with no history (L4, L6). The package now says what such a file is
-— `not_a_container`, a pattern that names no intent, with the report verdict
-`violation` — so Auditor opens it and shows that (C-17b). An empty file opens
-too: without an anchor the package diagnoses `empty_container`, a check that
-passed because there was nothing to check (C-8), and the Report block shows
-that sentence in place of the general one for `partial`; read against an
-anchor, it is `replaced_or_rolled_back`, verdict `violation` — a log was
-written and is not here, the case a refusal would hide.
+that was never a chain the CLI exits 1, then named TAMPERED, and Auditor
+used to refuse to open it, because calling an ordinary text file "tampered"
+attributes intent to a file with no history (L4, L6). The package now says
+what such a file is — `not_a_container`, a pattern that names no intent,
+with the report verdict `violation` — so Auditor opens it and shows that
+(C-17b). An empty file opens too: without an anchor the package diagnoses
+`empty_container`, a check that passed because there was nothing to check
+(C-8), and the Report block shows that sentence in place of the general one
+for `partial`; read against an anchor, it is `replaced_or_rolled_back`,
+verdict `violation` — a log was written and is not here, the case a refusal
+would hide.
 
 *(b) Against the published vectors.* `test-vectors.json` (envelope
 conformance, one record of each type) and `profiles/inference-vectors.json`
@@ -647,10 +656,8 @@ expectation this shell actually renders). This is the independent authority
 — what a third-party verifier written from the prose alone is measured
 against.
 
-Blocked: the vectors are not shipped in the distribution, so they are
-reachable only by someone who cloned the upstream repository. Tracked as U9.
-The test exists and skips with that reason, so the gap is visible on every
-run rather than filed in a TODO.
+The vectors ship in the distribution since U9 closed, and both sets run
+(`test_conformance_vectors.py`, C-15).
 
 **20.2 The no-parsing test.** `scripts/check_no_wire_parsing.sh` scans every
 Python, Rust and TypeScript source for wire-parsing primitives outside
