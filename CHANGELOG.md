@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- C-06d — the raw view of a record. `GET /session/{id}/record/{seq}/bytes`
+  returns the record's bytes as the package read them (`record_bytes_at`,
+  never re-encoded) with the package's maps: the fixed header's fields
+  (`HEADER_FIELDS`, R8) and the header's and body's TLV spans. The record
+  card's **bytes** lays them out sixteen to a row with every field and TLV
+  value named, a byte no span covers shown unnamed, and a list of the spans
+  beside it. Nothing is named over a header the package does not accept; a
+  body with no layout (encrypted, among others) is shown as stored and says
+  so; a body past 4 KiB is cut and says how much was drawn. Checked against
+  the published vectors' own `header_hex` / `body_hex`, byte for byte.
+
 - T3 — the export says what its own summary says. After the save, the
   Export block shows the package's `consistent` from the export's summary
   line, with the reasons when it is false — the container does not parse to
@@ -306,6 +317,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `REUSE.toml` and `LICENSES/Apache-2.0.txt`; `reuse lint` runs in CI.
 
 ### Changed
+
+- T7 — C-16(b), the canary against Palimpsests `main`, is closed unbuilt.
+  The C-16 contract test, the pin's upper bound and C-18's rule — pin only
+  after the suite runs green on the candidate — catch the same breakage at
+  the bump; `DEVELOPMENT-PLAN.md` says when to reopen it.
 
 - T4 — the report names the sidecar's version. `tool` in the report's
   header reads `palimpsests-auditor-sidecar <version>`, the version the

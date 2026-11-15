@@ -58,8 +58,8 @@ status and what it unblocks.
 |---|---|
 | 0 — scaffold (A-01…A-07) | ✓ closed |
 | 1 — verify (B-01…B-11, B-12) | ✓ closed |
-| 2 — browse (C-01…C-12) | 21 of 22; C-06d buildable on 0.14.1 (R8) |
-| 0.13–0.14.1 follow-up (C-13…C-19) | ✓ except C-16(b) and C-18 (0.15) |
+| 2 — browse (C-01…C-12) | ✓ closed (C-06d on 0.14.1) |
+| 0.13–0.14.1 follow-up (C-13…C-19) | ✓ except C-18 (0.15); C-16(b) closed unbuilt |
 | 3 — report (D-01…D-07) | D-01, D-03, D-04, D-06, D-07 ✓; D-02 `?` |
 | 4 — evidence artifacts (E-01…E-07) | not started |
 | 5 — beyond MVP | not started |
@@ -73,8 +73,8 @@ interactive is the live desktop check below, not yet done.
 
 | Id | What | Days | Needs |
 |---|---|---|---|
-| C-06d | Raw hex view: the record's bytes as read, every header field and TLV highlighted from the package's maps — (a) header in the MVP, (b) body as fast-follow | ? | 0.14.1 (R8) |
-| ◐ C-16(b) | The canary: the sidecar suite against Palimpsests `main`, outside `ci-complete`. Prepared as `canary.yml`; a workflow file cannot be committed through the tool this work uses | 0.5 | upload by hand |
+| ✓ C-06d | Raw hex view: `GET /session/{id}/record/{seq}/bytes` gives the record's bytes as read (`record_bytes_at`) with `HEADER_FIELDS` and both TLV span lists; the record card's **bytes** lays them out sixteen to a row, every name and boundary the package's, a byte no span covers unnamed. Header and body together — the body's map came in the same release, so (a)/(b) did not need splitting. A body is cut at 4 KiB and says so | 1 | 0.14.1 (R8) |
+| ✗ C-16(b) | The canary against Palimpsests `main`. **Closed unbuilt (T7, 15 Nov 2026).** A workflow file cannot be committed through the tool this work uses, and what the canary would catch early is caught at the bump: the C-16 contract test fails on any name the package stops declaring, the pin's upper bound keeps an unread release out, and C-18's rule is to pin only after the suite runs green on the candidate. Reopen if a release ever lands broken past those three | — | — |
 | C-18 | 0.15: report `/2` and its verdict `empty`; remove the report /1 gloss override for `empty_container` (`api/report.ts`); R4's `ShredView` for a KEY_SHRED's `detail`; pin `>=0.15,<0.16` after the suite runs green on the candidate | 1 | 0.15 |
 | D-02 | Print and PDF of the package's HTML | ? | D-01 |
 | ✓ C-19 | 0.14.1: pin `>=0.14.1,<0.15`; R7 — the package's HTML is shown for an empty container too (the withheld page is gone; the JSON block's gloss override stays until report /2) | — | 0.14.1 |
@@ -88,11 +88,18 @@ interactive is the live desktop check below, not yet done.
 | E-07 | Prefix-consistency proofs | ? | — |
 | Phase 5 | Watch mode; the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); segment sequences; signed installers; `uk` pass | — | — |
 
-**Next, in order:** the live desktop check; C-06d on 0.14.1; C-16(b) by
-upload; C-18 on 0.15. Phase 4 starts by decision, not by default.
+**Next, in order:** the live desktop check; C-18 and the surface review's
+stage 2 (T8–T16) on 0.15. Phase 4 starts by decision, not by default.
 
 ## Done recently
 
+The surface review's stage 1 (15 Nov 2026): T1 — question one answered from
+`chain_ok`, a well-formed container and no body digest mismatch, the
+diagnosis only routing its sentence; T2 — the empty chain's head is "not
+checked"; T3 — the export shows its own summary's `consistent`; T4 — the
+report names the sidecar's build; T5/T16 — documents re-read against
+0.14.1, exit code 1 is `VIOLATION`; T6 — local paths stay local; T7 —
+C-16(b) closed. C-06d — the raw view, every boundary the package's.
 C-17(a) — body filters read fields in place on 0.14 (1M records: 13.7 s /
 376 MB, was 21.9 s / 2.04 GB), held to the old walk over 1,032 comparisons.
 C-17(b) — violation codes; a file with no records opens and the package
@@ -112,7 +119,9 @@ three overclaims of our own removed.
 - **R3** — CI cannot see a window. A live desktop session closes every UI
   phase. **Outstanding:** both file dialogs (D-07's fix), the framed HTML
   report under the shell's CSP (D-01b), empty and non-chain files (C-17b),
-  a 1M-record chain, and the export dialog writing a large export (D-06).
+  a 1M-record chain, the export dialog writing a large export (D-06), the
+  export's summary line (T3), and the raw view (C-06d — checked in a headless
+  browser against the sidecar; the window is what is left).
 - **R4** — Track U slips. Only what a release carries is built on.
 - **R5** — scope creep into analytics. Nothing about record content.
 - **R6** — the package is split into `palimpsests-audit`. A one-file change.
