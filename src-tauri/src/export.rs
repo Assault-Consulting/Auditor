@@ -19,6 +19,11 @@
 //! that ends anywhere else was cut short, and the partial file is removed
 //! rather than left to look like an export.
 //!
+//! What the summary *says* is passed back as the package wrote it — whether
+//! the file is consistent, and why not — so the screen can say it beside the
+//! saved file. It never stops the save: an export of a file that fails is
+//! exactly what someone examining that failure needs.
+//!
 //! No HTTP library: the request is one GET to loopback, and the response is
 //! read by hand — status, headers, then a body framed either by chunked
 //! transfer coding (RFC 9112 §7.1, which uvicorn uses) or by the connection
@@ -31,6 +36,53 @@ use std::io::{self, BufRead, BufReader, BufWriter, Read, Write};
 use std::net::TcpStream;
 use std::path::Path;
 use std::time::Duration;
+
+/// What the export's own summary line says about the file it was made from.
+///
+/// Copied out of the package's JSON, never computed here. Every field is
+/// optional because the format is open (`pala-jsonl/1`): a summary without
+/// one of these keys is still a summary, and the screen says it does not
+/// know rather than guessing.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ExportSummary {
+    /// Records in the whole container — a range bounds the lines, not this.
+    pub records: Option<u64>,
+    /// The package's own `consistent`: headers link, the container parses to
+    /// its end, and no body differs from its digest.
+    pub consistent: Option<bool>,
+    /// The header chain links.
+    pub chain_ok: Option<bool>,
+    /// The container parses to its end.
+    pub well_formed: Option<bool>,
+    /// Records whose body does not match the digest their header carries.
+    pub body_digest_mismatches: Vec<u64>,
+}
+
+impl ExportSummary {
+    fn from_line(line: &serde_json::Value) -> Self {
+        let flag = |key: &str| line.get(key).and_then(serde_json::Value::as_bool);
+        ExportSummary {
+            records: line.get("records").and_then(serde_json::Value::as_u64),
+            consistent: flag("consistent"),
+            chain_ok: flag("chain_ok"),
+            well_formed: flag("well_formed"),
+            body_digest_mismatches: line
+                .get("body_digest_mismatches")
+                .and_then(serde_json::Value::as_array)
+                .map(|seqs| seqs.iter().filter_map(serde_json::Value::as_u64).collect())
+                .unwrap_or_default(),
+        }
+    }
+}
+
+/// The saved export, and what its summary says.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ExportedArtifact {
+    /// Where it went and its digest — the same fields a saved report has.
+    #[serde(flatten)]
+    pub saved: SavedArtifact,
+    pub summary: ExportSummary,
+}
 
 /// How long a read may wait for the next bytes. The export's summary needs a
 /// full walk of the container first — about 14 s at 1M records — so this is
@@ -219,7 +271,7 @@ pub fn fetch_to_file(
     token: &str,
     target: &str,
     dest: &Path,
-) -> io::Result<SavedArtifact> {
+) -> io::Result<ExportedArtifact> {
     let result = stream_to_file(port, token, target, dest);
     if result.is_err() {
         let _ = fs::remove_file(dest);
@@ -227,7 +279,12 @@ pub fn fetch_to_file(
     result
 }
 
-fn stream_to_file(port: u16, token: &str, target: &str, dest: &Path) -> io::Result<SavedArtifact> {
+fn stream_to_file(
+    port: u16,
+    token: &str,
+    target: &str,
+    dest: &Path,
+) -> io::Result<ExportedArtifact> {
     let mut stream = TcpStream::connect(("127.0.0.1", port))?;
     stream.set_read_timeout(Some(READ_TIMEOUT))?;
     write!(
@@ -274,16 +331,15 @@ fn stream_to_file(port: u16, token: &str, target: &str, dest: &Path) -> io::Resu
     out.get_ref().sync_all()?;
     drop(out);
 
-    let is_summary = current.is_empty()
-        && serde_json::from_slice::<serde_json::Value>(&last_line)
-            .ok()
-            .and_then(|v| v.get("summary").and_then(|s| s.as_bool()))
-            == Some(true);
-    if !is_summary {
+    let summary = serde_json::from_slice::<serde_json::Value>(&last_line)
+        .ok()
+        .filter(|v| current.is_empty() && v.get("summary").and_then(|s| s.as_bool()) == Some(true))
+        .map(|v| ExportSummary::from_line(&v));
+    let Some(summary) = summary else {
         return Err(io::Error::other(
             "the export was cut short: its last line is not the summary",
         ));
-    }
+    };
 
     // What the digest vouches for is the file as it now reads back, the same
     // rule D-07 keeps for a report.
@@ -295,11 +351,14 @@ fn stream_to_file(port: u16, token: &str, target: &str, dest: &Path) -> io::Resu
         ));
     }
     let digest_path = artifact::write_digest(dest, &on_disk)?;
-    Ok(SavedArtifact {
-        path: dest.display().to_string(),
-        digest_path: digest_path.display().to_string(),
-        sha256: on_disk,
-        bytes,
+    Ok(ExportedArtifact {
+        saved: SavedArtifact {
+            path: dest.display().to_string(),
+            digest_path: digest_path.display().to_string(),
+            sha256: on_disk,
+            bytes,
+        },
+        summary,
     })
 }
 
@@ -360,7 +419,9 @@ mod tests {
         let dest = dir.join("chain.pala.jsonl");
         // Pieces of 7 bytes, so chunk boundaries fall inside lines.
         let (port, server) = serve(chunked(EXPORT, 7));
-        let saved = fetch_to_file(port, "tok", "/session/s1/export", &dest).expect("saved");
+        let saved = fetch_to_file(port, "tok", "/session/s1/export", &dest)
+            .expect("saved")
+            .saved;
         assert_eq!(fs::read(&dest).expect("file"), EXPORT);
         assert_eq!(saved.sha256, format!("{:x}", Sha256::digest(EXPORT)));
         assert_eq!(saved.bytes, EXPORT.len() as u64);
@@ -371,6 +432,65 @@ mod tests {
         assert!(request.starts_with("GET /session/s1/export HTTP/1.1\r\n"));
         assert!(request.contains("Authorization: Bearer tok\r\n"));
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_summary_says_what_the_package_said_and_never_stops_the_save() {
+        // A summary of a file that fails: one body that does not match its
+        // digest. Saved all the same, with the reasons passed out.
+        let dir = scratch("inconsistent");
+        let dest = dir.join("e.jsonl");
+        let export: &[u8] = b"{\"seq\":0}\n{\"summary\":true,\"format\":\"pala-jsonl/1\",\"records\":3,\"chain_ok\":true,\"well_formed\":true,\"body_digest_mismatches\":[2],\"consistent\":false}\n";
+        let (port, server) = serve(chunked(export, 11));
+        let got = fetch_to_file(port, "tok", "/x", &dest).expect("saved");
+        assert_eq!(fs::read(&dest).expect("file"), export);
+        assert_eq!(
+            got.summary,
+            ExportSummary {
+                records: Some(3),
+                consistent: Some(false),
+                chain_ok: Some(true),
+                well_formed: Some(true),
+                body_digest_mismatches: vec![2],
+            }
+        );
+        server.join().expect("server");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_summary_without_the_keys_is_still_a_summary_and_says_nothing() {
+        let dir = scratch("sparse");
+        let dest = dir.join("e.jsonl");
+        let (port, server) = serve(chunked(EXPORT, 64));
+        let got = fetch_to_file(port, "tok", "/x", &dest).expect("saved");
+        assert_eq!(got.summary.records, Some(2));
+        assert_eq!(got.summary.consistent, None);
+        assert_eq!(got.summary.chain_ok, None);
+        assert_eq!(got.summary.well_formed, None);
+        assert!(got.summary.body_digest_mismatches.is_empty());
+        server.join().expect("server");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_saved_fields_and_the_summary_travel_side_by_side() {
+        // The webview reads path, digest_path, sha256 and bytes where a saved
+        // report has them; the summary sits beside them, not inside.
+        let got = ExportedArtifact {
+            saved: SavedArtifact {
+                path: "/x/e.jsonl".into(),
+                digest_path: "/x/e.jsonl.sha256".into(),
+                sha256: "ab".into(),
+                bytes: 1,
+            },
+            summary: ExportSummary::from_line(&serde_json::json!({"consistent": true})),
+        };
+        let v = serde_json::to_value(&got).expect("json");
+        assert_eq!(v["path"], "/x/e.jsonl");
+        assert_eq!(v["sha256"], "ab");
+        assert_eq!(v["summary"]["consistent"], true);
+        assert!(v.get("saved").is_none());
     }
 
     #[test]

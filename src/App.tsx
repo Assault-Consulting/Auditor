@@ -35,7 +35,14 @@ import { type Chip, chipLabel, nextWarning, parseSearch } from "./api/search";
 import { safetyGroupKey } from "./api/safety";
 import { unsearchedLine } from "./api/records";
 import { ATTESTATION, type ReportView, reportView } from "./api/report";
-import { EXPORT_NOTE, exportFileName, exportRecords, parseRange } from "./api/exportFile";
+import {
+  EXPORT_NOTE,
+  exportFileName,
+  exportRecords,
+  parseRange,
+  type SummaryLine,
+  summaryLine,
+} from "./api/exportFile";
 import { reportFileName, saveArtifact, savedLine } from "./api/saveFile";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecords, useSafety } from "./state";
 
@@ -169,7 +176,7 @@ export default function App() {
   type ExportState =
     | { kind: "idle" }
     | { kind: "exporting" }
-    | { kind: "saved"; line: string }
+    | { kind: "saved"; line: string; summary: SummaryLine }
     | { kind: "failed"; detail: string };
   const [exportState, setExportState] = useState<ExportState>({ kind: "idle" });
   useEffect(() => {
@@ -192,7 +199,11 @@ export default function App() {
     setExportState({ kind: "exporting" });
     void exportRecords(opened.session_id, range, exportFileName(opened.subject.filename))
       .then((saved) =>
-        setExportState(saved === null ? { kind: "idle" } : { kind: "saved", line: savedLine(saved) }),
+        setExportState(
+          saved === null
+            ? { kind: "idle" }
+            : { kind: "saved", line: savedLine(saved), summary: summaryLine(saved.summary) },
+        ),
       )
       .catch((err: unknown) =>
         setExportState({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
@@ -1488,7 +1499,21 @@ export default function App() {
                 {exportState.kind === "exporting" ? "Exporting…" : "Export JSONL…"}
               </button>
             </div>
-            {exportState.kind === "saved" && <p className="report-saved">{exportState.line}</p>}
+            {exportState.kind === "saved" && (
+              <>
+                <p className="report-saved">{exportState.line}</p>
+                {/* T3. What the export's own summary says about the file. A
+                    file that is not consistent is ruled in ochre, the colour
+                    of a finding about evidence — never red, and never a
+                    refusal: the export was saved. */}
+                <p
+                  className={exportState.summary.consistent === false ? "report-failed" : "report-saved"}
+                  data-consistent={String(exportState.summary.consistent)}
+                >
+                  {exportState.summary.text}
+                </p>
+              </>
+            )}
             {exportState.kind === "failed" && <p className="report-failed">{exportState.detail}</p>}
           </section>
         )}
