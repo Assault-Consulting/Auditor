@@ -42,5 +42,5 @@ Thumbs.db
 src-tauri/binaries/
 # PyInstaller output
 /build/
-/dist-sidecar/
+/build-sidecar/
 *.spec

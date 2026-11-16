@@ -9,7 +9,7 @@ module. This drives the binary through the paths an installed application
 takes on its first minute, against a chain written by the package's own
 writer and one altered after writing:
 
-    python sidecar/tests/smoke_frozen_sidecar.py dist/auditor-sidecar.exe
+    python sidecar/tests/smoke_frozen_sidecar.py build-sidecar/dist/auditor-sidecar.exe
 
 Kept with the tests, and not named test_*: it writes fixtures with the
 package's writer, as the tests do (the ADR-0001 scan exempts this tree for
@@ -126,7 +126,16 @@ def main(binary: str) -> int:
             print(("ok   " if ok else "FAIL ") + name)
         return 1 if failed else 0
     finally:
-        proc.terminate()
+        # A one-file build is two processes: the bootloader and the
+        # interpreter it unpacks and starts. Ending the first leaves the
+        # second running on Windows, holding the executable open — so the
+        # whole tree goes.
+        if sys.platform == "win32":
+            subprocess.run(
+                ["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, check=False
+            )
+        else:
+            proc.terminate()
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:

@@ -54,9 +54,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install ./sidecar "pyinstaller>=6.11"
 
+      # Out of the way of the frontend: Vite builds into dist/ and empties
+      # it first, and a frozen binary there is deleted — or, still running,
+      # refuses to be.
       - name: freeze the sidecar
         run: >
           pyinstaller --noconfirm --onefile --name auditor-sidecar
+          --distpath build-sidecar/dist --workpath build-sidecar/work --specpath build-sidecar
           --collect-all palimpsests
           --copy-metadata palimpsests
           --copy-metadata fastapi
@@ -68,13 +72,13 @@ jobs:
       - name: drive the frozen sidecar
         env:
           PYTHONIOENCODING: utf-8
-        run: python sidecar/tests/smoke_frozen_sidecar.py dist/auditor-sidecar.exe
+        run: python sidecar/tests/smoke_frozen_sidecar.py build-sidecar/dist/auditor-sidecar.exe
 
       - name: place it for the bundler
         shell: bash
         run: |
           mkdir -p src-tauri/binaries
-          cp dist/auditor-sidecar.exe src-tauri/binaries/auditor-sidecar-x86_64-pc-windows-msvc.exe
+          cp build-sidecar/dist/auditor-sidecar.exe src-tauri/binaries/auditor-sidecar-x86_64-pc-windows-msvc.exe
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
