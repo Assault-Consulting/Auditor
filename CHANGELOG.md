@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- F-01 — a Windows installer. The `installers` workflow freezes the sidecar
+  with PyInstaller into one executable, starts it and drives it through
+  opening, verifying, the report, the bytes view and the witness log on a
+  sound chain and an altered one, then builds an NSIS installer
+  (current-user, unsigned) with the binary bundled through Tauri's
+  `externalBin`, and uploads it with its SHA-256. The shell starts the
+  bundled sidecar when it sits beside the executable and no interpreter is
+  named (`AUDITOR_SIDECAR_PYTHON` still wins), with no console window on
+  Windows. Not a merge gate: it makes a file.
+
 - E-05 — the local witness log. Every check Auditor runs — the first
   `/verify` of an open file against an anchor profile — appends one entry to
   a log of its own in the per-user data directory: the file's name, SHA-256
