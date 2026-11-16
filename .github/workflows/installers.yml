@@ -66,6 +66,8 @@ jobs:
           sidecar/packaging/entry.py
 
       - name: drive the frozen sidecar
+        env:
+          PYTHONIOENCODING: utf-8
         run: python sidecar/tests/smoke_frozen_sidecar.py dist/auditor-sidecar.exe
 
       - name: place it for the bundler

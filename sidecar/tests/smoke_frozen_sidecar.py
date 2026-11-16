@@ -97,13 +97,13 @@ def main(binary: str) -> int:
         checks: list[tuple[str, bool]] = []
         for path, expect_mismatch in ((sound, False), (altered, True)):
             status, opened = call("POST", "/session", {"path": str(path)})
-            checks.append((f"open {path.name} → {status}", status == 201))
+            checks.append((f"open {path.name} -> {status}", status == 201))
             if status != 201:
                 break
             sid = opened["session_id"]
             status, v = call("GET", f"/session/{sid}/verify")
             mismatches = v.get("container", {}).get("body_digest_mismatches", [])
-            checks.append((f"verify {path.name} → {status}", status == 200))
+            checks.append((f"verify {path.name} -> {status}", status == 200))
             checks.append((f"{path.name}: chain_ok", v.get("chain", {}).get("chain_ok") is True))
             checks.append(
                 (
@@ -114,9 +114,9 @@ def main(binary: str) -> int:
             checks.append((f"{path.name}: witnessed", v.get("witness", {}).get("hash") is not None))
             status, report = call("GET", f"/session/{sid}/report")
             report_ok = status == 200 and "html_text" in report
-            checks.append((f"report {path.name} → {status}", report_ok))
+            checks.append((f"report {path.name} -> {status}", report_ok))
             status, _ = call("GET", f"/session/{sid}/record/1/bytes")
-            checks.append((f"record bytes {path.name} → {status}", status == 200))
+            checks.append((f"record bytes {path.name} -> {status}", status == 200))
         status, w = call("GET", "/witness")
         checks.append((f"witness log: {w.get('entries')} entries link", w.get("entries") == 2))
         status, _ = call("GET", "/health")
