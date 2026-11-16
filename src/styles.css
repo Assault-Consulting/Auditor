@@ -1724,7 +1724,8 @@ body {
   padding: calc(var(--step) * 2);
 }
 
-.report-title {
+.report-title,
+.witness-title {
   font-family: var(--mono);
   font-size: 0.72rem;
   letter-spacing: 0.18em;
@@ -1909,4 +1910,47 @@ body {
 :focus-visible {
   outline: 2px solid var(--proved);
   outline-offset: 3px;
+}
+
+/* E-05's witness log: the same rules as the Report block, a table in mono. */
+.witness {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.witness-status,
+.witness-head,
+.witness-path,
+.witness-note {
+  margin: calc(var(--step) * 0.75) 0 0;
+  font-size: 0.86rem;
+  color: var(--vellum-dim);
+}
+
+.witness-head code,
+.witness-path code {
+  word-break: break-all;
+}
+
+.witness-note {
+  font-style: italic;
+}
+
+.witness-table {
+  margin-top: var(--step);
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.witness-table th,
+.witness-table td {
+  padding: 0.2em var(--step) 0.2em 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.witness-table th {
+  font-weight: normal;
+  color: var(--unchecked);
 }

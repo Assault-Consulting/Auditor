@@ -66,7 +66,7 @@ status and what it unblocks.
 | 2 — browse (C-01…C-12) | ✓ closed (C-06d on 0.14.1) |
 | 0.13–0.14.1 follow-up (C-13…C-19) | ✓ except C-18 (0.15); C-16(b) closed unbuilt |
 | 3 — report (D-01…D-07) | ✓ closed (D-02 last) |
-| 4 — evidence artifacts (E-01…E-07) | not started |
+| 4 — evidence artifacts (E-01…E-07) | started 16 Nov 2026: E-05 ✓; E-01, E-07 on 0.15 |
 | 5 — beyond MVP | not started |
 
 **Phase 2's exit criterion** — a 1M-record chain opens, the timeline stays
@@ -88,13 +88,14 @@ interactive is the live desktop check below, not yet done.
 | E-02 | Re-verification harness for bundles, from the spec, with no Auditor code | 3 | E-01 |
 | E-03 | Record health over U1–U3, with F12's three disciplines | 5 | — |
 | E-04 | Health summary in the report, labelled advisory | 1 | E-03 |
-| E-05 | Local witness log, hash-chained, saying what it does and does not prove | 3 | — |
+| ✓ E-05 | Local witness log: `auditor-witness/1`, JSON Lines, each entry the SHA-256 of the one before (ADR-0003, `docs/WITNESS-LOG.md`). One entry per first `/verify` of a session and profile, holding the package's facts, never a verdict; `GET /witness` walks it; a log that does not link is not appended to and the check says so. The panel says what it shows and what it does not — a cut tail still links. `scripts/check_witness_log.py` checks a log with nothing from this repository | 3 | — |
 | E-06 | SCITT receipts as pins, displayed, never minted | ? | — |
 | E-07 | Prefix-consistency proofs (`consistency_proof`, `chain_root`) | ? | 0.15 (R10) |
 | Phase 5 | Watch mode; the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); segment sequences; signed installers; `uk` pass | — | — |
 
-**Next, in order:** the live desktop check; C-18 and the surface review's
-stage 2 (T8–T16) on 0.15. Phase 4 starts by decision, not by default.
+**Next, in order:** installers from CI for the live desktop check; E-03 /
+E-04 (record health — U1–U3 are released); C-18 and the surface review's
+stage 2 (T8–T16) on 0.15, targeted by 24 December; then E-01 and E-07.
 
 ## Done recently
 

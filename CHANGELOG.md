@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- E-05 — the local witness log. Every check Auditor runs — the first
+  `/verify` of an open file against an anchor profile — appends one entry to
+  a log of its own in the per-user data directory: the file's name, SHA-256
+  and size, the head, the package's facts (never a verdict word), the anchor
+  and its answer, the machine's clock. Each entry carries the SHA-256 of the
+  one before, so an entry changed, removed or inserted later stops linking.
+  The format is `auditor-witness/1`, not PALA-1 (ADR-0003), specified in
+  `docs/WITNESS-LOG.md` and checkable with `scripts/check_witness_log.py`,
+  which imports nothing from this repository. `GET /witness` and a **Witness
+  log** panel show whether it links, its head and last entries, and — always,
+  beside them — what it does not show: the world, a cut tail, a log rewritten
+  by whoever controls the machine. A log that does not link is not appended
+  to; the check still shows its verdict, with a sentence saying it was not
+  written.
+
 - D-02 — printing the package's HTML report. **Print…** in the Report block
   opens the page in a window of its own and asks the operating system to
   print it; the system's dialog saves it as PDF. The page is loaded from a

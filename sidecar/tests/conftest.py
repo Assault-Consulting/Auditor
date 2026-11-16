@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import pytest
 from auditor_sidecar.main import TOKEN_ENV, build_app, new_token
+from auditor_sidecar.witness import PATH_ENV as WITNESS_PATH_ENV
 from fastapi.testclient import TestClient
 
 TEST_TOKEN = "test-token-not-a-secret"
@@ -26,6 +27,18 @@ TEST_TOKEN = "test-token-not-a-secret"
 def _no_ambient_token(monkeypatch):
     """Keep every test off whatever token the developer's shell has exported."""
     monkeypatch.delenv(TOKEN_ENV, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def witness_log_path(monkeypatch, tmp_path):
+    """Every test's witness log in its own temporary directory (E-05).
+
+    A test that wrote into the developer's real data directory would be a
+    bug even when it passed, as for the keychain.
+    """
+    path = tmp_path / "witness" / "witness.jsonl"
+    monkeypatch.setenv(WITNESS_PATH_ENV, str(path))
+    return path
 
 
 class _InMemoryKeyring:

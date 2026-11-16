@@ -17,7 +17,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, getRecordBytes, getRecords, getSafety, listProfiles } from "./api/chain";
+import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, getRecordBytes, getRecords, getSafety, getWitness, listProfiles } from "./api/chain";
 import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
 import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { type RecordFilters, filtersKey } from "./api/filters";
@@ -25,6 +25,7 @@ import { type Chronoscope, chronoscope } from "./api/chronoscope";
 import type { AnchorProfile } from "./api/generated/types";
 import { onChainFilesDropped, pickChainFile } from "./api/openFile";
 import { type HexView, hexView } from "./api/hexView";
+import type { WitnessCheckView } from "./api/generated/types";
 import { type OriginCard, originCard } from "./api/origin";
 import { type RecordCard, recordCard } from "./api/record";
 import { nextOffset, recordsPage, type RecordsPage } from "./api/records";
@@ -306,6 +307,37 @@ export function useOrigin(
   }, [probe, opened, seq]);
 
   return origin;
+}
+
+/**
+ * The local witness log — E-05. Asked again whenever `after` changes: the
+ * caller passes the latest check's entry hash, so a new entry shows as soon
+ * as it is written.
+ */
+export function useWitness(probe: Probe, after: string | null): Fetch<WitnessCheckView> {
+  const [witness, setWitness] = useState<Fetch<WitnessCheckView>>({ kind: "unasked" });
+
+  useEffect(() => {
+    if (probe.kind !== "ready") {
+      setWitness({ kind: "unasked" });
+      return;
+    }
+    let cancelled = false;
+    void getWitness(probe.session)
+      .then((value) => {
+        if (!cancelled) setWitness({ kind: "found", value });
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setWitness({ kind: "failed", detail: e instanceof Error ? e.message : String(e) });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [probe, after]);
+
+  return witness;
 }
 
 /**

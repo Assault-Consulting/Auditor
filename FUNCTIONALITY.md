@@ -559,6 +559,12 @@ and it makes silent retroactive substitution visible to the auditor
 themselves. Explicitly not a substitute for an external witness, and the
 UI says so.
 
+Built as E-05: `auditor-witness/1`, JSON Lines, each entry carrying the
+SHA-256 of the one before (ADR-0003, `docs/WITNESS-LOG.md`). It keeps the
+package's facts, never a verdict, and a log that does not link is not
+appended to. A log cut at its end still links: the UI says that too, and
+that noting the log's head elsewhere is what makes a cut visible.
+
 ---
 
 ## 17. F15 — Watch mode (Phase 3)

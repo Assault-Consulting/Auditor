@@ -44,8 +44,9 @@ import {
   summaryLine,
 } from "./api/exportFile";
 import { PRINT_OPENED, printReport, reportFileName, saveArtifact, savedLine } from "./api/saveFile";
-import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecords, useSafety } from "./state";
+import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecords, useSafety, useWitness } from "./state";
 import { offsetLabel } from "./api/hexView";
+import { WITNESS_LIMITS, witnessLine, witnessRows, witnessStatus } from "./api/witness";
 
 // C-11's page size. Well inside the sidecar's own 1000-record ceiling, and
 // small enough that a page reads as a page rather than a scroll.
@@ -87,6 +88,12 @@ export default function App() {
   const [showBytes, setShowBytes] = useState(false);
   const [hotSegment, setHotSegment] = useState<number | null>(null);
   const bytes = useRecordBytes(probe, chain, selectedSeq, showBytes);
+  // E-05. The latest check's entry, so the panel asks again once it is written.
+  const thisCheck = chain.kind === "verified" ? witnessLine(chain.result.witness) : null;
+  const witness = useWitness(
+    probe,
+    chain.kind === "verified" ? (chain.result.witness?.hash ?? chain.result.witness?.error ?? null) : null,
+  );
   const rows = rowsFor(probe, chain, rail, { boots, spans });
   const choiceNote = choiceLine(choice);
   const { panels, live } = panelsFor(chain);
@@ -1560,6 +1567,65 @@ export default function App() {
                 {saveState.kind === "failed" && <p className="report-failed">{saveState.detail}</p>}
               </div>
             )}
+          </section>
+        )}
+
+        {/* E-05 — this desk's own record of the checks it ran. Not a
+            PALA-1 chain and not about any one file (ADR-0003); what it
+            shows and what it does not are said together, always. */}
+        {witness.kind !== "unasked" && (
+          <section className="witness" aria-labelledby="witness-title">
+            <h2 className="witness-title" id="witness-title">
+              Witness log
+            </h2>
+            {thisCheck !== null && (
+              <p className={thisCheck.failed ? "report-failed" : "report-saved"}>{thisCheck.text}</p>
+            )}
+            {witness.kind === "failed" && <p className="report-failed">{witness.detail}</p>}
+            {witness.kind === "found" && (() => {
+              const status = witnessStatus(witness.value);
+              const rows = witnessRows(witness.value.tail);
+              return (
+                <>
+                  <p className={status.failed ? "report-failed" : "witness-status"}>{status.text}</p>
+                  {witness.value.head !== null && (
+                    <p className="witness-head">
+                      head <code>{witness.value.head}</code>
+                    </p>
+                  )}
+                  <p className="witness-path">
+                    kept at <code>{witness.value.path}</code> ({witness.value.format})
+                  </p>
+                  {rows.length > 0 && (
+                    <table className="witness-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">#</th>
+                          <th scope="col">when (this machine's clock)</th>
+                          <th scope="col">file</th>
+                          <th scope="col">head seen</th>
+                          <th scope="col">against</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r) => (
+                          <tr key={r.n}>
+                            <td>{r.n}</td>
+                            <td>{r.when}</td>
+                            <td>{r.file}</td>
+                            <td>
+                              <code>{r.head}</code>
+                            </td>
+                            <td>{r.against}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </>
+              );
+            })()}
+            <p className="witness-note">{WITNESS_LIMITS}</p>
           </section>
         )}
 

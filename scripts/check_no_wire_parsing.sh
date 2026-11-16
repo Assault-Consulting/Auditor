@@ -53,7 +53,13 @@ TREES=(sidecar src src-tauri/src scripts)
 #                         and the format has no opinion about it. Isolated in
 #                         its own module precisely so this exemption is one
 #                         named file rather than a pattern loosened everywhere.
-EXEMPT_RE="^(${SEAM}|sidecar/tests/|src/api/generated/|sidecar/auditor_sidecar/digest\.py)"
+#   witness.py and      — hash the witness log's OWN entries (ADR-0003):
+#   check_witness_log.py  Auditor's record of the checks it ran, a format of
+#                         its own that is not PALA-1 and holds no container
+#                         byte. The checker is the stand-alone version of the
+#                         same rule, for a reader who does not trust this
+#                         application. Two named files, for the reason above.
+EXEMPT_RE="^(${SEAM}|sidecar/tests/|src/api/generated/|sidecar/auditor_sidecar/digest\.py|sidecar/auditor_sidecar/witness\.py|scripts/check_witness_log\.py)"
 
 # Primitives that indicate byte-level interpretation of a container.
 #

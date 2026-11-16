@@ -47,9 +47,14 @@ from .models import (
     SpanView,
     Timeline,
     VerificationResponse,
+    WitnessCheckView,
+    WitnessMark,
 )
 from .pala_seam import NotAChain, UnknownAnchorKind, verifier_identity
 from .sessions import SessionNotFound, SessionStore, SubjectChanged
+from .witness import FORMAT as WITNESS_FORMAT
+from .witness import WitnessLog, WitnessRefused
+from .witness import default_path as default_witness_path
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -111,7 +116,7 @@ def new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def build_app(token: str | None = None) -> FastAPI:
+def build_app(token: str | None = None, witness_path: Path | None = None) -> FastAPI:
     """Construct the application.
 
     A factory rather than a module-level singleton so tests can build an
@@ -133,6 +138,9 @@ def build_app(token: str | None = None) -> FastAPI:
     # open container appear in another's session list.
     app.state.sessions = SessionStore()
     app.state.anchors = AnchorProfiles()
+    # E-05. The path is read here, once, like the token: the environment's
+    # override in tests, else this OS's data directory.
+    app.state.witness = WitnessLog(witness_path or default_witness_path())
 
     @app.middleware("http")
     async def require_token(request: Request, call_next):
@@ -651,18 +659,55 @@ def build_app(token: str | None = None) -> FastAPI:
                 status_code=404, detail=f"no anchor profile named {profile!r}"
             ) from None
 
+        fresh = profile not in session.verifications
         try:
             result = session.verify(profile, sources)
         except UnknownAnchorKind as exc:
             raise HTTPException(
                 status_code=422, detail=f"unknown anchor source kind: {exc}"
             ) from None
+        if fresh:
+            # One entry per check, and a check is computed once per session
+            # and profile; asking again shows the same answer and the same
+            # entry. A log that cannot be written does not hide the verdict —
+            # the verdict is the package's — but the response says so.
+            try:
+                entry = app.state.witness.append(
+                    {**session.witness_fields(profile), "verifier": verifier_identity(),
+                     "tool": f"palimpsests-auditor-sidecar {__version__}"}
+                )
+                session.witnessed[profile] = {"n": entry["n"], "hash": entry["hash"], "error": None}
+            except (WitnessRefused, OSError) as exc:
+                session.witnessed[profile] = {"n": None, "hash": None, "error": str(exc)}
 
         return VerificationResponse(
             session_id=session.session_id,
             subject_sha256=session.sha256,
             verifier=verifier_identity(),
+            witness=WitnessMark(**session.witnessed[profile]),
             **result,
+        )
+
+    @app.get("/witness", response_model=WitnessCheckView)
+    def witness_log(
+        limit: int = Query(default=20, ge=0, le=200, description="Entries to show, newest last."),
+    ) -> WitnessCheckView:
+        """The local witness log: whether it links, and its last entries (E-05).
+
+        The check walks the whole log, every time it is asked; nothing is
+        remembered between calls, because the file is the user's and can
+        change between them.
+        """
+        log = app.state.witness
+        c = log.check()
+        return WitnessCheckView(
+            path=str(log.path),
+            format=WITNESS_FORMAT,
+            entries=c.entries,
+            head=c.head,
+            broken_at=c.broken_at,
+            reason=c.reason,
+            tail=log.tail(limit),
         )
 
     @app.get("/session/{session_id}/report", response_model=ReportResponse)
