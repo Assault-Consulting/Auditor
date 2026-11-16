@@ -22,6 +22,7 @@ import type {
   NearestRecord,
   OriginState,
   RecordBytesView,
+  WitnessCheckView,
   RecordPage,
   RecordView,
   ReportResponse,
@@ -455,4 +456,16 @@ export async function closeChain(
     headers: headers(session),
   });
   if (!response.ok && response.status !== 404) await raise(response);
+}
+
+/**
+ * The local witness log: whether it links, and its last entries (E-05). Not
+ * about a session — the log is this desk's, across every file it checked.
+ */
+export async function getWitness(session: Session, limit = 10): Promise<WitnessCheckView> {
+  const response = await fetch(url(session, `/witness?limit=${limit}`), {
+    headers: headers(session),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as WitnessCheckView;
 }

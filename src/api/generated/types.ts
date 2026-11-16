@@ -778,6 +778,8 @@ export interface VerificationResponse {
   /** The second file this verdict rests on, when there is one: the segments manifest a continuation diagnosis was decided against. Null when the verdict consulted no manifest. */
   manifest?: ManifestReadingModel | null;
   advisory: AdvisoryModel;
+  /** Where this check went in the local witness log (E-05): its entry, or why none was written. Null only for a response built without a log. */
+  witness?: WitnessMark | null;
 }
 
 /**
@@ -799,4 +801,60 @@ export interface WallGap {
   to_wall_ns: number;
   /** to_wall_ns minus from_wall_ns. CAN BE NEGATIVE — that means the writer's clock moved backwards across the boundary, which the ruler cannot represent and a UI must not hide. */
   duration_ns: number;
+}
+
+/**
+ * The log's own linkage, and what it does and does not show (E-05).
+ */
+export interface WitnessCheckView {
+  /** Where the log is on this machine. Local, for this screen (T6). */
+  path: string;
+  /** `auditor-witness/1`. */
+  format: string;
+  /** How many entries link, from the first. */
+  entries: number;
+  /** The last entry's hash when every entry links, else null. */
+  head: string | null;
+  /** The first line, one-based, that does not link; null when all do. */
+  broken_at: number | null;
+  /** What is wrong at that line, naming no cause. */
+  reason: string | null;
+  /** The last entries as stored, newest last — shown, not vouched for. */
+  tail: Array<WitnessEntryView>;
+}
+
+/**
+ * One entry of the witness log as stored (`auditor-witness/1`).
+ */
+export interface WitnessEntryView {
+  n: number;
+  hash: string;
+  /** This machine's clock when the check ran. A claim. */
+  checked_at_wall_ns?: number | null;
+  /** The file: name, SHA-256, size. */
+  subject?: Record<string, unknown> | null;
+  /** The chain head the check saw. */
+  head?: string | null;
+  /** The anchor profile it ran against. */
+  profile?: string | null;
+  /** The anchor that answered, as the package gave it. */
+  anchor?: Record<string, unknown> | null;
+  /** Question two's answer, as the package gave it. */
+  complete_to_anchor?: boolean | null;
+}
+
+/**
+ * This check's place in the local witness log, or why it has none (E-05).
+ *
+ * Exactly one of ``hash`` and ``error`` is set. An unwritten entry is said,
+ * never silent: a check shown with no word about the log would read as
+ * witnessed.
+ */
+export interface WitnessMark {
+  /** The entry's number, from zero. */
+  n: number | null;
+  /** The entry's SHA-256, hex. */
+  hash: string | null;
+  /** Why no entry was written. */
+  error: string | null;
 }

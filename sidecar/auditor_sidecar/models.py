@@ -473,6 +473,62 @@ class ManifestReadingModel(BaseModel):
     )
 
 
+class WitnessMark(BaseModel):
+    """This check's place in the local witness log, or why it has none (E-05).
+
+    Exactly one of ``hash`` and ``error`` is set. An unwritten entry is said,
+    never silent: a check shown with no word about the log would read as
+    witnessed.
+    """
+
+    n: int | None = Field(description="The entry's number, from zero.")
+    hash: str | None = Field(description="The entry's SHA-256, hex.")
+    error: str | None = Field(description="Why no entry was written.")
+
+
+class WitnessEntryView(BaseModel):
+    """One entry of the witness log as stored (`auditor-witness/1`)."""
+
+    model_config = {"extra": "allow"}
+
+    n: int
+    hash: str
+    checked_at_wall_ns: int | None = Field(
+        default=None, description="This machine's clock when the check ran. A claim."
+    )
+    subject: dict[str, object] | None = Field(
+        default=None, description="The file: name, SHA-256, size."
+    )
+    head: str | None = Field(default=None, description="The chain head the check saw.")
+    profile: str | None = Field(default=None, description="The anchor profile it ran against.")
+    anchor: dict[str, object] | None = Field(
+        default=None, description="The anchor that answered, as the package gave it."
+    )
+    complete_to_anchor: bool | None = Field(
+        default=None, description="Question two's answer, as the package gave it."
+    )
+
+
+class WitnessCheckView(BaseModel):
+    """The log's own linkage, and what it does and does not show (E-05)."""
+
+    path: str = Field(
+        description="Where the log is on this machine. Local, for this screen (T6)."
+    )
+    format: str = Field(description="`auditor-witness/1`.")
+    entries: int = Field(description="How many entries link, from the first.")
+    head: str | None = Field(
+        description="The last entry's hash when every entry links, else null."
+    )
+    broken_at: int | None = Field(
+        description="The first line, one-based, that does not link; null when all do."
+    )
+    reason: str | None = Field(description="What is wrong at that line, naming no cause.")
+    tail: list[WitnessEntryView] = Field(
+        description="The last entries as stored, newest last — shown, not vouched for."
+    )
+
+
 class VerificationResponse(BaseModel):
     """The verifier's answer, passed through rather than summarised.
 
@@ -525,6 +581,14 @@ class VerificationResponse(BaseModel):
         ),
     )
     advisory: AdvisoryModel
+    witness: WitnessMark | None = Field(
+        default=None,
+        description=(
+            "Where this check went in the local witness log (E-05): its entry, "
+            "or why none was written. Null only for a response built without "
+            "a log."
+        ),
+    )
 
 
 class ReportResponse(BaseModel):

@@ -2161,6 +2161,17 @@
             "description": "Package and wire format behind it.",
             "title": "Verifier",
             "type": "object"
+          },
+          "witness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WitnessMark"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where this check went in the local witness log (E-05): its entry, or why none was written. Null only for a response built without a log."
           }
         },
         "required": [
@@ -2215,6 +2226,223 @@
           "duration_ns"
         ],
         "title": "WallGap",
+        "type": "object"
+      },
+      "WitnessCheckView": {
+        "description": "The log's own linkage, and what it does and does not show (E-05).",
+        "properties": {
+          "broken_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first line, one-based, that does not link; null when all do.",
+            "title": "Broken At"
+          },
+          "entries": {
+            "description": "How many entries link, from the first.",
+            "title": "Entries",
+            "type": "integer"
+          },
+          "format": {
+            "description": "`auditor-witness/1`.",
+            "title": "Format",
+            "type": "string"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last entry's hash when every entry links, else null.",
+            "title": "Head"
+          },
+          "path": {
+            "description": "Where the log is on this machine. Local, for this screen (T6).",
+            "title": "Path",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What is wrong at that line, naming no cause.",
+            "title": "Reason"
+          },
+          "tail": {
+            "description": "The last entries as stored, newest last \u2014 shown, not vouched for.",
+            "items": {
+              "$ref": "#/components/schemas/WitnessEntryView"
+            },
+            "title": "Tail",
+            "type": "array"
+          }
+        },
+        "required": [
+          "path",
+          "format",
+          "entries",
+          "head",
+          "broken_at",
+          "reason",
+          "tail"
+        ],
+        "title": "WitnessCheckView",
+        "type": "object"
+      },
+      "WitnessEntryView": {
+        "additionalProperties": true,
+        "description": "One entry of the witness log as stored (`auditor-witness/1`).",
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The anchor that answered, as the package gave it.",
+            "title": "Anchor"
+          },
+          "checked_at_wall_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This machine's clock when the check ran. A claim.",
+            "title": "Checked At Wall Ns"
+          },
+          "complete_to_anchor": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Question two's answer, as the package gave it.",
+            "title": "Complete To Anchor"
+          },
+          "hash": {
+            "title": "Hash",
+            "type": "string"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The chain head the check saw.",
+            "title": "Head"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The anchor profile it ran against.",
+            "title": "Profile"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The file: name, SHA-256, size.",
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "n",
+          "hash"
+        ],
+        "title": "WitnessEntryView",
+        "type": "object"
+      },
+      "WitnessMark": {
+        "description": "This check's place in the local witness log, or why it has none (E-05).\n\nExactly one of ``hash`` and ``error`` is set. An unwritten entry is said,\nnever silent: a check shown with no word about the log would read as\nwitnessed.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why no entry was written.",
+            "title": "Error"
+          },
+          "hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The entry's SHA-256, hex.",
+            "title": "Hash"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The entry's number, from zero.",
+            "title": "N"
+          }
+        },
+        "required": [
+          "n",
+          "hash",
+          "error"
+        ],
+        "title": "WitnessMark",
         "type": "object"
       }
     }
@@ -3377,6 +3605,51 @@
           }
         },
         "summary": "Verify Session"
+      }
+    },
+    "/witness": {
+      "get": {
+        "description": "The local witness log: whether it links, and its last entries (E-05).\n\nThe check walks the whole log, every time it is asked; nothing is\nremembered between calls, because the file is the user's and can\nchange between them.",
+        "operationId": "witness_log_witness_get",
+        "parameters": [
+          {
+            "description": "Entries to show, newest last.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Entries to show, newest last.",
+              "maximum": 200,
+              "minimum": 0,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WitnessCheckView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Witness Log"
       }
     }
   }

@@ -283,6 +283,14 @@ evidence, not about never writing a byte.
 Stated here as well as in the route, so it is not read later as a precedent
 for writing somewhere else.
 
+The other write is the witness log (E-05): the first `/verify` of a session
+and profile appends one entry to Auditor's own log, in its data directory
+(ADR-0003). `/verify` says where it went — `witness: {n, hash}` — or why it
+did not, `witness.error`, and the verdict is shown either way. `GET /witness`
+walks the log every time it is asked and answers whether it links, where it
+first does not, and its last entries; the path it gives is local, for this
+screen.
+
 ### Descriptions belong on the model
 
 Field descriptions are generated into the OpenAPI schema and from there into

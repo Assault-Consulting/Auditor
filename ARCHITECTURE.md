@@ -142,8 +142,9 @@ does write:
 
 - report artifacts (PDF, JSON) to a user-chosen path;
 - evidence bundles (Phase 2);
-- the local witness log (Phase 2) — its own hash-chained record of checks
-  performed, in its per-OS data directory;
+- the local witness log (E-05) — its own hash-chained record of checks
+  performed, in its per-OS data directory, in a format of its own that is
+  not PALA-1 (ADR-0003, `docs/WITNESS-LOG.md`);
 - UI preferences and anchor profiles, keyed by file digest.
 
 It never opens a `.pala` file for writing, never takes a write lock, and

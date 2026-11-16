@@ -22,6 +22,7 @@ than housekeeping:
 from __future__ import annotations
 
 import secrets
+import time
 from .digest import file_sha256
 from .pala_seam import ChainHandle, NotAChain, open_chain
 from dataclasses import dataclass, field
@@ -57,6 +58,8 @@ class Session:
     #: again would hand out a second, differently timestamped attestation of
     #: the same check. One check, one report (D-01).
     reports: dict[str, dict] = field(default_factory=dict)
+    #: Where each check went in the witness log (E-05), keyed as above.
+    witnessed: dict[str, dict] = field(default_factory=dict)
     #: The structural views, computed at most once each.
     #:
     #: The rule that decides what is cached here is whether the set of
@@ -102,6 +105,41 @@ class Session:
                 self._manifests[manifest["path"]] = manifest["sha256"]
             self.verifications[profile] = result
         return self.verifications[profile]
+
+    def witness_fields(self, profile: str) -> dict:
+        """What the witness log records about this session's check against
+        ``profile`` (E-05): copied from the verdict, nothing decided here.
+
+        No verdict word is written. Which facts answer question one is the
+        package's rule, and the log keeps the facts, so a later reader
+        applies the rule of their day to what was seen.
+        """
+        result = self.verifications[profile]
+        chain = result["chain"]
+        container = result["container"]
+        completeness = result["completeness"]
+        anchor = result["anchor"]
+        diagnosis = result["diagnosis"]
+        return {
+            "checked_at_wall_ns": time.time_ns(),
+            "subject": {"name": self.path.name, "sha256": self.sha256, "bytes": self.size},
+            "head": chain["head"],
+            "records": chain["count"],
+            "chain_ok": chain["chain_ok"],
+            "well_formed": container["well_formed"],
+            "body_digest_mismatches": len(container["body_digest_mismatches"]),
+            "profile": profile,
+            "anchor": None
+            if anchor is None
+            else {
+                "head": anchor["head"],
+                "source_kind": anchor["source_kind"],
+                "source_detail": anchor["source_detail"],
+            },
+            "complete_to_anchor": completeness["complete_to_anchor"],
+            "anchor_lag": completeness["anchor_lag"],
+            "diagnosis": None if diagnosis is None else diagnosis["pattern"],
+        }
 
     def report(
         self, profile: str = "none", sources: list[dict[str, str]] | None = None
