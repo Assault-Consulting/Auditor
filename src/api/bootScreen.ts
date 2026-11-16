@@ -15,6 +15,7 @@
  * and a type does not — the value was always a valid string.
  */
 
+import { count } from "./plural";
 import type { Choice, Listing, Probe } from "../state";
 import type { BootRow, SpanRow } from "./browse";
 import { type ChainState, openedOf } from "./chainState";
@@ -71,7 +72,7 @@ function listingState(listing: Listing<BootRow | SpanRow>, unit: string): string
       // that never returned one.
       return "did not load";
     case "loaded":
-      return `${listing.rows.length} ${unit}`;
+      return count(listing.rows.length, unit);
   }
 }
 
@@ -110,7 +111,7 @@ export function rowsFor(
     },
     {
       name: "anchor provenance",
-      state: chain.kind === "verified" ? `${chain.sources.length} configured` : "wired",
+      state: chain.kind === "verified" ? count(chain.sources.length, "anchor source") : "wired",
       live: chain.kind === "verified",
     },
     {
@@ -124,17 +125,17 @@ export function rowsFor(
     {
       name: "advisory lane",
       state:
-        chain.kind === "verified" ? `${chain.result.advisory.count} items` : "wired",
+        chain.kind === "verified" ? count(chain.result.advisory.count, "item") : "wired",
       live: chain.kind === "verified",
     },
     {
       name: "chronoscope",
-      state: rail === null ? "wired" : `${rail.days.length} days`,
+      state: rail === null ? "wired" : count(rail.days.length, "day"),
       live: rail !== null,
     },
     {
       name: "boots and spans",
-      state: `${listingState(browse.boots, "boots")}, ${listingState(browse.spans, "spans")}`,
+      state: `${listingState(browse.boots, "boot")}, ${listingState(browse.spans, "span")}`,
       live: browse.boots.kind === "loaded" && browse.spans.kind === "loaded",
     },
     { name: "record inspector", state: "C-06", live: false },

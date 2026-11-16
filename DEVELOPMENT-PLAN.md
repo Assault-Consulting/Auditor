@@ -99,6 +99,11 @@ stage 2 (T8–T16) on 0.15, targeted by 24 December; then E-01 and E-07.
 
 ## Done recently
 
+The usability and accessibility review (16 Nov 2026, `docs/UX-REVIEW.md`):
+Nielsen's ten and WCAG 2.2 AA, the layout redone for the window, axe-core
+from 83 violations to none. Left open there: a screen-reader pass, the
+Chronoscope's interaction (F6), closing a file.
+
 The surface review's stage 1 (15 Nov 2026): T1 — question one answered from
 `chain_ok`, a well-formed container and no body digest mismatch, the
 diagnosis only routing its sentence; T2 — the empty chain's head is "not

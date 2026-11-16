@@ -19,7 +19,7 @@
  * split is what let the wording acquire tests.
  */
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { advisoryGroups, advisoryLine } from "./api/advisory";
 import { choiceLine, footnoteFor, panelsFor, rowsFor } from "./api/bootScreen";
@@ -31,7 +31,7 @@ import { provenance, provenanceSummary } from "./api/provenance";
 import { type RecordFilters, resolveChips } from "./api/filters";
 import { getNearest, getRecords, getReport } from "./api/chain";
 import { type NearestLine, nearestLine } from "./api/nearest";
-import { type Chip, chipLabel, nextWarning, parseSearch } from "./api/search";
+import { type Chip, chipLabel, nextWarning, parseSearch, SEARCH_HELP } from "./api/search";
 import { safetyGroupKey } from "./api/safety";
 import { unsearchedLine } from "./api/records";
 import { ATTESTATION, type ReportView, reportView } from "./api/report";
@@ -59,6 +59,18 @@ export default function App() {
   const [chain, choice, pick, verify] = useChain(probe);
   const rail = useRail(probe, chain);
   const { boots, spans } = useBrowse(probe, chain);
+  // H1: a long open or check says how long it has run. The sidecar gives
+  // no progress, so this counts time, never claims a fraction done.
+  const busy = chain.kind === "opening" || chain.kind === "verifying";
+  const [busyFor, setBusyFor] = useState(0);
+  useEffect(() => {
+    setBusyFor(0);
+    if (!busy) return;
+    const started = Date.now();
+    const timer = window.setInterval(() => setBusyFor(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, [busy]);
+  const elapsed = busyFor >= 2 ? ` ${busyFor} s` : "";
   const safety = useSafety(probe, chain);
   // C-09b: the chips the list is currently narrowed by, and the query they
   // resolved to. Kept together so the heading can always say which chips
@@ -76,12 +88,31 @@ export default function App() {
     setActiveChips([]);
     setRecordFilters({});
   }, [openedSessionId]);
-  const { record, select } = useRecord(probe, chain);
+  const { record, select: selectRecord } = useRecord(probe, chain);
   // Kept in lockstep with the record card rather than driven separately —
   // origin is F9's card "on any selected record", and next-warning below
   // reads the same seq for the same reason: both are about whichever
   // record is on screen, not a second selection of their own.
   const selectedSeq = record.kind === "found" ? record.value.seq : null;
+  // H3: a way back. Every jump — a row, a quick button, a link inside a
+  // card — goes through here, so "back" returns to the record read before,
+  // the way a browser's does. Twenty deep; cleared with the file.
+  const [visited, setVisited] = useState<number[]>([]);
+  const select = (seq: number) => {
+    if (selectedSeq !== null && selectedSeq !== seq) {
+      setVisited((v) => [...v.slice(-19), selectedSeq]);
+    }
+    selectRecord(seq);
+  };
+  const back = () => {
+    const prev = visited[visited.length - 1];
+    if (prev === undefined) return;
+    setVisited((v) => v.slice(0, -1));
+    selectRecord(prev);
+  };
+  useEffect(() => {
+    setVisited([]);
+  }, [openedSessionId]);
   const origin = useOrigin(probe, chain, selectedSeq);
   // C-06d: the raw view stays open from one record to the next once asked
   // for, so stepping through records keeps showing their bytes.
@@ -205,6 +236,9 @@ export default function App() {
     setExportTo("");
     setExportState({ kind: "idle" });
   }, [openedSessionId]);
+  // H5: the range is read as it is typed, and the reason it would be
+  // refused is shown before the button is pressed, which stays disabled.
+  const typedRange = parseRange(exportFrom, exportTo);
   const runExport = () => {
     const opened = openedOf(chain);
     if (opened === null) return;
@@ -315,6 +349,45 @@ export default function App() {
   };
   const nextWarningSeq = advisory !== null ? nextWarning(advisory.items, selectedSeq) : null;
 
+  // H7: the keys a reader at a desk reaches for. "/" to search, j / k to
+  // step through the list shown, n for the next warning, Backspace-free
+  // "b" for back. Never while typing in a field, and never with a
+  // modifier, so no key the system or a screen reader owns is taken.
+  const searchInput = useRef<HTMLInputElement>(null);
+  const keyed = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyed.current = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target as HTMLElement | null;
+    if (t !== null && (t.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(t.tagName))) {
+      return;
+    }
+    if (e.key === "/") {
+      e.preventDefault();
+      searchInput.current?.focus();
+      return;
+    }
+    if (e.key === "n" && nextWarningSeq !== null) {
+      select(nextWarningSeq);
+      return;
+    }
+    if (e.key === "b") {
+      back();
+      return;
+    }
+    if ((e.key === "j" || e.key === "k") && recordsPage.kind === "found") {
+      const rows = recordsPage.value.rows;
+      if (rows.length === 0) return;
+      const at = rows.findIndex((r) => r.seq === selectedSeq);
+      const to = at === -1 ? 0 : Math.min(rows.length - 1, Math.max(0, at + (e.key === "j" ? 1 : -1)));
+      select(rows[to]!.seq);
+    }
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => keyed.current(e);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // Bar widths, computed once and keyed by date.
   //
   // Two quadratic shapes avoided, and the second only because the first had
@@ -346,54 +419,19 @@ export default function App() {
 
   return (
     <main className="shell">
-      <div className="plate">
+      <header className="masthead">
+        <div className="masthead-title">
         <p className="eyebrow">Reader for PALA-1 audit chains</p>
 
         <h1 className="wordmark">
           Palimpsests <em>Auditor</em>
         </h1>
-
+        </div>
         <p className="thesis">
           Opens an audit chain and answers three separate questions about it.
           It attests that a check was run against a named file, with a named
           anchor, at a stated time. It certifies nothing.
         </p>
-
-        <ol className="questions" data-live={live}>
-          {panels.map((p) => (
-            <li className="question" key={p.index} data-standing={p.standing}>
-              <span className="question-index" aria-hidden="true">
-                {p.index}
-              </span>
-              <div>
-                <p className="question-text">{p.question}</p>
-                {p.answer !== "" && <p className="question-answer">{p.answer}</p>}
-                {/* The verifier's own sentence, set apart and never rewritten.
-                    A localised line may sit beside it; never instead of it. */}
-                {p.narrative !== undefined && (
-                  <p className="question-narrative">{p.narrative}</p>
-                )}
-                <p className="question-basis">{p.basis}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-
-        <section className="status" aria-labelledby="status-title">
-          <h2 className="status-title" id="status-title">
-            What is wired
-          </h2>
-          <ul className="status-list">
-            {rows.map((r) => (
-              <li className="status-row" key={r.name}>
-                <span>{r.name}</span>
-                <span className="status-state" data-live={r.live}>
-                  {r.state}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
 
         <div className="choose">
           {/* Disabled while opening — not decorative. §19 targets a
@@ -410,7 +448,7 @@ export default function App() {
             onClick={pick}
             type="button"
           >
-            {chain.kind === "opening" ? "Opening…" : "Open a chain…"}
+            {chain.kind === "opening" ? `Opening…${elapsed}` : "Open a chain…"}
           </button>
           <button
             className="choose-button"
@@ -418,7 +456,7 @@ export default function App() {
             onClick={() => verify(chosenProfile, sourcesOf(chosenProfile))}
             type="button"
           >
-            {chain.kind === "verifying" ? "Checking…" : "Verify"}
+            {chain.kind === "verifying" ? `Checking…${elapsed}` : "Verify"}
           </button>
           {/* "none" stays in the list rather than being filtered out. It is a
               real profile — it asks question one and leaves question two not
@@ -449,6 +487,36 @@ export default function App() {
           Segments of a rotated chain end in a number (<code>chain.pala.00001</code>) — in the
           open dialog they are listed under “All files”.
         </p>
+        {/* The file line doubles as the live region: a screen reader hears
+            "Opening…", the file and what it was checked against as each
+            arrives (WCAG 4.1.3). The answers themselves are announced by
+            the questions list below. */}
+        <p className="chain-line" role="status">
+          {chainLine(chain)}
+        </p>
+        {choiceNote !== null && <p className="footnote">{choiceNote}</p>}
+      </header>
+
+      <div className="verdict">
+        <ol aria-live="polite" className="questions" data-live={live}>
+          {panels.map((p) => (
+            <li className="question" key={p.index} data-standing={p.standing}>
+              <span className="question-index" aria-hidden="true">
+                {p.index}
+              </span>
+              <div>
+                <p className="question-text">{p.question}</p>
+                {p.answer !== "" && <p className="question-answer">{p.answer}</p>}
+                {/* The verifier's own sentence, set apart and never rewritten.
+                    A localised line may sit beside it; never instead of it. */}
+                {p.narrative !== undefined && (
+                  <p className="question-narrative">{p.narrative}</p>
+                )}
+                <p className="question-basis">{p.basis}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
 
         {failure !== null && (
           <section className="diagnosis" aria-labelledby="diagnosis-title">
@@ -528,6 +596,74 @@ export default function App() {
           </section>
         )}
 
+        {links.length > 0 && (
+          <section className="provenance" aria-labelledby="provenance-title">
+            <h2 className="provenance-title" id="provenance-title">
+              Anchor provenance
+            </h2>
+            <ol className="provenance-list">
+              {links.map((l) => (
+                <li className="provenance-link" data-outcome={l.outcome} key={l.order}>
+                  <span className="provenance-order" aria-hidden="true">
+                    {l.order}
+                  </span>
+                  <div>
+                    <p className="provenance-source">
+                      {l.kind} — {l.detail}
+                    </p>
+                    <p className="provenance-note">{l.note}</p>
+                    {/* The sidecar's own words, never rewritten. */}
+                    {l.error !== undefined && (
+                      <p className="provenance-error">{l.error}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <p className="provenance-summary">{provenanceSummary(links)}</p>
+          </section>
+        )}
+
+        {advisory !== null && (
+          <section className="advisory" aria-labelledby="advisory-title">
+            <h2 className="advisory-title" id="advisory-title">
+              Advisory
+            </h2>
+
+            {/* The payload's own sentence, quoted. The API put it in the
+                response so a UI could not soften it or leave it out. */}
+            <p className="advisory-line">{advisoryLine(advisory)}</p>
+
+            {advisoryGroups(advisory).map((g) => (
+              <details className="advisory-group" data-weight={g.weight} key={g.code}>
+                <summary>
+                  <span className="advisory-count">{g.count}</span>
+                  <span className="advisory-heading">{g.title}</span>
+                  <code className="advisory-code">{g.code}</code>
+                </summary>
+                <p className="advisory-note">{g.note}</p>
+                <ul className="advisory-items">
+                  {g.items.map((item, i) => (
+                    <li key={`${g.code}-${item.at_seq ?? "x"}-${i}`}>
+                      {item.at_seq !== null && <span>record #{item.at_seq}</span>}
+                      {item.boot_id !== null && <span>boot {item.boot_id.slice(0, 8)}</span>}
+                      {/* The package's own description of this item. */}
+                      {item.detail !== null && <span className="advisory-detail">{item.detail}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+          </section>
+        )}
+      </div>
+
+      {/* Master and detail side by side on a wide window: the list on the
+          left, the selected record on the right, kept in view while the
+          list scrolls. On a narrow one they stack, the record after the
+          list it was chosen from. */}
+      <div className="workspace">
+        <div className="workspace-main">
         {/* F8: "SAFETY is a first-class list, not a filter — it is what
             an auditor reads first." Placed ahead of the Chronoscope for
             that reason. The oversight loop is on in full (C-07c): which
@@ -541,7 +677,7 @@ export default function App() {
             </h2>
 
             {safety.kind === "failed" && (
-              <p className="safety-failed">{safety.detail}</p>
+              <p className="safety-failed" role="alert">{safety.detail}</p>
             )}
             {safety.kind === "found" && safety.value.length === 0 && (
               <p className="safety-empty">No SAFETY records in this container.</p>
@@ -571,6 +707,7 @@ export default function App() {
                         {g.records.map((r) => (
                           <li key={r.seq}>
                             <button
+                              aria-current={r.seq === selectedSeq ? "true" : undefined}
                               className="safety-record"
                               onClick={() => select(r.seq)}
                               type="button"
@@ -712,7 +849,7 @@ export default function App() {
               /* The sidecar's own sentence. A screen that said only "could
                  not load" would leave a reader unable to tell a refused
                  token from a file that moved. */
-              <p className="browse-failed">The boot list did not load: {boots.detail}</p>
+              <p className="browse-failed" role="alert">The boot list did not load: {boots.detail}</p>
             )}
             {boots.kind === "loaded" && boots.rows.length === 0 && (
               <p className="browse-empty">No boots in this container.</p>
@@ -746,7 +883,7 @@ export default function App() {
             )}
 
             {spans.kind === "failed" && (
-              <p className="browse-failed">The span list did not load: {spans.detail}</p>
+              <p className="browse-failed" role="alert">The span list did not load: {spans.detail}</p>
             )}
             {spans.kind === "loaded" && spans.rows.length === 0 && (
               <p className="browse-empty">No spans in this container.</p>
@@ -816,7 +953,7 @@ export default function App() {
             )}
 
             {recordsPage.kind === "failed" && (
-              <p className="records-failed">{recordsPage.detail}</p>
+              <p className="records-failed" role="alert">{recordsPage.detail}</p>
             )}
 
             {/* C-09d. Encrypted bodies cannot be searched; the list says how
@@ -840,6 +977,7 @@ export default function App() {
                   {recordsPage.value.rows.map((r) => (
                     <li key={r.seq}>
                       <button
+                        aria-current={r.seq === selectedSeq ? "true" : undefined}
                         className="records-row"
                         onClick={() => select(r.seq)}
                         type="button"
@@ -903,7 +1041,8 @@ export default function App() {
             )}
           </section>
         )}
-
+        </div>
+        <aside className="workspace-detail" aria-label="Selected record">
         {/* The first slice of F9's inspector (C-06). Shown whenever a chain
             is open: looking up a record answers no question about the
             verdict, the same reason browsing does not wait on one either. */}
@@ -919,15 +1058,33 @@ export default function App() {
                 <input
                   onChange={(e) => setSearchField(e.target.value)}
                   placeholder='#1447  ·  @2026-08-06T22:41Z  ·  kind:INCIDENT_CANDIDATE "frame magic"'
+                  ref={searchInput}
                   type="text"
                   value={searchField}
                 />
               </label>
               <button type="submit">Go</button>
             </form>
-            {searchNote !== null && <p className="search-note">{searchNote}</p>}
+            {searchNote !== null && <p className="search-note" role="status">{searchNote}</p>}
+            {/* H6 / H10: the syntax on the screen, not in a reader's memory. */}
+            <details className="search-help">
+              <summary>search syntax and keys</summary>
+              <dl>
+                {SEARCH_HELP.map(([form, meaning]) => (
+                  <div key={form}>
+                    <dt>
+                      <code>{form}</code>
+                    </dt>
+                    <dd>{meaning}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
 
             <div className="search-quick">
+              <button disabled={visited.length === 0} onClick={back} type="button">
+                {visited.length === 0 ? "← back" : `← back to #${visited[visited.length - 1]}`}
+              </button>
               <button
                 disabled={firstSeq === null}
                 onClick={() => firstSeq !== null && select(firstSeq)}
@@ -972,7 +1129,7 @@ export default function App() {
               /* The sidecar's own sentence — a 404 here means this segment
                  holds no such seq, which is a fact about the file's range,
                  not a broken lookup. */
-              <p className="record-failed">{record.detail}</p>
+              <p className="record-failed" role="alert">{record.detail}</p>
             )}
 
             {record.kind === "found" && (
@@ -1256,7 +1413,7 @@ export default function App() {
                     {showBytes ? "hide bytes" : "bytes"}
                   </button>
                   {showBytes && bytes.kind === "failed" && (
-                    <p className="hex-failed">{bytes.detail}</p>
+                    <p className="hex-failed" role="alert">{bytes.detail}</p>
                   )}
                   {showBytes && bytes.kind === "found" && (
                     <div className="hex-body" onMouseLeave={() => setHotSegment(null)}>
@@ -1264,7 +1421,11 @@ export default function App() {
                         at file offset {bytes.value.fileOffset} · header {bytes.value.headerLen}{" "}
                         bytes, body after it
                       </p>
-                      <table className="hex-table">
+                      <div className="scroll-x">
+                      <table
+                        aria-label="The record's bytes in hexadecimal, sixteen to a row; the list after the table names each field and where it starts"
+                        className="hex-table"
+                      >
                         <tbody>
                           {bytes.value.rows.map((row) => (
                             <tr key={row.at}>
@@ -1294,18 +1455,26 @@ export default function App() {
                           ))}
                         </tbody>
                       </table>
+                      </div>
                       {bytes.value.segments.length > 0 && (
                         <ol className="hex-segments">
                           {bytes.value.segments.map((seg) => (
-                            <li
-                              data-hot={seg.id === hotSegment ? "" : undefined}
-                              data-zone={seg.zone}
-                              key={seg.id}
-                              onMouseEnter={() => setHotSegment(seg.id)}
-                            >
-                              <span className="hex-at">{offsetLabel(seg.start)}</span>
-                              <span className="hex-len">{seg.end - seg.start} B</span>
-                              <span className="hex-name">{seg.label}</span>
+                            <li data-zone={seg.zone} key={seg.id}>
+                              {/* A button so the highlight follows the
+                                  keyboard as well as the mouse (WCAG 2.1.1);
+                                  pressed while its bytes are lit. */}
+                              <button
+                                aria-pressed={seg.id === hotSegment}
+                                data-hot={seg.id === hotSegment ? "" : undefined}
+                                onClick={() => setHotSegment(seg.id === hotSegment ? null : seg.id)}
+                                onFocus={() => setHotSegment(seg.id)}
+                                onMouseEnter={() => setHotSegment(seg.id)}
+                                type="button"
+                              >
+                                <span className="hex-at">{offsetLabel(seg.start)}</span>
+                                <span className="hex-len">{seg.end - seg.start} B</span>
+                                <span className="hex-name">{seg.label}</span>
+                              </button>
                             </li>
                           ))}
                         </ol>
@@ -1326,7 +1495,7 @@ export default function App() {
                 <div className="origin">
                   <p className="origin-title">Origin</p>
                   {origin.kind === "failed" && (
-                    <p className="origin-failed">{origin.detail}</p>
+                    <p className="origin-failed" role="alert">{origin.detail}</p>
                   )}
                   {origin.kind === "found" && origin.value.state === "not_stated" && (
                     <p className="origin-none">not stated in this file</p>
@@ -1393,68 +1562,11 @@ export default function App() {
             )}
           </section>
         )}
+        </aside>
+      </div>
 
-        {advisory !== null && (
-          <section className="advisory" aria-labelledby="advisory-title">
-            <h2 className="advisory-title" id="advisory-title">
-              Advisory
-            </h2>
-
-            {/* The payload's own sentence, quoted. The API put it in the
-                response so a UI could not soften it or leave it out. */}
-            <p className="advisory-line">{advisoryLine(advisory)}</p>
-
-            {advisoryGroups(advisory).map((g) => (
-              <details className="advisory-group" data-weight={g.weight} key={g.code}>
-                <summary>
-                  <span className="advisory-count">{g.count}</span>
-                  <span className="advisory-heading">{g.title}</span>
-                  <code className="advisory-code">{g.code}</code>
-                </summary>
-                <p className="advisory-note">{g.note}</p>
-                <ul className="advisory-items">
-                  {g.items.map((item, i) => (
-                    <li key={`${g.code}-${item.at_seq ?? "x"}-${i}`}>
-                      {item.at_seq !== null && <span>record #{item.at_seq}</span>}
-                      {item.boot_id !== null && <span>boot {item.boot_id.slice(0, 8)}</span>}
-                      {/* The package's own description of this item. */}
-                      {item.detail !== null && <span className="advisory-detail">{item.detail}</span>}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ))}
-          </section>
-        )}
-
-        {links.length > 0 && (
-          <section className="provenance" aria-labelledby="provenance-title">
-            <h2 className="provenance-title" id="provenance-title">
-              Anchor provenance
-            </h2>
-            <ol className="provenance-list">
-              {links.map((l) => (
-                <li className="provenance-link" data-outcome={l.outcome} key={l.order}>
-                  <span className="provenance-order" aria-hidden="true">
-                    {l.order}
-                  </span>
-                  <div>
-                    <p className="provenance-source">
-                      {l.kind} — {l.detail}
-                    </p>
-                    <p className="provenance-note">{l.note}</p>
-                    {/* The sidecar's own words, never rewritten. */}
-                    {l.error !== undefined && (
-                      <p className="provenance-error">{l.error}</p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <p className="provenance-summary">{provenanceSummary(links)}</p>
-          </section>
-        )}
-
+      <div className="artifacts">
+        <div className="artifacts-stack">
         {/* D-01 — the package's verification report, never rebuilt here.
             Its verdict is the package's derive_verdict, shown with the
             package's own sentence for it; the text is the package's own
@@ -1479,7 +1591,7 @@ export default function App() {
               </span>
             </div>
 
-            {report.kind === "failed" && <p className="report-failed">{report.detail}</p>}
+            {report.kind === "failed" && <p className="report-failed" role="alert">{report.detail}</p>}
 
             {report.kind === "ready" && (
               <div className="report-body" data-verdict={report.view.verdict}>
@@ -1551,8 +1663,8 @@ export default function App() {
                     Print…
                   </button>
                 </div>
-                {printState.kind === "opened" && <p className="report-saved">{PRINT_OPENED}</p>}
-                {printState.kind === "failed" && <p className="report-failed">{printState.detail}</p>}
+                {printState.kind === "opened" && <p className="report-saved" role="status">{PRINT_OPENED}</p>}
+                {printState.kind === "failed" && <p className="report-failed" role="alert">{printState.detail}</p>}
                 {showHtml && (
                   <iframe
                     className="report-html"
@@ -1563,12 +1675,80 @@ export default function App() {
                 )}
                 {/* D-07. Where it went and its digest, written beside it —
                     the shell chose the place with the user, never this page. */}
-                {saveState.kind === "saved" && <p className="report-saved">{saveState.line}</p>}
-                {saveState.kind === "failed" && <p className="report-failed">{saveState.detail}</p>}
+                {saveState.kind === "saved" && <p className="report-saved" role="status">{saveState.line}</p>}
+                {saveState.kind === "failed" && <p className="report-failed" role="alert">{saveState.detail}</p>}
               </div>
             )}
           </section>
         )}
+
+        {/* D-06 — the package's record export, streamed by the shell
+            straight into the file the user chooses: it never passes through
+            this page, which only names the session and the range. */}
+        {openedOf(chain) !== null && (
+          <section className="export" aria-labelledby="export-title">
+            <h2 className="export-title" id="export-title">
+              Export
+            </h2>
+            <p className="export-note">{EXPORT_NOTE}</p>
+            <div className="export-range">
+              <label>
+                <span className="choose-hint">from #</span>
+                <input
+                  aria-describedby={typedRange.kind === "refused" ? "export-range-note" : undefined}
+                  aria-invalid={typedRange.kind === "refused"}
+                  inputMode="numeric"
+                  onChange={(e) => setExportFrom(e.target.value)}
+                  placeholder="first"
+                  type="text"
+                  value={exportFrom}
+                />
+              </label>
+              <label>
+                <span className="choose-hint">to #</span>
+                <input
+                  aria-describedby={typedRange.kind === "refused" ? "export-range-note" : undefined}
+                  aria-invalid={typedRange.kind === "refused"}
+                  inputMode="numeric"
+                  onChange={(e) => setExportTo(e.target.value)}
+                  placeholder="last"
+                  type="text"
+                  value={exportTo}
+                />
+              </label>
+              <button
+                className="choose-button"
+                disabled={exportState.kind === "exporting" || typedRange.kind === "refused"}
+                onClick={runExport}
+                type="button"
+              >
+                {exportState.kind === "exporting" ? "Exporting…" : "Export JSONL…"}
+              </button>
+            </div>
+            {typedRange.kind === "refused" && (
+              <p className="export-range-note" id="export-range-note">
+                Not exported as typed: {typedRange.reason}.
+              </p>
+            )}
+            {exportState.kind === "saved" && (
+              <>
+                <p className="report-saved">{exportState.line}</p>
+                {/* T3. What the export's own summary says about the file. A
+                    file that is not consistent is ruled in ochre, the colour
+                    of a finding about evidence — never red, and never a
+                    refusal: the export was saved. */}
+                <p
+                  className={exportState.summary.consistent === false ? "report-failed" : "report-saved"}
+                  data-consistent={String(exportState.summary.consistent)}
+                >
+                  {exportState.summary.text}
+                </p>
+              </>
+            )}
+            {exportState.kind === "failed" && <p className="report-failed" role="alert">{exportState.detail}</p>}
+          </section>
+        )}
+        </div>
 
         {/* E-05 — this desk's own record of the checks it ran. Not a
             PALA-1 chain and not about any one file (ADR-0003); what it
@@ -1579,9 +1759,11 @@ export default function App() {
               Witness log
             </h2>
             {thisCheck !== null && (
-              <p className={thisCheck.failed ? "report-failed" : "report-saved"}>{thisCheck.text}</p>
+              <p className={thisCheck.failed ? "report-failed" : "report-saved"} role="status">
+                {thisCheck.text}
+              </p>
             )}
-            {witness.kind === "failed" && <p className="report-failed">{witness.detail}</p>}
+            {witness.kind === "failed" && <p className="report-failed" role="alert">{witness.detail}</p>}
             {witness.kind === "found" && (() => {
               const status = witnessStatus(witness.value);
               const rows = witnessRows(witness.value.tail);
@@ -1597,6 +1779,7 @@ export default function App() {
                     kept at <code>{witness.value.path}</code> ({witness.value.format})
                   </p>
                   {rows.length > 0 && (
+                    <div className="scroll-x">
                     <table className="witness-table">
                       <thead>
                         <tr>
@@ -1621,6 +1804,7 @@ export default function App() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   )}
                 </>
               );
@@ -1628,69 +1812,32 @@ export default function App() {
             <p className="witness-note">{WITNESS_LIMITS}</p>
           </section>
         )}
-
-        {/* D-06 — the package's record export, streamed by the shell
-            straight into the file the user chooses: it never passes through
-            this page, which only names the session and the range. */}
-        {openedOf(chain) !== null && (
-          <section className="export" aria-labelledby="export-title">
-            <h2 className="export-title" id="export-title">
-              Export
-            </h2>
-            <p className="export-note">{EXPORT_NOTE}</p>
-            <div className="export-range">
-              <label>
-                <span className="choose-hint">from #</span>
-                <input
-                  inputMode="numeric"
-                  onChange={(e) => setExportFrom(e.target.value)}
-                  placeholder="first"
-                  type="text"
-                  value={exportFrom}
-                />
-              </label>
-              <label>
-                <span className="choose-hint">to #</span>
-                <input
-                  inputMode="numeric"
-                  onChange={(e) => setExportTo(e.target.value)}
-                  placeholder="last"
-                  type="text"
-                  value={exportTo}
-                />
-              </label>
-              <button
-                className="choose-button"
-                disabled={exportState.kind === "exporting"}
-                onClick={runExport}
-                type="button"
-              >
-                {exportState.kind === "exporting" ? "Exporting…" : "Export JSONL…"}
-              </button>
-            </div>
-            {exportState.kind === "saved" && (
-              <>
-                <p className="report-saved">{exportState.line}</p>
-                {/* T3. What the export's own summary says about the file. A
-                    file that is not consistent is ruled in ochre, the colour
-                    of a finding about evidence — never red, and never a
-                    refusal: the export was saved. */}
-                <p
-                  className={exportState.summary.consistent === false ? "report-failed" : "report-saved"}
-                  data-consistent={String(exportState.summary.consistent)}
-                >
-                  {exportState.summary.text}
-                </p>
-              </>
-            )}
-            {exportState.kind === "failed" && <p className="report-failed">{exportState.detail}</p>}
-          </section>
-        )}
-
-        <p className="footnote">{chainLine(chain)}</p>
-        {choiceNote !== null && <p className="footnote">{choiceNote}</p>}
-        <p className="footnote">{footnoteFor(probe, chain)}</p>
       </div>
+
+      <footer className="colophon">
+        <p className="footnote">{footnoteFor(probe, chain)}</p>
+        {/* For whoever runs the build, not for the audit: what is wired to
+            what. Folded away so it no longer stands between the reader and
+            the first thing they came to do. */}
+        <details className="status-details">
+          <summary>What is wired</summary>
+        <section className="status" aria-labelledby="status-title">
+          <h2 className="status-title" id="status-title">
+            What is wired
+          </h2>
+          <ul className="status-list">
+            {rows.map((r) => (
+              <li className="status-row" key={r.name}>
+                <span>{r.name}</span>
+                <span className="status-state" data-live={r.live}>
+                  {r.state}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+        </details>
+      </footer>
     </main>
   );
 }

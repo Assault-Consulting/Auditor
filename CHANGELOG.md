@@ -342,6 +342,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Usability and accessibility (`docs/UX-REVIEW.md`). The page uses the
+  window: a masthead with the actions in it, the three questions across,
+  the list and the selected record side by side with the record kept in
+  view, the artifacts after; "What is wired" folded into the footer. The
+  selected record is marked (`aria-current`); `/`, `j` / `k`, `n` and `b`
+  search, step, find the next warning and go back; **← back** returns to the
+  record read before; the search syntax is on screen; the export range is
+  checked as typed; a long open or check counts its seconds. WCAG 2.2 AA:
+  "not checked" now meets contrast (5.2:1, was 3.7:1), answers and errors
+  reach a screen reader through live regions, targets are at least 24 px,
+  the bytes view works from the keyboard, the page reflows at 480 px, and
+  no text is under 12 px. axe-core reports no violations (was 83).
+
 - T7 — C-16(b), the canary against Palimpsests `main`, is closed unbuilt.
   The C-16 contract test, the pin's upper bound and C-18's rule — pin only
   after the suite runs green on the candidate — catch the same breakage at
