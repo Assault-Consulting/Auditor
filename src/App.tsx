@@ -44,8 +44,9 @@ import {
   summaryLine,
 } from "./api/exportFile";
 import { PRINT_OPENED, printReport, reportFileName, saveArtifact, savedLine } from "./api/saveFile";
-import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecords, useSafety, useWitness } from "./state";
+import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecordHealth, useRecords, useSafety, useWitness } from "./state";
 import { offsetLabel } from "./api/hexView";
+import { BASIS_LABEL, HEALTH_NOTE } from "./api/health";
 import { WITNESS_LIMITS, witnessLine, witnessRows, witnessStatus } from "./api/witness";
 
 // C-11's page size. Well inside the sidecar's own 1000-record ceiling, and
@@ -72,6 +73,7 @@ export default function App() {
   }, [busy]);
   const elapsed = busyFor >= 2 ? ` ${busyFor} s` : "";
   const safety = useSafety(probe, chain);
+  const health = useRecordHealth(probe, chain);
   // C-09b: the chips the list is currently narrowed by, and the query they
   // resolved to. Kept together so the heading can always say which chips
   // produced the rows under it.
@@ -919,6 +921,95 @@ export default function App() {
                   </li>
                 ))}
               </ol>
+            )}
+          </section>
+        )}
+
+        {/* E-03 — record health (F12): the record as an artefact, never
+            its content. Every block names its time basis; nothing here is
+            a finding and nothing draws a threshold. */}
+        {health.kind !== "unasked" && (
+          <section className="health" aria-labelledby="health-title">
+            <h2 className="health-title" id="health-title">
+              Record health
+            </h2>
+            <p className="health-note">{HEALTH_NOTE}</p>
+            {health.kind === "failed" && (
+              <p className="browse-failed" role="alert">
+                {health.detail}
+              </p>
+            )}
+            {health.kind === "found" && (
+              <>
+                <h3 className="health-sub">
+                  Boots <span className="health-basis">{BASIS_LABEL.monotonic}</span>
+                </h3>
+                <ul className="health-list">
+                  {health.value.boots.map((b) => (
+                    <li key={b.boot}>
+                      <code>{b.boot}</code> · {b.records} · {b.uptime}
+                      <br />
+                      clock: <span data-changed={b.clockChanged ? "" : undefined}>{b.clock}</span>
+                      {b.clockChanged && " — changed during the boot"}
+                      <br />
+                      {b.anchors}
+                      <br />
+                      {b.spans}
+                    </li>
+                  ))}
+                </ul>
+                {health.value.cadence !== null && <p className="health-line">{health.value.cadence}</p>}
+
+                <h3 className="health-sub">
+                  The writer's clock <span className="health-basis">{BASIS_LABEL.recorded}</span>
+                </h3>
+                {health.value.steps.length === 0 && health.value.gaps.length === 0 && (
+                  <p className="health-line">No step, regression or slew detected, and no gap between boots.</p>
+                )}
+                {health.value.steps.length > 0 && (
+                  <ul className="health-list">
+                    {health.value.steps.map((st) => (
+                      <li key={`${st.boot}-${st.seq}`}>
+                        <button className="health-jump" onClick={() => select(st.seq)} type="button">
+                          #{st.seq}
+                        </button>{" "}
+                        boot <code>{st.boot}</code>: {st.text}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {health.value.gaps.map((g) => (
+                  <p className="health-line" key={g}>
+                    {g}
+                  </p>
+                ))}
+                <p className="health-line">{health.value.drift}</p>
+
+                <h3 className="health-sub">
+                  Warnings <span className="health-basis">{BASIS_LABEL.proved}</span>
+                </h3>
+                {health.value.safetyTotal === 0 ? (
+                  <p className="health-line">No SAFETY record in this file.</p>
+                ) : (
+                  <ul className="health-list">
+                    {health.value.kinds.map((k) => (
+                      <li key={k.kind}>
+                        <code>{k.kind}</code> — {k.total} · per boot {k.perBoot}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {health.value.recurring.length > 0 && (
+                  <>
+                    <p className="health-line">The same detail, more than once — a pattern rather than an episode:</p>
+                    <ul className="health-list">
+                      {health.value.recurring.map((r) => (
+                        <li key={r}>{r}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </>
             )}
           </section>
         )}

@@ -39,6 +39,7 @@ from .models import (
     NearestRecord,
     OriginState,
     RecordBytesView,
+    RecordHealthView,
     RecordPage,
     RecordView,
     ReportResponse,
@@ -527,6 +528,15 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
                 status_code=404, detail=f"this container holds no record {seq}"
             )
         return RecordView(**record)
+
+    @app.get("/session/{session_id}/record-health", response_model=RecordHealthView)
+    def session_record_health(session_id: str) -> RecordHealthView:
+        """Record health (E-03, F12): clock steps, boot and anchor cadence,
+        spans, the gaps between boots, SAFETY by kind and boot, recurring
+        details. The package's detection, counted here; advisory."""
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        return RecordHealthView(**session.record_health())
 
     @app.get("/session/{session_id}/record/{seq}/bytes", response_model=RecordBytesView)
     def session_record_bytes(session_id: str, seq: int) -> RecordBytesView:

@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- E-03 — record health (F12), on 0.14.1. `GET /session/{id}/record-health`
+  copies the package's step catalog and per-boot statistics (uptime by the
+  monotonic clock, anchor count and gaps, spans) and the wall gaps between
+  boots, and counts SAFETY records by kind, by boot and by identical detail.
+  The **Record health** panel words each under its time basis — proved,
+  monotonic, recorded — with an anchor-cadence line saying how closely an
+  external witness of each anchor would date a record. No threshold is
+  drawn and nothing is called anomalous; advisory, never the verdict. The
+  drift series waits for 0.15 (R10) and says so.
+
 - F-01 — a Windows installer. The `installers` workflow freezes the sidecar
   with PyInstaller into one executable, starts it and drives it through
   opening, verifying, the report, the bytes view and the witness log on a

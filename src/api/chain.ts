@@ -22,6 +22,7 @@ import type {
   NearestRecord,
   OriginState,
   RecordBytesView,
+  RecordHealthView,
   WitnessCheckView,
   RecordPage,
   RecordView,
@@ -468,4 +469,13 @@ export async function getWitness(session: Session, limit = 10): Promise<WitnessC
   });
   if (!response.ok) await raise(response);
   return (await response.json()) as WitnessCheckView;
+}
+
+/** Record health (E-03): the package's step catalog and boot statistics, counted. */
+export async function getRecordHealth(session: Session, sessionId: string): Promise<RecordHealthView> {
+  const response = await fetch(url(session, `/session/${sessionId}/record-health`), {
+    headers: headers(session),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as RecordHealthView;
 }

@@ -834,6 +834,204 @@
         "title": "HeaderFieldSpan",
         "type": "object"
       },
+      "HealthBoot": {
+        "description": "One boot's statistics, as the package computes them (U3).",
+        "properties": {
+          "anchor_gaps_ns": {
+            "description": "Monotonic distance between consecutive anchors in this boot, the package's.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Anchor Gaps Ns",
+            "type": "array"
+          },
+          "anchors": {
+            "description": "ANCHOR records in this boot.",
+            "title": "Anchors",
+            "type": "integer"
+          },
+          "boot_id": {
+            "title": "Boot Id",
+            "type": "string"
+          },
+          "first_seq": {
+            "title": "First Seq",
+            "type": "integer"
+          },
+          "last_seq": {
+            "title": "Last Seq",
+            "type": "integer"
+          },
+          "records": {
+            "title": "Records",
+            "type": "integer"
+          },
+          "recovery_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Seq"
+          },
+          "span_median_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Median Ns"
+          },
+          "span_open_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Open Rate"
+          },
+          "spans_closed": {
+            "title": "Spans Closed",
+            "type": "integer"
+          },
+          "spans_open": {
+            "title": "Spans Open",
+            "type": "integer"
+          },
+          "time_trust": {
+            "description": "Every trust level the boot's records carry.",
+            "items": {
+              "$ref": "#/components/schemas/NamedValue"
+            },
+            "title": "Time Trust",
+            "type": "array"
+          },
+          "uptime_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "By the writer's monotonic clock, within this boot only.",
+            "title": "Uptime Ns"
+          },
+          "widest_anchor_gap_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Widest Anchor Gap Ns"
+          }
+        },
+        "required": [
+          "boot_id",
+          "first_seq",
+          "last_seq",
+          "records",
+          "uptime_ns",
+          "time_trust",
+          "recovery_seq",
+          "anchors",
+          "anchor_gaps_ns",
+          "widest_anchor_gap_ns",
+          "spans_closed",
+          "spans_open",
+          "span_open_rate",
+          "span_median_ns"
+        ],
+        "title": "HealthBoot",
+        "type": "object"
+      },
+      "HealthDetail": {
+        "description": "A detail text that recurs among SAFETY records: a pattern, not an episode.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "first_seq": {
+            "title": "First Seq",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail",
+          "kind",
+          "count",
+          "first_seq"
+        ],
+        "title": "HealthDetail",
+        "type": "object"
+      },
+      "HealthKind": {
+        "description": "SAFETY records of one kind, in total and per boot \u2014 counted in proved order.",
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "per_boot": {
+            "items": {
+              "$ref": "#/components/schemas/HealthKindBoot"
+            },
+            "title": "Per Boot",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "total",
+          "per_boot"
+        ],
+        "title": "HealthKind",
+        "type": "object"
+      },
+      "HealthKindBoot": {
+        "properties": {
+          "boot_id": {
+            "title": "Boot Id",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "boot_id",
+          "count"
+        ],
+        "title": "HealthKindBoot",
+        "type": "object"
+      },
       "HealthResponse": {
         "description": "Liveness, and the identity of the verifier behind this service.\n\nThe verifier identity is part of the liveness answer rather than a\nseparate endpoint because a verification result is only meaningful\nalongside the verifier that produced it. A shell that knows the service is\nup but not what it is linked against knows less than it needs.",
         "properties": {
@@ -871,6 +1069,62 @@
           "authenticated"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "HealthStep": {
+        "description": "A discontinuity of the writer's clock, as the package classes it (U2).",
+        "properties": {
+          "boot_id": {
+            "title": "Boot Id",
+            "type": "string"
+          },
+          "delta_ns": {
+            "description": "How far the wall clock moved against the monotonic one.",
+            "title": "Delta Ns",
+            "type": "integer"
+          },
+          "kind": {
+            "description": "`step`, `regression` or `slew` \u2014 the package's class.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "boot_id",
+          "kind",
+          "delta_ns"
+        ],
+        "title": "HealthStep",
+        "type": "object"
+      },
+      "HealthWallGap": {
+        "description": "The writer's wall clock from one boot's last record to the next boot's first.",
+        "properties": {
+          "after_boot_id": {
+            "title": "After Boot Id",
+            "type": "string"
+          },
+          "before_boot_id": {
+            "title": "Before Boot Id",
+            "type": "string"
+          },
+          "duration_ns": {
+            "description": "Negative when the clock reads earlier after the restart.",
+            "title": "Duration Ns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "after_boot_id",
+          "before_boot_id",
+          "duration_ns"
+        ],
+        "title": "HealthWallGap",
         "type": "object"
       },
       "KeychainSeedRequest": {
@@ -1229,6 +1483,72 @@
           "body_tlvs"
         ],
         "title": "RecordBytesView",
+        "type": "object"
+      },
+      "RecordHealthView": {
+        "description": "Record health (E-03, F12): the record as an artefact, never its content.\n\nEvery figure is the package's detection, copied, or a count of it. No\nthreshold is applied and nothing is called anomalous; advisory, and it\nnever touches the verdict.",
+        "properties": {
+          "boots": {
+            "items": {
+              "$ref": "#/components/schemas/HealthBoot"
+            },
+            "title": "Boots",
+            "type": "array"
+          },
+          "drift": {
+            "description": "Not on this version; see drift_note.",
+            "title": "Drift",
+            "type": "null"
+          },
+          "drift_note": {
+            "title": "Drift Note",
+            "type": "string"
+          },
+          "recurring_details": {
+            "description": "Details seen more than once, most frequent first, at most twenty.",
+            "items": {
+              "$ref": "#/components/schemas/HealthDetail"
+            },
+            "title": "Recurring Details",
+            "type": "array"
+          },
+          "safety_by_kind": {
+            "items": {
+              "$ref": "#/components/schemas/HealthKind"
+            },
+            "title": "Safety By Kind",
+            "type": "array"
+          },
+          "safety_total": {
+            "title": "Safety Total",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/HealthStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "wall_gaps": {
+            "items": {
+              "$ref": "#/components/schemas/HealthWallGap"
+            },
+            "title": "Wall Gaps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "boots",
+          "steps",
+          "wall_gaps",
+          "drift",
+          "drift_note",
+          "safety_total",
+          "safety_by_kind",
+          "recurring_details"
+        ],
+        "title": "RecordHealthView",
         "type": "object"
       },
       "RecordPage": {
@@ -2950,6 +3270,46 @@
           }
         },
         "summary": "Session Origin"
+      }
+    },
+    "/session/{session_id}/record-health": {
+      "get": {
+        "description": "Record health (E-03, F12): clock steps, boot and anchor cadence,\nspans, the gaps between boots, SAFETY by kind and boot, recurring\ndetails. The package's detection, counted here; advisory.",
+        "operationId": "session_record_health_session__session_id__record_health_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordHealthView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session Record Health"
       }
     },
     "/session/{session_id}/record/{seq}": {

@@ -1030,6 +1030,88 @@ class RecordBytesView(BaseModel):
     )
 
 
+class HealthBoot(BaseModel):
+    """One boot's statistics, as the package computes them (U3)."""
+
+    boot_id: str
+    first_seq: int
+    last_seq: int
+    records: int
+    uptime_ns: int | None = Field(
+        description="By the writer's monotonic clock, within this boot only."
+    )
+    time_trust: list[NamedValue] = Field(description="Every trust level the boot's records carry.")
+    recovery_seq: int | None
+    anchors: int = Field(description="ANCHOR records in this boot.")
+    anchor_gaps_ns: list[int] = Field(
+        description="Monotonic distance between consecutive anchors in this boot, the package's."
+    )
+    widest_anchor_gap_ns: int | None
+    spans_closed: int
+    spans_open: int
+    span_open_rate: float | None
+    span_median_ns: int | None
+
+
+class HealthStep(BaseModel):
+    """A discontinuity of the writer's clock, as the package classes it (U2)."""
+
+    seq: int
+    boot_id: str
+    kind: str = Field(description="`step`, `regression` or `slew` — the package's class.")
+    delta_ns: int = Field(description="How far the wall clock moved against the monotonic one.")
+
+
+class HealthWallGap(BaseModel):
+    """The writer's wall clock from one boot's last record to the next boot's first."""
+
+    after_boot_id: str
+    before_boot_id: str
+    duration_ns: int = Field(description="Negative when the clock reads earlier after the restart.")
+
+
+class HealthKindBoot(BaseModel):
+    boot_id: str
+    count: int
+
+
+class HealthKind(BaseModel):
+    """SAFETY records of one kind, in total and per boot — counted in proved order."""
+
+    kind: str
+    total: int
+    per_boot: list[HealthKindBoot]
+
+
+class HealthDetail(BaseModel):
+    """A detail text that recurs among SAFETY records: a pattern, not an episode."""
+
+    detail: str
+    kind: str
+    count: int
+    first_seq: int
+
+
+class RecordHealthView(BaseModel):
+    """Record health (E-03, F12): the record as an artefact, never its content.
+
+    Every figure is the package's detection, copied, or a count of it. No
+    threshold is applied and nothing is called anomalous; advisory, and it
+    never touches the verdict.
+    """
+
+    boots: list[HealthBoot]
+    steps: list[HealthStep]
+    wall_gaps: list[HealthWallGap]
+    drift: None = Field(description="Not on this version; see drift_note.")
+    drift_note: str
+    safety_total: int
+    safety_by_kind: list[HealthKind]
+    recurring_details: list[HealthDetail] = Field(
+        description="Details seen more than once, most frequent first, at most twenty."
+    )
+
+
 class RecordPage(BaseModel):
     """A window onto the records.
 
