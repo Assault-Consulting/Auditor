@@ -214,3 +214,21 @@ export function nextWarning(items: AdvisoryItemModel[], afterSeq: number | null)
   if (afterSeq === null) return seqs[0]!;
   return seqs.find((seq) => seq > afterSeq) ?? seqs[0]!;
 }
+
+/**
+ * What the bar reads and which keys the screen answers, as shown under it
+ * (H6, H10). Kept beside the parser so the two are read together and a new
+ * form does not ship without its line.
+ */
+export const SEARCH_HELP: ReadonlyArray<readonly [string, string]> = [
+  ["#1447", "go to record 1447"],
+  ["@2026-08-06T22:41Z", "go to the record nearest that time by the writer's clock — a claim; no zone is UTC"],
+  ["kind:INCIDENT_CANDIDATE", "list only that kind; also type:, tier:, source:, outcome:"],
+  ["boot:3f2a  span:9c01", "list only that boot or span, by the start of its id"],
+  ["from:2026-08-01  to:2026-08-06", "list only those days, by the writer's clock"],
+  ['"frame magic"', "list only records whose detail contains the phrase; one phrase, any case"],
+  ["/", "key: jump to this search field"],
+  ["j  k", "keys: next and previous record in the list"],
+  ["n", "key: next warning"],
+  ["b", "key: back to the record read before"],
+];

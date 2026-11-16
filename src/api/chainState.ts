@@ -15,6 +15,7 @@
  * Kept out of the component so it can be tested without rendering anything.
  */
 
+import { againstLine, count } from "./plural";
 import {
   NotAChainError,
   SidecarError,
@@ -186,16 +187,16 @@ export function chainLine(state: ChainState): string {
       return `Opening ${state.path}…`;
     case "open": {
       const s = state.opened.subject;
-      return `${s.filename} — ${s.records} records, ${s.boots} boots. Not checked yet.`;
+      return `${s.filename} — ${count(s.records, "record")}, ${count(s.boots, "boot")}. Not checked yet.`;
     }
     case "verifying":
-      return `${state.opened.subject.filename} — checking against anchor profile "${state.profile}"…`;
+      return `${state.opened.subject.filename} — checking ${againstLine(state.profile)}…`;
     case "verified": {
       const s = state.opened.subject;
       // The line stays about the artifact. What the check found belongs in
       // the panels, where each question keeps its own answer — summarising
       // it here would be the single verdict field this API refuses to have.
-      return `${s.filename} — ${s.records} records, ${s.boots} boots. Checked against "${state.profile}".`;
+      return `${s.filename} — ${count(s.records, "record")}, ${count(s.boots, "boot")}. Checked ${againstLine(state.profile)}.`;
     }
     case "not-a-chain":
       // Not "invalid", and not "corrupt" — and not "not a PALA-1 container"

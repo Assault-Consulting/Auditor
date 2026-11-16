@@ -300,3 +300,11 @@ group("opening replaces what was open", () => {
     vi.unstubAllGlobals();
   });
 });
+
+group("the file line names no profile called none (H2)", () => {
+  it("says checked without an anchor, with counts in the singular where they are one", () => {
+    const line = chainLine({ kind: "verified", opened: OPENED, profile: "none", sources: [], result: VERIFIED });
+    expect(line).toContain("Checked without an anchor.");
+    expect(line).not.toContain('"none"');
+  });
+});

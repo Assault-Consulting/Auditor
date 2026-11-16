@@ -34,7 +34,7 @@
      and never as success. */
   --proved: #4fa38b;
   --recorded: #c8963e;
-  --unchecked: #6b7683;
+  --unchecked: #838e9b;
 
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
     Georgia, serif;
@@ -64,15 +64,126 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* The page uses the window. A 1280-pixel window used to hold one 62ch
+   column — more than half the screen empty and the first action below the
+   fold. Now: a masthead with the actions in it, the three questions across,
+   master and detail side by side, the artifacts after. Prose keeps a
+   readable measure inside its panel. */
 .shell {
+  box-sizing: border-box;
+  max-width: 1480px;
   min-height: 100%;
-  display: grid;
-  place-items: center;
-  padding: calc(var(--step) * 4);
+  margin: 0 auto;
+  padding: calc(var(--step) * 3) calc(var(--step) * 4) calc(var(--step) * 4);
 }
 
-.plate {
-  width: min(62ch, 100%);
+.shell p {
+  max-width: 78ch;
+}
+
+.masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 calc(var(--step) * 4);
+  padding-bottom: calc(var(--step) * 2);
+  border-bottom: 1px solid var(--rule);
+}
+
+@media (min-width: 1100px) {
+  .masthead {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    align-items: end;
+  }
+}
+
+.masthead .choose,
+.masthead .segment-hint,
+.masthead .chain-line,
+.masthead .footnote {
+  grid-column: 1 / -1;
+}
+
+.chain-line {
+  margin: calc(var(--step) * 1.2) 0 0;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--vellum);
+}
+
+.verdict {
+  margin-top: calc(var(--step) * 3);
+}
+
+@media (min-width: 1100px) {
+  .verdict .questions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0 calc(var(--step) * 3);
+    border-top: 0;
+  }
+
+  .verdict .question {
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 calc(var(--step) * 3);
+}
+
+@media (min-width: 1100px) {
+  .workspace {
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  }
+
+  /* The selected record stays in view while the list beside it scrolls:
+     a click on a row shows its answer where the eye already is. */
+  .workspace-detail {
+    position: sticky;
+    top: calc(var(--step) * 2);
+    align-self: start;
+    max-height: calc(100vh - var(--step) * 4);
+    overflow-y: auto;
+  }
+}
+
+.artifacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+  gap: 0 calc(var(--step) * 3);
+  align-items: start;
+}
+
+.colophon {
+  margin-top: calc(var(--step) * 4);
+  border-top: 1px solid var(--rule);
+  padding-top: calc(var(--step) * 1.5);
+}
+
+.status-details summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  padding: calc(var(--step) * 0.5) 0;
+}
+
+.status-details .status {
+  margin-top: var(--step);
+}
+
+/* Visually hidden, read aloud. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 /* Eyebrow: mono, wide-tracked, quiet. It states what the tool reads, which
@@ -80,7 +191,7 @@ body {
    would tell them. */
 .eyebrow {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -90,7 +201,7 @@ body {
 .wordmark {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: clamp(2rem, 6vw, 3.1rem);
+  font-size: clamp(1.8rem, 3.4vw, 2.6rem);
   line-height: 1.05;
   letter-spacing: -0.015em;
   margin: 0;
@@ -102,7 +213,7 @@ body {
 }
 
 .thesis {
-  margin: calc(var(--step) * 1.5) 0 calc(var(--step) * 4);
+  margin: calc(var(--step) * 1.5) 0 calc(var(--step) * 1.5);
   max-width: 52ch;
   color: var(--vellum-dim);
 }
@@ -140,7 +251,7 @@ body {
 .question-basis {
   margin: 0.35em 0 0;
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -206,7 +317,7 @@ body {
 
 .status-title {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -241,12 +352,14 @@ body {
    nothing on its own. */
 .choose {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: var(--step);
-  margin-top: calc(var(--step) * 3);
+  margin-top: calc(var(--step) * 1.5);
 }
 
 .choose-button {
+  white-space: nowrap;
   font-family: var(--mono);
   font-size: 0.82rem;
   letter-spacing: 0.04em;
@@ -270,7 +383,7 @@ body {
 
 .choose-hint {
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
 }
 
@@ -343,7 +456,7 @@ body {
 .diagnosis-lead {
   margin: calc(var(--step) * 2) 0 calc(var(--step) * 0.75);
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -386,7 +499,7 @@ body {
 .diagnosis-manifest-digest code,
 .record-continuation-field code {
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   word-break: break-all;
 }
 
@@ -404,7 +517,7 @@ body {
    writer's claim, not this verifier's finding. */
 .records-outcome {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--recorded);
   border: 1px solid var(--rule);
   border-radius: 3px;
@@ -428,7 +541,7 @@ body {
 
 .safety-title {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -502,7 +615,8 @@ body {
 .safety-record {
   display: block;
   width: 100%;
-  padding: 0.2em 0;
+  min-height: 24px;
+  padding: 0.3em 0 0.3em calc(var(--step) * 0.6);
   border: none;
   background: none;
   font-family: var(--mono);
@@ -524,7 +638,7 @@ body {
    are the writer's claims, not verdicts about the candidate. */
 .safety-ack-state {
   margin-left: var(--step);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 
 .safety-ack-state[data-acknowledged="false"] {
@@ -545,7 +659,7 @@ body {
    (.advisory-count, .records-count, .safety-group-count). */
 .safety-detail {
   margin-left: var(--step);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--recorded);
 }
 
@@ -582,7 +696,7 @@ body {
 
 .rail-title {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -595,7 +709,7 @@ body {
 .rail-watermark {
   margin: 0 0 calc(var(--step) * 1.5);
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.04em;
   color: var(--recorded);
 }
@@ -605,7 +719,7 @@ body {
   display: flex;
   justify-content: space-between;
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--vellum-dim);
   padding-bottom: calc(var(--step) * 0.5);
   border-bottom: 1px solid var(--rule);
@@ -627,7 +741,7 @@ body {
 
 .rail-date {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--vellum-dim);
 }
 
@@ -672,7 +786,7 @@ body {
   border-top: 1px dashed var(--rule);
   border-bottom: 1px dashed var(--rule);
   font-family: var(--mono);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   letter-spacing: 0.02em;
   color: var(--unchecked);
   text-align: center;
@@ -690,7 +804,7 @@ body {
 }
 
 .rail-safety {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--recorded);
   text-align: center;
 }
@@ -700,7 +814,7 @@ body {
   margin: calc(var(--step) * 1.5) 0 0;
   padding: 0;
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
 }
 
 .rail-segment {
@@ -759,7 +873,7 @@ body {
 
 .browse-title {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -805,7 +919,7 @@ body {
    single sentence about when things happened covers all of it. */
 .boot-clock {
   color: var(--unchecked);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 .boot-clock[data-changed="true"] {
@@ -893,7 +1007,7 @@ body {
 .span-orphan {
   margin: 0.25em 0 0;
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
 }
 
@@ -927,7 +1041,7 @@ body {
 
 .records-title {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -945,7 +1059,7 @@ body {
   gap: calc(var(--step) * 0.6);
   margin: 0 0 calc(var(--step) * 1.2);
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
 }
 
@@ -958,7 +1072,7 @@ body {
 
 .records-filters button {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--vellum-dim);
   background: none;
   border: none;
@@ -1006,10 +1120,12 @@ body {
    never navigates anywhere of its own. */
 .records-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
+  min-height: 24px;
   gap: var(--step);
   width: 100%;
-  padding: calc(var(--step) * 0.5) 0;
+  padding: calc(var(--step) * 0.5) 0 calc(var(--step) * 0.5) calc(var(--step) * 0.6);
   border: none;
   border-bottom: 1px solid var(--rule);
   background: none;
@@ -1050,7 +1166,7 @@ body {
    a reported call is not a suspicious one, it is a differently-sourced
    one, and the mark says which. */
 .records-source {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--recorded);
   border: 1px solid var(--recorded);
   padding: 0 0.4em;
@@ -1096,7 +1212,7 @@ body {
 
 .records-count {
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
 }
 
@@ -1112,7 +1228,7 @@ body {
 
 .record-title {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -1132,7 +1248,7 @@ body {
 
 .search-hint {
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
   margin-right: calc(var(--step) * 0.6);
 }
@@ -1250,7 +1366,7 @@ body {
 
 .record-index {
   color: var(--unchecked);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
 }
 
 .record-type {
@@ -1413,7 +1529,7 @@ body {
 }
 
 .hex-table td[data-hot],
-.hex-segments li[data-hot] {
+.hex-segments button[data-hot] {
   background: var(--rule);
 }
 
@@ -1426,9 +1542,18 @@ body {
   columns: 2;
 }
 
-.hex-segments li {
+.hex-segments button {
   display: flex;
   gap: var(--step);
+  width: 100%;
+  min-height: 24px;
+  padding: 0 0.2em;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--vellum);
+  text-align: left;
+  cursor: default;
 }
 
 .hex-at,
@@ -1448,7 +1573,7 @@ body {
 
 .origin-title {
   font-family: var(--mono);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--unchecked);
@@ -1523,13 +1648,13 @@ body {
    correct. Quiet is the requirement, not the aesthetic. */
 .advisory {
   margin-top: calc(var(--step) * 3);
-  border-top: 1px solid var(--rule);
-  padding-top: calc(var(--step) * 2);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
 }
 
 .advisory-title {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -1539,7 +1664,7 @@ body {
 .advisory-line {
   margin: 0 0 calc(var(--step) * 1.5);
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
 }
 
@@ -1565,7 +1690,7 @@ body {
 
 .advisory-count {
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
   min-width: 2ch;
   text-align: right;
@@ -1585,7 +1710,7 @@ body {
 
 .advisory-code {
   font-family: var(--mono);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
 }
 
@@ -1601,7 +1726,7 @@ body {
   padding-left: calc(var(--step) * 3);
   list-style: none;
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
 }
 
@@ -1626,7 +1751,7 @@ body {
 
 .provenance-title {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -1653,7 +1778,7 @@ body {
 
 .provenance-order {
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
   padding-left: calc(var(--step) * 0.7);
 }
@@ -1708,7 +1833,7 @@ body {
 .provenance-summary {
   margin: calc(var(--step) * 1.5) 0 0;
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
 }
 
@@ -1727,7 +1852,7 @@ body {
 .report-title,
 .witness-title {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -1786,7 +1911,7 @@ body {
 .report-meta {
   margin: 0.4em 0 var(--step);
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
 }
 
@@ -1795,7 +1920,7 @@ body {
 .report-saved {
   margin: var(--step) 0 0;
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--vellum-dim);
   word-break: break-all;
 }
@@ -1826,7 +1951,7 @@ body {
   background: var(--ink-raised);
   border: 1px solid var(--rule);
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--vellum-dim);
   white-space: pre;
 }
@@ -1842,7 +1967,7 @@ body {
 
 .export-title {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--vellum-dim);
@@ -1876,7 +2001,7 @@ body {
 .footnote {
   margin: calc(var(--step) * 3) 0 0;
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--unchecked);
   line-height: 1.6;
 }
@@ -1891,7 +2016,7 @@ body {
 /* One reveal on load, and nothing else. A forensic tool that animates while
    you read it is a tool arguing with its own content. */
 @media (prefers-reduced-motion: no-preference) {
-  .plate {
+  .shell {
     animation: settle 420ms ease-out both;
   }
 }
@@ -1953,4 +2078,82 @@ body {
 .witness-table th {
   font-weight: normal;
   color: var(--unchecked);
+}
+
+/* The selected record, marked where it was chosen: a row that looks like
+   its neighbours after a click reads as a click that did nothing. A rule in
+   the text colour, not a verdict colour — selection is not a finding. */
+.records-row[aria-current="true"],
+.safety-record[aria-current="true"] {
+  background: var(--ink-raised);
+  box-shadow: inset 2px 0 0 var(--vellum);
+  color: var(--vellum);
+}
+
+/* Targets of their own — not links inside a sentence — are at least 28 px
+   tall: above WCAG 2.5.8's 24, because these are clicked many times in a
+   session, often in a row. */
+.records-nav button,
+.search-quick button,
+.search-bar button,
+.search-bar input,
+.hex-toggle,
+.choose select,
+.export-range input,
+.report-actions button {
+  min-height: 28px;
+}
+
+.search-quick {
+  flex-wrap: wrap;
+}
+
+.search-help {
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-size: 0.8rem;
+  color: var(--vellum-dim);
+}
+
+.search-help summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  min-height: 24px;
+}
+
+.search-help dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3em var(--step);
+  margin: var(--step) 0 0;
+}
+
+.search-help dl > div {
+  display: contents;
+}
+
+.search-help dd {
+  margin: 0;
+}
+
+/* Wide content scrolls inside its panel, never the page (WCAG 1.4.10). */
+.scroll-x {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.export-range {
+  flex-wrap: wrap;
+}
+
+.export-range-note {
+  margin: calc(var(--step) * 0.75) 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--recorded);
+  font-size: 0.82rem;
+  color: var(--vellum-dim);
+}
+
+.export-range input[aria-invalid="true"] {
+  border-color: var(--recorded);
 }

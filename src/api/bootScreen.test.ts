@@ -184,7 +184,7 @@ group("the wired-status panel", () => {
     const row = rowNamed(rows, "boots and spans");
 
     expect(row?.live).toBe(true);
-    expect(row?.state).toBe("1 boots, 0 spans");
+    expect(row?.state).toBe("1 boot, 0 spans");
   });
 
   it("does not report a failed list as an empty one", () => {
