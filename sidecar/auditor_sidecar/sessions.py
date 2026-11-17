@@ -60,6 +60,7 @@ class Session:
     reports: dict[str, dict] = field(default_factory=dict)
     #: Where each check went in the witness log (E-05), keyed as above.
     witnessed: dict[str, dict] = field(default_factory=dict)
+    _record_health: dict | None = field(default=None, repr=False)
     #: The structural views, computed at most once each.
     #:
     #: The rule that decides what is cached here is whether the set of
@@ -160,6 +161,12 @@ class Session:
         if self._spans is None:
             self._spans = self.chain.spans()
         return self._spans
+
+    def record_health(self) -> dict:
+        """Record health (E-03), computed at most once: one answer per file."""
+        if self._record_health is None:
+            self._record_health = self.chain.record_health()
+        return self._record_health
 
     def safety(self) -> dict:
         """Every SAFETY record, computed at most once — F8."""

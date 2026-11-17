@@ -17,7 +17,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, getRecordBytes, getRecords, getSafety, getWitness, listProfiles } from "./api/chain";
+import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, getRecordBytes, getRecordHealth, getRecords, getSafety, getWitness, listProfiles } from "./api/chain";
 import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
 import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { type RecordFilters, filtersKey } from "./api/filters";
@@ -25,6 +25,7 @@ import { type Chronoscope, chronoscope } from "./api/chronoscope";
 import type { AnchorProfile } from "./api/generated/types";
 import { onChainFilesDropped, pickChainFile } from "./api/openFile";
 import { type HexView, hexView } from "./api/hexView";
+import { type RecordHealth, recordHealth } from "./api/health";
 import type { WitnessCheckView } from "./api/generated/types";
 import { type OriginCard, originCard } from "./api/origin";
 import { type RecordCard, recordCard } from "./api/record";
@@ -338,6 +339,32 @@ export function useWitness(probe: Probe, after: string | null): Fetch<WitnessChe
   }, [probe, after]);
 
   return witness;
+}
+
+/** Record health — E-03. One answer per file, asked once it is open. */
+export function useRecordHealth(probe: Probe, chain: ChainState): Fetch<RecordHealth> {
+  const [value, setValue] = useState<Fetch<RecordHealth>>({ kind: "unasked" });
+  const opened = openedOf(chain);
+
+  useEffect(() => {
+    if (probe.kind !== "ready" || opened === null) {
+      setValue({ kind: "unasked" });
+      return;
+    }
+    let cancelled = false;
+    void getRecordHealth(probe.session, opened.session_id)
+      .then((h) => {
+        if (!cancelled) setValue({ kind: "found", value: recordHealth(h) });
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setValue({ kind: "failed", detail: e instanceof Error ? e.message : String(e) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [probe, opened]);
+
+  return value;
 }
 
 /**

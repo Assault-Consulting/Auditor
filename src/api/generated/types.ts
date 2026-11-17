@@ -324,6 +324,54 @@ export interface HeaderFieldSpan {
 }
 
 /**
+ * One boot's statistics, as the package computes them (U3).
+ */
+export interface HealthBoot {
+  boot_id: string;
+  first_seq: number;
+  last_seq: number;
+  records: number;
+  /** By the writer's monotonic clock, within this boot only. */
+  uptime_ns: number | null;
+  /** Every trust level the boot's records carry. */
+  time_trust: Array<NamedValue>;
+  recovery_seq: number | null;
+  /** ANCHOR records in this boot. */
+  anchors: number;
+  /** Monotonic distance between consecutive anchors in this boot, the package's. */
+  anchor_gaps_ns: Array<number>;
+  widest_anchor_gap_ns: number | null;
+  spans_closed: number;
+  spans_open: number;
+  span_open_rate: number | null;
+  span_median_ns: number | null;
+}
+
+/**
+ * A detail text that recurs among SAFETY records: a pattern, not an episode.
+ */
+export interface HealthDetail {
+  detail: string;
+  kind: string;
+  count: number;
+  first_seq: number;
+}
+
+/**
+ * SAFETY records of one kind, in total and per boot — counted in proved order.
+ */
+export interface HealthKind {
+  kind: string;
+  total: number;
+  per_boot: Array<HealthKindBoot>;
+}
+
+export interface HealthKindBoot {
+  boot_id: string;
+  count: number;
+}
+
+/**
  * Liveness, and the identity of the verifier behind this service.
  *
  * The verifier identity is part of the liveness answer rather than a
@@ -342,6 +390,28 @@ export interface HealthResponse {
   spec: string;
   /** Whether the session token gate is enforced. False means the sidecar was started without a token and any local process can reach it — a development affordance, never a supported configuration. */
   authenticated: boolean;
+}
+
+/**
+ * A discontinuity of the writer's clock, as the package classes it (U2).
+ */
+export interface HealthStep {
+  seq: number;
+  boot_id: string;
+  /** `step`, `regression` or `slew` — the package's class. */
+  kind: string;
+  /** How far the wall clock moved against the monotonic one. */
+  delta_ns: number;
+}
+
+/**
+ * The writer's wall clock from one boot's last record to the next boot's first.
+ */
+export interface HealthWallGap {
+  after_boot_id: string;
+  before_boot_id: string;
+  /** Negative when the clock reads earlier after the restart. */
+  duration_ns: number;
 }
 
 /**
@@ -494,6 +564,26 @@ export interface RecordBytesView {
   header_tlvs: Array<TlvSpan> | null;
   /** The body's TLVs, in order. Null when the package gives no TLV layout for this body: a header it rejects, an encrypted body, an empty or a malformed one. Offsets may lie past body_shown. */
   body_tlvs: Array<TlvSpan> | null;
+}
+
+/**
+ * Record health (E-03, F12): the record as an artefact, never its content.
+ *
+ * Every figure is the package's detection, copied, or a count of it. No
+ * threshold is applied and nothing is called anomalous; advisory, and it
+ * never touches the verdict.
+ */
+export interface RecordHealthView {
+  boots: Array<HealthBoot>;
+  steps: Array<HealthStep>;
+  wall_gaps: Array<HealthWallGap>;
+  /** Not on this version; see drift_note. */
+  drift: null;
+  drift_note: string;
+  safety_total: number;
+  safety_by_kind: Array<HealthKind>;
+  /** Details seen more than once, most frequent first, at most twenty. */
+  recurring_details: Array<HealthDetail>;
 }
 
 /**

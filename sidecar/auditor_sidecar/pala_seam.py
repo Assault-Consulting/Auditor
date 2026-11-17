@@ -1381,6 +1381,47 @@ class ChainHandle:
     #: which for a SAFETY record means showing it on the wrong date.
     _DAY_NS = 86_400_000_000_000
 
+    def _boundaries_and_gaps(self, idx: _HeaderIndex) -> tuple[list[dict], list[dict]]:
+        """Each boot's first and last wall reading, and the wall-clock gap
+        between consecutive boots — shared by the timeline and record health
+        so the two cannot disagree about a gap."""
+        with self._lock:
+            boots = self._reader.boots()
+        boundaries = []
+        for boot in boots:
+            # The last record carrying each seq — the one `{r.seq: r}` kept.
+            first = idx.last_index_of(boot.first_seq)
+            last = idx.last_index_of(boot.last_seq)
+            if first is None or last is None:
+                continue
+            boundaries.append(
+                {
+                    "boot_id": boot.boot_id.hex(),
+                    "first_seq": boot.first_seq,
+                    "last_seq": boot.last_seq,
+                    "first_wall_ns": idx.wall[first],
+                    "last_wall_ns": idx.wall[last],
+                }
+            )
+
+        # The gap between one boot's last wall reading and the next boot's
+        # first. Reported even when it is zero or negative: a negative gap
+        # means the clock moved backwards across the boundary, which is a
+        # fact the ruler cannot represent and a UI must not hide.
+        gaps = [
+            {
+                "after_boot_id": earlier["boot_id"],
+                "before_boot_id": later["boot_id"],
+                "from_wall_ns": earlier["last_wall_ns"],
+                "to_wall_ns": later["first_wall_ns"],
+                "duration_ns": int(later["first_wall_ns"]) - int(earlier["last_wall_ns"]),
+            }
+            # strict=False on purpose: this pairs the list with its own tail,
+            # so the lengths differ by one by construction.
+            for earlier, later in zip(boundaries, boundaries[1:], strict=False)
+        ]
+        return boundaries, gaps
+
     def timeline(
         self, axis: str = "seq", buckets: int = 120, align: str | None = None
     ) -> dict[str, object]:
@@ -1533,41 +1574,7 @@ class ChainHandle:
         for bucket in counted:
             bucket.setdefault("stepped", False)
 
-        with self._lock:
-            boots = self._reader.boots()
-        boundaries = []
-        for boot in boots:
-            # The last record carrying each seq — the one `{r.seq: r}` kept.
-            first = idx.last_index_of(boot.first_seq)
-            last = idx.last_index_of(boot.last_seq)
-            if first is None or last is None:
-                continue
-            boundaries.append(
-                {
-                    "boot_id": boot.boot_id.hex(),
-                    "first_seq": boot.first_seq,
-                    "last_seq": boot.last_seq,
-                    "first_wall_ns": idx.wall[first],
-                    "last_wall_ns": idx.wall[last],
-                }
-            )
-
-        # The gap between one boot's last wall reading and the next boot's
-        # first. Reported even when it is zero or negative: a negative gap
-        # means the clock moved backwards across the boundary, which is a
-        # fact the ruler cannot represent and a UI must not hide.
-        gaps = [
-            {
-                "after_boot_id": earlier["boot_id"],
-                "before_boot_id": later["boot_id"],
-                "from_wall_ns": earlier["last_wall_ns"],
-                "to_wall_ns": later["first_wall_ns"],
-                "duration_ns": int(later["first_wall_ns"]) - int(earlier["last_wall_ns"]),
-            }
-            # strict=False on purpose: this pairs the list with its own tail,
-            # so the lengths differ by one by construction.
-            for earlier, later in zip(boundaries, boundaries[1:], strict=False)
-        ]
+        boundaries, gaps = self._boundaries_and_gaps(idx)
 
         return {
             "axis": axis,
@@ -1695,6 +1702,102 @@ class ChainHandle:
                 },
             }
         return {"state": "unloaded" if unloaded else "not_stated", "origin": None}
+
+    def record_health(self) -> dict[str, object]:
+        """Record health (E-03, F12): analytics about the record, never about
+        what it describes.
+
+        Every figure is the package's detection, copied: the step catalog
+        (`step_catalog`, U2), per-boot statistics (`boot_statistics`, U3 —
+        uptime by the monotonic clock, anchor cadence, spans), the wall gaps
+        between boots (the timeline's own), and the SAFETY records
+        (`safety_records`). What this method adds is counting: SAFETY records
+        per kind and per boot, and identical details that recur. No
+        threshold is applied and nothing is called anomalous here (F12's
+        second discipline; §22.4 leaves thresholds open).
+
+        The drift series (U1, `drift_series`) is not in the declared surface
+        before 0.15 (R10), so `drift` is null and says so.
+        """
+        idx = self._header_index()
+        with self._lock:
+            step_data = list(step_catalog(self._reader))
+            stats_list = list(boot_statistics(self._reader))
+            safety = list(self._reader.safety_records())
+        _, gaps = self._boundaries_and_gaps(idx) if len(idx) else ([], [])
+
+        per_kind: dict[str, Counter] = {}
+        details: dict[str, dict[str, object]] = {}
+        for record in safety:
+            if record.record_type != RT_SAFETY:
+                continue
+            kind = record.kind_name or f"kind {record.kind}"
+            boot = record.header.boot_id.hex()
+            per_kind.setdefault(kind, Counter())[boot] += 1
+            if record.detail is not None:
+                seen = details.setdefault(
+                    record.detail,
+                    {"detail": record.detail, "kind": kind, "count": 0, "first_seq": record.seq},
+                )
+                seen["count"] = int(seen["count"]) + 1
+        recurring = sorted(
+            (d for d in details.values() if int(d["count"]) > 1),
+            key=lambda d: (-int(d["count"]), int(d["first_seq"])),
+        )
+
+        return {
+            "boots": [
+                {
+                    "boot_id": st.view.boot_id.hex(),
+                    "first_seq": st.view.first_seq,
+                    "last_seq": st.view.last_seq,
+                    "records": st.view.record_count,
+                    "uptime_ns": st.uptime_ns,
+                    "time_trust": self._named(set(st.view.time_trust_values), time_trust_name),
+                    "recovery_seq": st.view.recovery_seq,
+                    "anchors": st.anchors.count,
+                    "anchor_gaps_ns": list(st.anchors.gaps_ns),
+                    "widest_anchor_gap_ns": st.anchors.widest_anchor_gap_ns,
+                    "spans_closed": st.spans.closed,
+                    "spans_open": st.spans.open,
+                    "span_open_rate": st.spans.open_rate,
+                    "span_median_ns": st.spans.median_duration_ns,
+                }
+                for st in stats_list
+            ],
+            "steps": [
+                {
+                    "seq": step.seq,
+                    "boot_id": step.boot_id.hex(),
+                    "kind": step.kind,
+                    "delta_ns": step.delta_ns,
+                }
+                for step in step_data
+            ],
+            "wall_gaps": [
+                {
+                    "after_boot_id": g["after_boot_id"],
+                    "before_boot_id": g["before_boot_id"],
+                    "duration_ns": g["duration_ns"],
+                }
+                for g in gaps
+            ],
+            "drift": None,
+            "drift_note": (
+                "the drift series (U1) is in palimpsests' declared surface from 0.15 (R10); "
+                "not shown on this version"
+            ),
+            "safety_total": sum(sum(c.values()) for c in per_kind.values()),
+            "safety_by_kind": [
+                {
+                    "kind": kind,
+                    "total": sum(c.values()),
+                    "per_boot": [{"boot_id": b, "count": n} for b, n in c.items()],
+                }
+                for kind, c in sorted(per_kind.items(), key=lambda kv: -sum(kv[1].values()))
+            ],
+            "recurring_details": recurring[:20],
+        }
 
     def safety(self, limit: int = 500) -> dict[str, object]:
         """Every SAFETY record, in the order F8 asks for.

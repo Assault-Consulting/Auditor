@@ -521,6 +521,12 @@ would not build:
    advisory output, because it must be differential-testable. The shell
    only aggregates, trends, and charts that output (§21).
 
+Built as E-03 on 0.14.1: `/session/{id}/record-health` copies the package's
+step catalog (U2) and boot statistics (U3) and counts SAFETY records by kind,
+boot and identical detail; the **Record health** panel words them, each block
+under its time basis. Not yet: the drift series (U1 — public from 0.15,
+R10), the correlation of warnings with origin events, and baseline change.
+
 ### F13 — Incident evidence bundle
 
 Select a span or a time range → a self-contained, re-verifiable package.

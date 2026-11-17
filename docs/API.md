@@ -263,6 +263,15 @@ origin are not: each has one answer *per question asked* — a different
 offset, a different filter, a different seq — so a cache would grow with the
 questions rather than converge.
 
+### Record health counts; it does not judge
+
+`GET /session/{id}/record-health` (E-03) carries the package's step catalog
+and boot statistics as they come, the wall gaps the timeline computes, and
+counts of SAFETY records by kind, by boot and by identical detail. It draws
+no threshold and names nothing anomalous: those words would be the shell
+deciding what the record means. `drift` is null before palimpsests 0.15,
+and `drift_note` says why.
+
 ### Every route but `/health` requires the session token
 
 The sidecar reads arbitrary paths on request, so the token is the trust
