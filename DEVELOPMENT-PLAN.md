@@ -93,11 +93,18 @@ interactive is the live desktop check below, not yet done.
 | E-07 | Prefix-consistency proofs (`consistency_proof`, `chain_root`) | ? | 0.15 (R10) |
 | Phase 5 | Watch mode; the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); segment sequences; signed installers; `uk` pass | — | — |
 
-**Next, in order:** installers from CI for the live desktop check; E-03 /
+**Next, in order:** the live desktop check on the Windows installer (F-01); E-03 /
 E-04 (record health — U1–U3 are released); C-18 and the surface review's
 stage 2 (T8–T16) on 0.15, targeted by 24 December; then E-01 and E-07.
 
 ## Done recently
+
+F-01 (16 Nov 2026): an unsigned Windows installer from CI
+(`.github/workflows/installers.yml`) — the sidecar frozen with PyInstaller
+and bundled through Tauri's `externalBin`, driven end to end before the
+installer is built (`sidecar/tests/smoke_frozen_sidecar.py`); the shell
+starts the bundled binary when there is one, without a console window.
+macOS and Linux installers follow the same shape when they are wanted.
 
 The usability and accessibility review (16 Nov 2026, `docs/UX-REVIEW.md`):
 Nielsen's ten and WCAG 2.2 AA, the layout redone for the window, axe-core

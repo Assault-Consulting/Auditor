@@ -39,10 +39,19 @@ const PORT_ATTEMPTS: u16 = 20;
 const TOKEN_LEN: usize = 43;
 
 /// Environment variable overriding the interpreter used to launch the sidecar.
-/// Present for development against a virtualenv; packaging the sidecar as a
-/// self-contained binary is a later change, and until it lands this
-/// application requires Python on the host.
+/// Present for development against a virtualenv. When it is set it wins, so a
+/// developer can run an installed build against a sidecar they are changing.
 const PYTHON_ENV: &str = "AUDITOR_SIDECAR_PYTHON";
+
+/// The frozen sidecar's file name beside the application's executable. An
+/// installer built by `.github/workflows/installers.yml` puts it there
+/// (Tauri's `externalBin`, the target triple stripped); a development build
+/// has none and falls back to Python.
+const BUNDLED_SIDECAR: &str = if cfg!(windows) {
+    "auditor-sidecar.exe"
+} else {
+    "auditor-sidecar"
+};
 
 /// What the frontend needs in order to talk to the sidecar, and nothing else.
 #[derive(Clone, serde::Serialize)]
@@ -62,8 +71,8 @@ impl Supervisor {
         let port = pick_port()?;
         let token = mint_token();
 
-        let child = Command::new(interpreter())
-            .args(["-m", "auditor_sidecar.main"])
+        let mut command = sidecar_command();
+        let child = command
             // The token goes in the environment, never in argv. Command lines
             // are readable by any process on the machine — `ps`, Task Manager,
             // Activity Monitor — which would hand the boundary to exactly the
@@ -114,6 +123,35 @@ impl Drop for Supervisor {
     fn drop(&mut self) {
         self.shutdown();
     }
+}
+
+/// How to start the sidecar: the frozen binary beside this executable when
+/// there is one and no interpreter was named, else `python -m`.
+fn sidecar_command() -> Command {
+    let python_named = std::env::var(PYTHON_ENV).is_ok_and(|p| !p.trim().is_empty());
+    let bundled = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join(BUNDLED_SIDECAR)))
+        .filter(|path| path.is_file());
+    let command = match bundled {
+        Some(path) if !python_named => Command::new(path),
+        _ => {
+            let mut c = Command::new(interpreter());
+            c.args(["-m", "auditor_sidecar.main"]);
+            c
+        }
+    };
+    // A console program started by a windowed one opens a console window of
+    // its own on Windows; the sidecar has nothing to show there.
+    #[cfg(windows)]
+    let command = {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let mut command = command;
+        command.creation_flags(CREATE_NO_WINDOW);
+        command
+    };
+    command
 }
 
 fn interpreter() -> String {

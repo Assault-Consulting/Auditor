@@ -33,7 +33,20 @@ consistent with the file being cut at the tail, not with corruption."
 
 ## Status
 
-Pre-implementation. The design is fixed; the code is not written.
+Phases 1–3 are built (open, verify, browse, report, export) and Phase 4 has
+begun. Releases are not cut yet; nothing is signed.
+
+## Trying it on Windows
+
+The `installers` workflow builds an unsigned Windows installer on every push
+to `main` (and on demand, **Actions → installers → Run workflow**). Download
+the `palimpsests-auditor-windows-x64` artifact from the run, check it against
+the `.sha256` beside it, and run the `…-setup.exe`. It installs for the
+current user, with no administrator rights and no Python needed: the sidecar
+is bundled as a single executable.
+
+Windows SmartScreen warns about an unsigned installer: **More info → Run
+anyway**. Signing is Phase 5.
 
 | Document | Contents |
 |---|---|
