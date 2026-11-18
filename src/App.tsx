@@ -24,7 +24,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { advisoryGroups, advisoryLine } from "./api/advisory";
 import { choiceLine, footnoteFor, panelsFor, rowsFor } from "./api/bootScreen";
 import { chainLine, openedOf } from "./api/chainState";
-import { backwards, compress, compressionLine, density } from "./api/chronoscope";
+import { backwards, bootChips, compress, compressionLine, daySelected, density, railChips, selectedDays } from "./api/chronoscope";
 import { diagnosisCard } from "./api/diagnosis";
 import { manifestLine } from "./api/manifest";
 import { provenance, provenanceSummary } from "./api/provenance";
@@ -114,6 +114,7 @@ export default function App() {
   };
   useEffect(() => {
     setVisited([]);
+    setRailAnchor(null);
   }, [openedSessionId]);
   const origin = useOrigin(probe, chain, selectedSeq);
   // C-06d: the raw view stays open from one record to the next once asked
@@ -180,18 +181,52 @@ export default function App() {
       setSearchNote(outcome.reason);
       return;
     }
-    const resolved = resolveChips(outcome.chips, {
+    applyChips(outcome.chips);
+  };
+
+  // One way in for every filter: the bar, a click on the rail. Returns
+  // whether it took, so a caller knows whether the list now answers to it.
+  const applyChips = (chips: Chip[]): boolean => {
+    const resolved = resolveChips(chips, {
       boots: boots.kind === "loaded" ? boots.rows.map((b) => b.boot_id) : null,
       spans: spans.kind === "loaded" ? spans.rows.map((s) => s.span_id) : null,
     });
     if (resolved.kind === "refused") {
       setSearchNote(resolved.reason);
-      return;
+      return false;
     }
     setSearchNote(null);
-    setActiveChips(outcome.chips);
+    setActiveChips(chips);
     setRecordFilters(resolved.filters);
+    return true;
   };
+
+  // F6 — the rail and the strip as ways in. A day narrows the list to that
+  // day; Shift with a second day, to the range between; a SAFETY mark, to
+  // that day's SAFETY records; a boot, to that boot, opening its first
+  // record. The query lands in the bar too, so it can be read and edited,
+  // and the list is brought into view — the click's answer is there.
+  const [railAnchor, setRailAnchor] = useState<string | null>(null);
+  const showRecords = () => {
+    const heading = document.getElementById("records-title");
+    heading?.scrollIntoView({ block: "start" });
+  };
+  const narrowTo = (chips: Chip[]) => {
+    if (applyChips(chips)) {
+      setSearchField(chips.map(chipLabel).join(" "));
+      showRecords();
+    }
+  };
+  const pickDay = (date: string, extend: boolean, safetyOnly = false) => {
+    const from = extend && railAnchor !== null ? railAnchor : date;
+    if (!extend) setRailAnchor(date);
+    narrowTo(railChips(from, date, safetyOnly));
+  };
+  const pickBoot = (bootId: string, firstSeq: number) => {
+    narrowTo(bootChips(bootId));
+    select(firstSeq);
+  };
+  const railRange = selectedDays(activeChips);
 
   const clearFilters = () => {
     setActiveChips([]);
@@ -774,10 +809,27 @@ export default function App() {
                   <li
                     className="rail-day"
                     data-empty={row.day.empty}
+                    data-selected={daySelected(row.day.date, railRange) ? "" : undefined}
                     data-stepped={row.day.stepped}
                     key={row.day.date}
                   >
-                    <span className="rail-date">{row.day.date}</span>
+                    {/* A day with records is a button: Enter or a click
+                        lists that day, Shift adds the range from the last
+                        day picked — no dragging needed (WCAG 2.5.7). An
+                        empty day stays text: there is nothing to list. */}
+                    {row.day.empty ? (
+                      <span className="rail-date">{row.day.date}</span>
+                    ) : (
+                      <button
+                        aria-label={`${row.day.date}: ${row.day.count} records by the writer's clock — list them`}
+                        aria-pressed={daySelected(row.day.date, railRange)}
+                        className="rail-date rail-pick"
+                        onClick={(e) => pickDay(row.day.date, e.shiftKey)}
+                        type="button"
+                      >
+                        {row.day.date}
+                      </button>
+                    )}
                     {/* Zero width for an empty day, deliberately. A visible
                         minimum would make a quiet day read as a busy one. */}
                     <span
@@ -785,9 +837,15 @@ export default function App() {
                       style={{ width: `${(widths.get(row.day.date) ?? 0) * 100}%` }}
                     />
                     {row.day.safety > 0 && (
-                      <span className="rail-safety" title={`${row.day.safety} SAFETY`}>
+                      <button
+                        aria-label={`${row.day.date}: ${row.day.safety} SAFETY ${row.day.safety === 1 ? "record" : "records"} — list them`}
+                        className="rail-safety"
+                        onClick={() => pickDay(row.day.date, false, true)}
+                        title={`${row.day.safety} SAFETY`}
+                        type="button"
+                      >
                         ◆
-                      </span>
+                      </button>
                     )}
                   </li>
                 ) : (
@@ -811,10 +869,14 @@ export default function App() {
                   key={`${segment.kind}-${segment.from_ns}`}
                 >
                   {segment.kind === "boot" ? (
-                    <>
-                      boot {segment.boot_id.slice(0, 8)} · records{" "}
-                      {segment.first_seq}–{segment.last_seq}
-                    </>
+                    <button
+                      aria-label={`boot ${segment.boot_id.slice(0, 8)}, records ${segment.first_seq} to ${segment.last_seq} — list them and open the first`}
+                      className="rail-pick"
+                      onClick={() => pickBoot(segment.boot_id, segment.first_seq)}
+                      type="button"
+                    >
+                      boot {segment.boot_id.slice(0, 8)} · records {segment.first_seq}–{segment.last_seq}
+                    </button>
                   ) : (
                     /* No ruler inside a gap: the clock is unverifiable while
                        the writer is down. A negative duration is shown as
@@ -834,6 +896,11 @@ export default function App() {
             {/* Always present, and empty until pins are read from a file
                 (E-06). An absent row would read as "not implemented". */}
             <p className="rail-pins">{rail.pins_note}</p>
+            <p className="rail-hint">
+              A day lists its records; Shift with a second day, the days between. ◆ lists that day's
+              SAFETY records; a boot lists its records and opens the first. Dates are the writer's
+              clock.
+            </p>
           </section>
         )}
 

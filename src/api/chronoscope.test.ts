@@ -14,11 +14,16 @@ import { describe as group, expect, it } from "vitest";
 
 import {
   backwards,
+  bootChips,
   chronoscope,
   compress,
   compressionLine,
+  daySelected,
   density,
+  railChips,
+  selectedDays,
 } from "./chronoscope";
+import { chipLabel, parseSearch } from "./search";
 import type { DayRow, RailRow, Segment } from "./chronoscope";
 import type { Timeline, TimelineBucket } from "./generated/types";
 
@@ -419,5 +424,43 @@ group("what a mark says about why the days were empty", () => {
     expect(line).toContain("3 days with no records");
     expect(line).toContain(day(1).date);
     expect(line).toContain(day(3).date);
+  });
+});
+
+group("the rail as a way in (F6)", () => {
+  it("asks for a day as the bar's own chips, whole UTC days by the writer's clock", () => {
+    expect(railChips("2026-08-06", "2026-08-06")).toEqual([
+      { key: "from", value: "2026-08-06" },
+      { key: "to", value: "2026-08-06" },
+    ]);
+  });
+
+  it("orders a range picked backwards, and narrows a SAFETY mark to SAFETY", () => {
+    expect(railChips("2026-08-09", "2026-08-06", true)).toEqual([
+      { key: "from", value: "2026-08-06" },
+      { key: "to", value: "2026-08-09" },
+      { key: "type", value: "SAFETY" },
+    ]);
+  });
+
+  it("every chip it makes is one the bar reads back to the same filter", () => {
+    for (const chips of [railChips("2026-08-01", "2026-08-03", true), bootChips("3f2a9c01" + "0".repeat(24))]) {
+      const parsed = parseSearch(chips.map(chipLabel).join(" "));
+      expect(parsed).toEqual({ kind: "filters", chips });
+    }
+  });
+
+  it("marks the days a selection covers, open ends running to the edge", () => {
+    const range = selectedDays(railChips("2026-08-02", "2026-08-04"));
+    expect(["2026-08-01", "2026-08-02", "2026-08-04", "2026-08-05"].map((d) => daySelected(d, range))).toEqual([
+      false, true, true, false,
+    ]);
+    expect(daySelected("2026-01-01", selectedDays([{ key: "to", value: "2026-08-04" }]))).toBe(true);
+    expect(selectedDays([{ key: "kind", value: "X" }])).toBeNull();
+    expect(daySelected("2026-08-02", null)).toBe(false);
+  });
+
+  it("names a boot by the start of its id, as boot: reads it", () => {
+    expect(bootChips("3f2a9c01deadbeef")).toEqual([{ key: "boot", value: "3f2a9c01" }]);
   });
 });

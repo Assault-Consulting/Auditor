@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- F6 — the Chronoscope as a way in. A day on the rail lists that day's
+  records; Shift with a second day, the days between; a ◆ lists that day's
+  SAFETY records; a boot on the strip lists its records and opens the
+  first. Every click goes through the search bar's own chips (`from:`,
+  `to:`, `type:SAFETY`, `boot:`), which land in the bar to be read or
+  edited, and the list is brought into view. Buttons, not drag: keyboard
+  and screen reader reach every one.
+
 - E-03 — record health (F12), on 0.14.1. `GET /session/{id}/record-health`
   copies the package's step catalog and per-boot statistics (uptime by the
   monotonic clock, anchor count and gaps, spans) and the wall gaps between
