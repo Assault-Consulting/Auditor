@@ -57,8 +57,9 @@ In the browser: the card stays in view after a row is clicked; `j`, `j`,
 
 - **A real screen reader pass** — the live regions are in place; how they
   read is for NVDA and VoiceOver to say.
-- **H7, the Chronoscope.** F6 describes a draggable thumb and clickable
-  SAFETY marks; the rail is display-only. A functional item, not a fix.
+- ~~**H7, the Chronoscope.**~~ Done 18 Nov 2026: a day, a range (Shift), a
+  SAFETY mark and a boot are buttons that narrow the list through the bar's
+  own chips; no dragging, so WCAG 2.5.7 has nothing to ask.
 - **H3, closing a file** without opening another.
 - **H2, the package's names** — `GENESIS`, `UNSYNCED`, `INCIDENT_CANDIDATE` —
   stay as the package spells them, by design: a translated name could drift

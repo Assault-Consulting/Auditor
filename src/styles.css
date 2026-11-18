@@ -733,7 +733,7 @@ body {
 
 .rail-day {
   display: grid;
-  grid-template-columns: 10ch 1fr 2ch;
+  grid-template-columns: 12ch 1fr 3ch;
   align-items: center;
   gap: var(--step);
   padding: 0.15em 0;
@@ -2214,4 +2214,62 @@ body {
   font-size: 0.78rem;
   color: var(--vellum);
   cursor: pointer;
+}
+
+/* F6's ways in. The rail's buttons look like the text they replace — a
+   date, a mark, a boot line — with a hover rule and a pressed state, so the
+   rail still reads as a chart first. */
+.rail-pick,
+button.rail-safety {
+  min-height: 24px;
+  padding: 0 0.2em;
+  border: 1px solid transparent;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.rail-safety {
+  min-width: 24px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--recorded);
+}
+
+.rail-pick:hover,
+button.rail-safety:hover {
+  border-color: var(--rule);
+}
+
+.rail-day[data-selected] {
+  background: var(--ink-raised);
+  box-shadow: inset 2px 0 0 var(--vellum);
+}
+
+.rail-day[data-selected] .rail-date {
+  color: var(--vellum);
+}
+
+.rail-segment .rail-pick {
+  width: 100%;
+}
+
+.rail-hint {
+  margin: var(--step) 0 0;
+  font-size: 0.8rem;
+  color: var(--vellum-dim);
+}
+
+/* A picked date keeps the rail's type: the button is the date, not a label. */
+.rail-day .rail-pick {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--vellum-dim);
+}
+
+/* An empty day's date lines up with the buttons around it. */
+.rail-day > span.rail-date {
+  padding-left: calc(0.2em + 1px);
 }

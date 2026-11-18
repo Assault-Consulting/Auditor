@@ -30,6 +30,7 @@
  */
 
 import type { Timeline } from "./generated/types";
+import type { Chip } from "./search";
 
 const DAY_NS = 86_400_000_000_000;
 
@@ -316,4 +317,39 @@ export function compressionLine(row: Extract<RailRow, { kind: "collapsed" }>): s
 /** Whether a gap is one the writer's clock cannot account for. */
 export function backwards(segment: Segment): boolean {
   return segment.kind === "gap" && segment.duration_ns < 0;
+}
+
+/**
+ * The filter a click on the rail asks for — F6's selection, as the chips the
+ * search bar already reads (`from:` / `to:`, and `type:SAFETY` for a SAFETY
+ * mark). Going through the bar's own chips keeps one meaning for a day: the
+ * rail, the list and the bar all count the same whole UTC days, by the
+ * writer's clock, and the bar shows the query so the reader can edit it.
+ */
+export function railChips(from: string, to: string, safetyOnly = false): Chip[] {
+  const [a, b] = from <= to ? [from, to] : [to, from];
+  const chips: Chip[] = [
+    { key: "from", value: a },
+    { key: "to", value: b },
+  ];
+  if (safetyOnly) chips.push({ key: "type", value: "SAFETY" });
+  return chips;
+}
+
+/** The days the active chips select, for marking them on the rail. */
+export function selectedDays(chips: Chip[]): { from: string | null; to: string | null } | null {
+  const from = chips.find((c) => c.key === "from")?.value ?? null;
+  const to = chips.find((c) => c.key === "to")?.value ?? null;
+  return from === null && to === null ? null : { from, to };
+}
+
+/** Whether a day falls inside a selection; an open end runs to the edge. */
+export function daySelected(date: string, range: { from: string | null; to: string | null } | null): boolean {
+  if (range === null) return false;
+  return (range.from === null || date >= range.from) && (range.to === null || date <= range.to);
+}
+
+/** A boot's filter: the start of its id, as `boot:` reads it. */
+export function bootChips(bootId: string): Chip[] {
+  return [{ key: "boot", value: bootId.slice(0, 8) }];
 }
