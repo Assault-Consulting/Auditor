@@ -91,13 +91,21 @@ interactive is the live desktop check below, not yet done.
 | ✓ E-05 | Local witness log: `auditor-witness/1`, JSON Lines, each entry the SHA-256 of the one before (ADR-0003, `docs/WITNESS-LOG.md`). One entry per first `/verify` of a session and profile, holding the package's facts, never a verdict; `GET /witness` walks it; a log that does not link is not appended to and the check says so. The panel says what it shows and what it does not — a cut tail still links. `scripts/check_witness_log.py` checks a log with nothing from this repository | 3 | — |
 | E-06 | SCITT receipts as pins, displayed, never minted | ? | — |
 | E-07 | Prefix-consistency proofs (`consistency_proof`, `chain_root`) | ? | 0.15 (R10) |
-| Phase 5 | Watch mode; the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); segment sequences; signed installers; `uk` pass | — | — |
+| Phase 5 | Watch mode; the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; `uk` pass | — | — |
 
 **Next, in order:** the live desktop check on the Windows installer (F-01); E-03 /
 E-04 (record health — U1–U3 are released); C-18 and the surface review's
 stage 2 (T8–T16) on 0.15, targeted by 24 December; then E-01 and E-07.
 
 ## Done recently
+
+Segment sets (18 Nov 2026, §22.1): **Open a segment set…** (or a dropped
+`segments.json`) checks the set with the package's `verify_segment_set` —
+consistent and complete kept apart, every segment with what was found of
+it, each present one opened as a chain of its own. Asked of the package
+later: the manifest's declared range and head for a segment that is gone
+(`SegmentCheck` carries neither), so the screen can say what is missing,
+not only that something is.
 
 F-01 (16 Nov 2026): an unsigned Windows installer from CI
 (`.github/workflows/installers.yml`) — the sidecar frozen with PyInstaller

@@ -25,6 +25,7 @@ import type {
   RecordHealthView,
   WitnessCheckView,
   RecordPage,
+  SegmentSetView,
   RecordView,
   ReportResponse,
   SessionResponse,
@@ -478,4 +479,18 @@ export async function getRecordHealth(session: Session, sessionId: string): Prom
   });
   if (!response.ok) await raise(response);
   return (await response.json()) as RecordHealthView;
+}
+
+/**
+ * A segmented chain, verified as a set (§22.1). Stateless on the sidecar:
+ * every call reads the manifest and the segments as they are now.
+ */
+export async function checkSegmentSet(session: Session, path: string): Promise<SegmentSetView> {
+  const response = await fetch(url(session, "/segment-set"), {
+    method: "POST",
+    headers: headers(session),
+    body: JSON.stringify({ path }),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as SegmentSetView;
 }

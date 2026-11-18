@@ -263,6 +263,16 @@ origin are not: each has one answer *per question asked* — a different
 offset, a different filter, a different seq — so a cache would grow with the
 questions rather than converge.
 
+### A segment set is checked, not opened
+
+`POST /segment-set {path}` (§22.1) runs the package's `verify_segment_set`
+on a `pala-segments/1` manifest and returns its answer: `consistent` and
+`complete`, kept apart, the absent segments, and each segment's checks with
+a `path` for the ones present (local, for this screen). Nothing is kept on
+the sidecar: asking again reads the files as they are now. A segment is
+browsed by opening its path as a session. 422 when the file is not such a
+manifest or cannot be read.
+
 ### Record health counts; it does not judge
 
 `GET /session/{id}/record-health` (E-03) carries the package's step catalog

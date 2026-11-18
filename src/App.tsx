@@ -44,8 +44,9 @@ import {
   summaryLine,
 } from "./api/exportFile";
 import { PRINT_OPENED, printReport, reportFileName, saveArtifact, savedLine } from "./api/saveFile";
-import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecordHealth, useRecords, useSafety, useWitness } from "./state";
+import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecordHealth, useRecords, useSafety, useSegmentSet, useWitness } from "./state";
 import { offsetLabel } from "./api/hexView";
+import { segmentState, setAnswers } from "./api/segmentSet";
 import { BASIS_LABEL, HEALTH_NOTE } from "./api/health";
 import { WITNESS_LIMITS, witnessLine, witnessRows, witnessStatus } from "./api/witness";
 
@@ -57,7 +58,9 @@ export default function App() {
   const probe = useProbe();
   const profiles = useProfiles(probe);
   const [chosenProfile, setChosenProfile] = useState("none");
-  const [chain, choice, pick, verify] = useChain(probe);
+  // §22.1. Declared before the chain so a dropped manifest can reach it.
+  const segmentSet = useSegmentSet(probe);
+  const [chain, choice, pick, verify, openPathInShell] = useChain(probe, segmentSet.check);
   const rail = useRail(probe, chain);
   const { boots, spans } = useBrowse(probe, chain);
   // H1: a long open or check says how long it has run. The sidecar gives
@@ -489,6 +492,14 @@ export default function App() {
           </button>
           <button
             className="choose-button"
+            disabled={segmentSet.set.kind === "checking"}
+            onClick={segmentSet.pick}
+            type="button"
+          >
+            {segmentSet.set.kind === "checking" ? "Checking the set…" : "Open a segment set…"}
+          </button>
+          <button
+            className="choose-button"
             disabled={!canVerify}
             onClick={() => verify(chosenProfile, sourcesOf(chosenProfile))}
             type="button"
@@ -533,6 +544,106 @@ export default function App() {
         </p>
         {choiceNote !== null && <p className="footnote">{choiceNote}</p>}
       </header>
+
+      {/* §22.1 — a segmented chain as one set. Above the three questions
+          because it answers the first two for the set; each segment then
+          opens as a chain of its own, to be asked them again. */}
+      {segmentSet.set.kind !== "idle" && (
+        <section aria-labelledby="set-title" className="segment-set">
+          <h2 className="segment-set-title" id="set-title">
+            Segment set
+          </h2>
+          {segmentSet.set.kind === "checking" && (
+            <p className="segment-set-note" role="status">
+              Checking every segment of {segmentSet.set.path}…
+            </p>
+          )}
+          {segmentSet.set.kind === "failed" && (
+            <p className="report-failed" role="alert">
+              {segmentSet.set.detail}
+            </p>
+          )}
+          {segmentSet.set.kind === "found" && (() => {
+            const v = segmentSet.set.value;
+            const answers = setAnswers(v);
+            return (
+              <>
+                <p className="segment-set-note">
+                  manifest <code>{v.manifest_path}</code> · SHA-256 <code>{v.manifest_sha256.slice(0, 16)}…</code>
+                </p>
+                <p className={answers.consistent.failed ? "report-failed" : "segment-answer"} role="status">
+                  {answers.consistent.text}
+                </p>
+                <p className={answers.complete.failed ? "report-failed" : "segment-answer"}>{answers.complete.text}</p>
+                <div className="scroll-x">
+                  <table className="segment-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">segment</th>
+                        <th scope="col">what the package found</th>
+                        <th scope="col">
+                          <span className="sr-only">open</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {v.segments.map((seg) => {
+                        const st = segmentState(seg);
+                        return (
+                          <tr data-failed={st.failed ? "" : undefined} key={seg.file}>
+                            <td>
+                              <code>{seg.file}</code>
+                            </td>
+                            <td>
+                              {st.text}
+                              {seg.detail !== null && <span className="segment-detail"> — {seg.detail}</span>}
+                            </td>
+                            <td>
+                              {seg.path !== null && (
+                                <button
+                                  aria-label={`open ${seg.file} as a chain`}
+                                  className="choose-button"
+                                  onClick={() => openPathInShell(seg.path!)}
+                                  type="button"
+                                >
+                                  Open
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {v.head !== null && (
+                  <p className="segment-set-note">
+                    head of the last segment that holds <code>{v.head}</code>
+                  </p>
+                )}
+              </>
+            );
+          })()}
+          <div className="segment-set-actions">
+            {(segmentSet.set.kind === "found" || segmentSet.set.kind === "failed") &&
+              segmentSet.set.path !== null && (
+                <button
+                  className="choose-button"
+                  onClick={() => {
+                    const s = segmentSet.set;
+                    if ((s.kind === "found" || s.kind === "failed") && s.path !== null) segmentSet.check(s.path);
+                  }}
+                  type="button"
+                >
+                  Check again
+                </button>
+              )}
+            <button className="choose-button" onClick={segmentSet.close} type="button">
+              Close the set
+            </button>
+          </div>
+        </section>
+      )}
 
       <div className="verdict">
         <ol aria-live="polite" className="questions" data-live={live}>

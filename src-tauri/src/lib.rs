@@ -73,6 +73,20 @@ fn pick_chain_file(app: tauri::AppHandle) -> Option<String> {
         .map(|chosen| chosen.to_string())
 }
 
+/// Ask for a segment set's manifest (§22.1): `pala-segments/1`, which a
+/// rotating writer names `<base>.segments.json` and `segment_chain` names
+/// `segments.json`. The same boundary as `pick_chain_file`: the dialog runs
+/// here and only the chosen path crosses to the webview.
+#[tauri::command(async)]
+fn pick_segment_manifest(app: tauri::AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .add_filter("PALA segment set (segments.json)", &["json"])
+        .add_filter("All files", &["*"])
+        .blocking_pick_file()
+        .map(|chosen| chosen.to_string())
+}
+
 /// Save one of this application's own artifacts where the user chooses (D-07).
 ///
 /// The same boundary as `pick_chain_file`, for writing. The dialog runs in
@@ -207,6 +221,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             sidecar_session,
             pick_chain_file,
+            pick_segment_manifest,
             save_artifact,
             export_records,
             print_report

@@ -731,8 +731,14 @@ stands today.
 
 ## 22. Open questions
 
-1. Segment sequences: how the UI presents several files as one logical
-   chain, and what it does when one segment is missing.
+1. ~~Segment sequences: how the UI presents several files as one logical
+   chain, and what it does when one segment is missing.~~ **Decided 18 Nov
+   2026:** as the set its `pala-segments/1` manifest describes, checked by
+   the package's `verify_segment_set` — consistent and complete as two
+   answers; each segment listed with what was found of it and opened, to
+   browse, as a chain of its own. A missing segment is listed as missing,
+   the set called incomplete and never inconsistent, and nothing it held is
+   claimed.
 2. Whether `keychain` ships in MVP or the MVP is manual + file only.
 3. ~~MVP cut line inside Browse: is free-text search over `detail` MVP or
    fast-follow?~~ **Decided 3 Nov 2026: MVP** (F10; built as C-09d).

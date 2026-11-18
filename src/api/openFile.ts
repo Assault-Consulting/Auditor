@@ -61,3 +61,20 @@ export async function onChainFilesDropped(
   });
   return unlisten;
 }
+
+/**
+ * Ask the user for a segment set's manifest (§22.1). `null` is a cancelled
+ * dialog, as for {@link pickChainFile}.
+ */
+export async function pickSegmentManifest(): Promise<string | null> {
+  try {
+    return await invoke<string | null>("pick_segment_manifest");
+  } catch {
+    throw new NoShellError();
+  }
+}
+
+/** Whether a dropped path names a segment set's manifest rather than a chain. */
+export function isSegmentManifest(path: string): boolean {
+  return /(^|[\\/.])segments\.json$/i.test(path);
+}

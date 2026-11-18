@@ -1112,6 +1112,49 @@ class RecordHealthView(BaseModel):
     )
 
 
+class SegmentCheckView(BaseModel):
+    """One segment of a set, as the package checked it (U18)."""
+
+    file: str = Field(description="The name the manifest gives it, or a live tail's own.")
+    path: str | None = Field(
+        description="Where it is on this machine, when present. Local, for this screen (T6)."
+    )
+    listed: bool = Field(
+        description="False only for a rotating writer's live tail, found by its link."
+    )
+    present: bool = Field(description="The file is on disk.")
+    verified: bool | None = Field(
+        description="Its records and bodies hold from its declared start; null when absent."
+    )
+    head_matches: bool | None = Field(
+        description="Its last record is the manifest's head; null when that cannot be checked."
+    )
+    seam_ok: bool = Field(description="Its declared predecessor is the previous entry's head.")
+    detail: str | None = Field(description="Why something did not hold, in the package's words.")
+
+
+class SegmentSetView(BaseModel):
+    """A segmented chain verified as one set (§22.1, U18).
+
+    Two answers, as the package keeps them: consistent (everything present
+    holds and agrees with the manifest) and complete (that, with nothing
+    listed missing, starting at a GENESIS). Retention makes a set
+    incomplete, never inconsistent.
+    """
+
+    manifest_path: str = Field(description="Local, for this screen (T6).")
+    manifest_sha256: str = Field(description="Over the manifest bytes the package read and judged.")
+    consistent: bool
+    complete: bool
+    head: str | None = Field(description="The last segment present that verified: its head.")
+    absent: list[str] = Field(description="Listed in the manifest, not on disk.")
+    segments: list[SegmentCheckView]
+
+
+class SegmentSetRequest(BaseModel):
+    path: str = Field(description="A `pala-segments/1` manifest, e.g. `chain.segments.json`.")
+
+
 class RecordPage(BaseModel):
     """A window onto the records.
 
