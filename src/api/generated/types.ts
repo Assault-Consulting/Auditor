@@ -702,6 +702,55 @@ export interface ReportResponse {
 }
 
 /**
+ * One segment of a set, as the package checked it (U18).
+ */
+export interface SegmentCheckView {
+  /** The name the manifest gives it, or a live tail's own. */
+  file: string;
+  /** Where it is on this machine, when present. Local, for this screen (T6). */
+  path: string | null;
+  /** False only for a rotating writer's live tail, found by its link. */
+  listed: boolean;
+  /** The file is on disk. */
+  present: boolean;
+  /** Its records and bodies hold from its declared start; null when absent. */
+  verified: boolean | null;
+  /** Its last record is the manifest's head; null when that cannot be checked. */
+  head_matches: boolean | null;
+  /** Its declared predecessor is the previous entry's head. */
+  seam_ok: boolean;
+  /** Why something did not hold, in the package's words. */
+  detail: string | null;
+}
+
+export interface SegmentSetRequest {
+  /** A `pala-segments/1` manifest, e.g. `chain.segments.json`. */
+  path: string;
+}
+
+/**
+ * A segmented chain verified as one set (§22.1, U18).
+ *
+ * Two answers, as the package keeps them: consistent (everything present
+ * holds and agrees with the manifest) and complete (that, with nothing
+ * listed missing, starting at a GENESIS). Retention makes a set
+ * incomplete, never inconsistent.
+ */
+export interface SegmentSetView {
+  /** Local, for this screen (T6). */
+  manifest_path: string;
+  /** Over the manifest bytes the package read and judged. */
+  manifest_sha256: string;
+  consistent: boolean;
+  complete: boolean;
+  /** The last segment present that verified: its head. */
+  head: string | null;
+  /** Listed in the manifest, not on disk. */
+  absent: Array<string>;
+  segments: Array<SegmentCheckView>;
+}
+
+/**
  * Open a container.
  */
 export interface SessionRequest {

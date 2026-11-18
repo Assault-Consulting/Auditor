@@ -43,6 +43,8 @@ from .models import (
     RecordPage,
     RecordView,
     ReportResponse,
+    SegmentSetRequest,
+    SegmentSetView,
     SessionRequest,
     SessionResponse,
     SpanView,
@@ -51,7 +53,7 @@ from .models import (
     WitnessCheckView,
     WitnessMark,
 )
-from .pala_seam import NotAChain, UnknownAnchorKind, verifier_identity
+from .pala_seam import NotAChain, UnknownAnchorKind, check_segment_set, verifier_identity
 from .sessions import SessionNotFound, SessionStore, SubjectChanged
 from .witness import FORMAT as WITNESS_FORMAT
 from .witness import WitnessLog, WitnessRefused
@@ -697,6 +699,29 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
             witness=WitnessMark(**session.witnessed[profile]),
             **result,
         )
+
+    @app.post("/segment-set", response_model=SegmentSetView)
+    def segment_set(request: SegmentSetRequest) -> SegmentSetView:
+        """A segmented chain, verified as a set (§22.1, U18).
+
+        Stateless: the manifest and every segment are read for this answer
+        and nothing is kept, so asking again reads the files as they are
+        now. A segment is browsed by opening it as its own session.
+
+        422 when the file is not a `pala-segments/1` manifest or cannot be
+        read, with the reason; everything else — absent, altered or
+        mismatched segments — is an answer.
+        """
+        path = Path(request.path)
+        try:
+            view = check_segment_set(path)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"not a segment set: {exc}") from None
+        except OSError as exc:
+            raise HTTPException(
+                status_code=422, detail=f"the manifest could not be read: {exc.strerror or exc}"
+            ) from None
+        return SegmentSetView(**view)
 
     @app.get("/witness", response_model=WitnessCheckView)
     def witness_log(

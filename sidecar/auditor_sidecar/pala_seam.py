@@ -74,6 +74,7 @@ from palimpsests.audit.reader import (
 )
 from palimpsests.audit.report import build_report
 from palimpsests.audit.report_html import render_html
+from palimpsests.audit.segment_set import verify_segment_set
 from pathlib import Path
 
 __all__ = [
@@ -82,6 +83,7 @@ __all__ = [
     "NotAChain",
     "Pkcs11PinnedAnchor",
     "UnknownAnchorKind",
+    "check_segment_set",
     "open_chain",
     "package_version",
     "verifier_identity",
@@ -2072,3 +2074,45 @@ def open_chain(path: Path) -> ChainHandle:
         raise NotAChain(str(exc)) from exc
 
     return ChainHandle(reader, path)
+
+
+def check_segment_set(manifest_path: Path) -> dict[str, object]:
+    """A segmented chain, verified as a set (§22.1, U18).
+
+    The package's `verify_segment_set`, copied: it reads the manifest once,
+    verifies every listed segment still on disk from its declared start,
+    checks every seam, and finds a rotating writer's live tail by its link.
+    Two answers, kept apart as the package keeps them: ``consistent`` —
+    everything present holds and agrees with the manifest — and
+    ``complete`` — that, with nothing listed missing and the set starting at
+    a GENESIS. A segment deleted under retention makes a set incomplete,
+    never inconsistent.
+
+    Raises ValueError when the file is not a `pala-segments/1` manifest, and
+    OSError when it cannot be read; anything else is an answer.
+    """
+    result = verify_segment_set(manifest_path)
+    folder = Path(result.manifest_path).parent
+    return {
+        "manifest_path": result.manifest_path,
+        "manifest_sha256": result.manifest_sha256.hex(),
+        "consistent": result.consistent,
+        "complete": result.complete,
+        "head": None if result.head is None else result.head.hex(),
+        "absent": list(result.absent),
+        "segments": [
+            {
+                "file": c.file,
+                # Local, for this screen: the button that opens the segment
+                # needs it (T6).
+                "path": str(folder / c.file) if c.present else None,
+                "listed": c.listed,
+                "present": c.present,
+                "verified": c.verified,
+                "head_matches": c.head_matches,
+                "seam_ok": c.seam_ok,
+                "detail": c.detail,
+            }
+            for c in result.segments
+        ],
+    }

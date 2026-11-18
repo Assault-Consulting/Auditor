@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Segment sets (§22.1). **Open a segment set…** — or a `segments.json`
+  dropped on the window — checks a rotated chain as the set its
+  `pala-segments/1` manifest describes, with the package's
+  `verify_segment_set` (`POST /segment-set`): consistent and complete as
+  two answers, each segment with what was found of it (holds, does not
+  hold, head or seam disagreeing, listed but not here, the writer's live
+  segment), and an **Open** beside each one present, to browse it as a
+  chain. A segment gone makes the set incomplete, never inconsistent, and
+  nothing it held is claimed.
+
 - F6 — the Chronoscope as a way in. A day on the rail lists that day's
   records; Shift with a second day, the days between; a ◆ lists that day's
   SAFETY records; a boot on the strip lists its records and opens the

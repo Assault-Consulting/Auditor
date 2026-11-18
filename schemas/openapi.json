@@ -1991,6 +1991,166 @@
         "title": "ReportResponse",
         "type": "object"
       },
+      "SegmentCheckView": {
+        "description": "One segment of a set, as the package checked it (U18).",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why something did not hold, in the package's words.",
+            "title": "Detail"
+          },
+          "file": {
+            "description": "The name the manifest gives it, or a live tail's own.",
+            "title": "File",
+            "type": "string"
+          },
+          "head_matches": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its last record is the manifest's head; null when that cannot be checked.",
+            "title": "Head Matches"
+          },
+          "listed": {
+            "description": "False only for a rotating writer's live tail, found by its link.",
+            "title": "Listed",
+            "type": "boolean"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where it is on this machine, when present. Local, for this screen (T6).",
+            "title": "Path"
+          },
+          "present": {
+            "description": "The file is on disk.",
+            "title": "Present",
+            "type": "boolean"
+          },
+          "seam_ok": {
+            "description": "Its declared predecessor is the previous entry's head.",
+            "title": "Seam Ok",
+            "type": "boolean"
+          },
+          "verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its records and bodies hold from its declared start; null when absent.",
+            "title": "Verified"
+          }
+        },
+        "required": [
+          "file",
+          "path",
+          "listed",
+          "present",
+          "verified",
+          "head_matches",
+          "seam_ok",
+          "detail"
+        ],
+        "title": "SegmentCheckView",
+        "type": "object"
+      },
+      "SegmentSetRequest": {
+        "properties": {
+          "path": {
+            "description": "A `pala-segments/1` manifest, e.g. `chain.segments.json`.",
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "SegmentSetRequest",
+        "type": "object"
+      },
+      "SegmentSetView": {
+        "description": "A segmented chain verified as one set (\u00a722.1, U18).\n\nTwo answers, as the package keeps them: consistent (everything present\nholds and agrees with the manifest) and complete (that, with nothing\nlisted missing, starting at a GENESIS). Retention makes a set\nincomplete, never inconsistent.",
+        "properties": {
+          "absent": {
+            "description": "Listed in the manifest, not on disk.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Absent",
+            "type": "array"
+          },
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "consistent": {
+            "title": "Consistent",
+            "type": "boolean"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last segment present that verified: its head.",
+            "title": "Head"
+          },
+          "manifest_path": {
+            "description": "Local, for this screen (T6).",
+            "title": "Manifest Path",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "description": "Over the manifest bytes the package read and judged.",
+            "title": "Manifest Sha256",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentCheckView"
+            },
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "manifest_path",
+          "manifest_sha256",
+          "consistent",
+          "complete",
+          "head",
+          "absent",
+          "segments"
+        ],
+        "title": "SegmentSetView",
+        "type": "object"
+      },
       "SessionRequest": {
         "description": "Open a container.",
         "properties": {
@@ -2942,6 +3102,45 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/segment-set": {
+      "post": {
+        "description": "A segmented chain, verified as a set (\u00a722.1, U18).\n\nStateless: the manifest and every segment are read for this answer\nand nothing is kept, so asking again reads the files as they are\nnow. A segment is browsed by opening it as its own session.\n\n422 when the file is not a `pala-segments/1` manifest or cannot be\nread, with the reason; everything else \u2014 absent, altered or\nmismatched segments \u2014 is an answer.",
+        "operationId": "segment_set_segment_set_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentSetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentSetView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Segment Set"
       }
     },
     "/session": {

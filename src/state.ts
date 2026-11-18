@@ -17,16 +17,16 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, getRecordBytes, getRecordHealth, getRecords, getSafety, getWitness, listProfiles } from "./api/chain";
+import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, checkSegmentSet, getRecordBytes, getRecordHealth, getRecords, getSafety, getWitness, listProfiles } from "./api/chain";
 import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
 import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { type RecordFilters, filtersKey } from "./api/filters";
 import { type Chronoscope, chronoscope } from "./api/chronoscope";
 import type { AnchorProfile } from "./api/generated/types";
-import { onChainFilesDropped, pickChainFile } from "./api/openFile";
+import { isSegmentManifest, onChainFilesDropped, pickChainFile, pickSegmentManifest } from "./api/openFile";
 import { type HexView, hexView } from "./api/hexView";
 import { type RecordHealth, recordHealth } from "./api/health";
-import type { WitnessCheckView } from "./api/generated/types";
+import type { SegmentSetView, WitnessCheckView } from "./api/generated/types";
 import { type OriginCard, originCard } from "./api/origin";
 import { type RecordCard, recordCard } from "./api/record";
 import { nextOffset, recordsPage, type RecordsPage } from "./api/records";
@@ -551,7 +551,14 @@ export function useProfiles(probe: Probe): AnchorProfile[] {
 
 export function useChain(
   probe: Probe,
-): [ChainState, Choice, () => void, (profile: string, sources: AnchorProfile["sources"]) => void] {
+  onManifest?: (path: string) => void,
+): [
+  ChainState,
+  Choice,
+  () => void,
+  (profile: string, sources: AnchorProfile["sources"]) => void,
+  (path: string) => void,
+] {
   const [chain, setChain] = useState<ChainState>({ kind: "empty" });
   const [choice, setChoice] = useState<Choice>({ kind: "idle" });
 
@@ -560,6 +567,8 @@ export function useChain(
   // in a ref as well keeps `openPath` from closing over a stale value and
   // failing to close the session that is actually open.
   const latest = useRef<ChainState>({ kind: "empty" });
+  const manifestHandler = useRef(onManifest);
+  manifestHandler.current = onManifest;
 
   const apply = (next: ChainState) => {
     latest.current = next;
@@ -584,6 +593,13 @@ export function useChain(
     // mean — a segment sequence, or a mistake — so the screen says what it
     // did instead of pretending one file arrived.
     void onChainFilesDropped((paths) => {
+      // A segment set's manifest among the dropped files means the set
+      // (§22.1): it names its segments itself, so the rest need no guessing.
+      const manifest = paths.find(isSegmentManifest);
+      if (manifest !== undefined && manifestHandler.current !== undefined) {
+        manifestHandler.current(manifest);
+        return;
+      }
       const first = paths[0];
       if (first === undefined) return;
       open(first);
@@ -625,5 +641,42 @@ export function useChain(
     void verifyOpen(probe.session, latest.current, profile, sources, apply);
   };
 
-  return [chain, choice, pick, verify];
+  return [chain, choice, pick, verify, open];
+}
+
+/** A segment set (§22.1): idle, being checked, the package's answer, or why not. */
+export type SegmentSetState =
+  | { kind: "idle" }
+  | { kind: "checking"; path: string }
+  | { kind: "found"; path: string; value: SegmentSetView }
+  | { kind: "failed"; path: string | null; detail: string };
+
+/**
+ * A segment set, checked on request and on demand again — the sidecar keeps
+ * nothing, so "check again" reads the files as they are now.
+ */
+export function useSegmentSet(probe: Probe): {
+  set: SegmentSetState;
+  pick: () => void;
+  check: (path: string) => void;
+  close: () => void;
+} {
+  const [set, setSet] = useState<SegmentSetState>({ kind: "idle" });
+  const check = (path: string) => {
+    if (probe.kind !== "ready") return;
+    setSet({ kind: "checking", path });
+    void checkSegmentSet(probe.session, path)
+      .then((value) => setSet({ kind: "found", path, value }))
+      .catch((e: unknown) =>
+        setSet({ kind: "failed", path, detail: e instanceof Error ? e.message : String(e) }),
+      );
+  };
+  const pick = () => {
+    void pickSegmentManifest()
+      .then((path) => {
+        if (path !== null) check(path);
+      })
+      .catch(() => setSet({ kind: "failed", path: null, detail: "there is no desktop shell to open a dialog" }));
+  };
+  return { set, pick, check, close: () => setSet({ kind: "idle" }) };
 }

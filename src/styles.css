@@ -2216,6 +2216,74 @@ body {
   cursor: pointer;
 }
 
+/* §22.1's segment set: framed like the panels, above the three questions. */
+.segment-set {
+  margin-top: calc(var(--step) * 3);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.segment-set-title {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: 0 0 calc(var(--step) * 1.2);
+}
+
+.segment-set-note {
+  margin: calc(var(--step) * 0.75) 0 0;
+  font-size: 0.82rem;
+  color: var(--vellum-dim);
+}
+
+.segment-set-note code {
+  word-break: break-all;
+}
+
+.segment-table {
+  margin-top: var(--step);
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.segment-table th,
+.segment-table td {
+  padding: 0.3em var(--step) 0.3em 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.segment-table th {
+  font-weight: normal;
+  color: var(--unchecked);
+}
+
+.segment-table tr[data-failed] td:first-child {
+  box-shadow: inset 2px 0 0 var(--recorded);
+  padding-left: calc(var(--step) * 0.6);
+}
+
+.segment-detail {
+  color: var(--vellum-dim);
+}
+
+.segment-set-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--step);
+  margin-top: calc(var(--step) * 1.5);
+}
+
+.segment-answer {
+  margin: calc(var(--step) * 0.75) 0 0;
+  padding-left: var(--step);
+  border-left: 1px solid var(--vellum-dim);
+  font-size: 0.86rem;
+  color: var(--vellum);
+}
+
 /* F6's ways in. The rail's buttons look like the text they replace — a
    date, a mark, a boot line — with a hover rule and a pressed state, so the
    rail still reads as a chart first. */
