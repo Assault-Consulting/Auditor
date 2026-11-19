@@ -87,15 +87,16 @@ interactive is the live desktop check below, not yet done.
 | E-01 | Evidence bundle UI over `assemble_bundle(reader=…)` from the session. **Bounded selection** — a bundle carries a proof path per record and outgrows its source (R12: 1,000 records 9 s / 406 MB; 100,000 records 14 s / 1.3 GB; the whole of 10⁶ does not fit in 8 GB); the bound is set by measuring on 0.15 | 1.5 | 0.15 (R10, R12) |
 | E-02 | Re-verification harness for bundles, from the spec, with no Auditor code | 3 | E-01 |
 | ◐ E-03 | Record health over U1–U3, with F12's three disciplines. **Built on 0.14.1:** `/record-health` (step catalog, boot statistics with anchor gaps, wall gaps between boots, SAFETY by kind × boot, recurring details) and the **Record health** panel, every block under its basis (proved / monotonic / recorded), no threshold, no verdict word. **Left:** drift per boot (U1, 0.15 via R10); warnings against origin events; baseline change — §22.4's thresholds stay open | 5 | 0.15 for drift |
-| E-04 | Health summary in the report, labelled advisory. **Open question:** the report is the package's (`build_report`, D-01) and is never added to here — so either the package's report carries an advisory health section (an upstream request), or Auditor saves a health file of its own beside the report. Decided before it is built | 1 | E-03; a decision |
+| E-04 | Health summary in the report, labelled advisory — **decided by R15 (Palimpsests #380, 0.15):** `build_report(health=True)`; Auditor shows the report's own `health` section beside E-03's series, and makes no document of its own | 1 | 0.15 |
 | ✓ E-05 | Local witness log: `auditor-witness/1`, JSON Lines, each entry the SHA-256 of the one before (ADR-0003, `docs/WITNESS-LOG.md`). One entry per first `/verify` of a session and profile, holding the package's facts, never a verdict; `GET /witness` walks it; a log that does not link is not appended to and the check says so. The panel says what it shows and what it does not — a cut tail still links. `scripts/check_witness_log.py` checks a log with nothing from this repository | 3 | — |
 | E-06 | SCITT receipts as pins, displayed, never minted | ? | — |
 | E-07 | Prefix-consistency proofs (`consistency_proof`, `chain_root`) | ? | 0.15 (R10) |
-| Phase 5 | Watch mode; the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; `uk` pass | — | — |
+| Phase 5 | Watch mode; the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; `uk` pass. **Watch mode (F15)** is planned against 0.15: `TailingReader` is channel 9, provisional (R17) — pin the minor | — | — |
 
-**Next, in order:** the live desktop check on the Windows installer (F-01); E-03 /
-E-04 (record health — U1–U3 are released); C-18 and the surface review's
-stage 2 (T8–T16) on 0.15, targeted by 24 December; then E-01 and E-07.
+**Next, in order:** the live desktop check on the Windows installer (F-01);
+on 0.15 (targeted by 24 December): C-18 and the surface review's stage 2
+(T8–T16), then E-04 (R15), the declared range of a missing segment (R16),
+E-01 and E-07, and watch mode (F15, R17 — provisional).
 
 ## Done recently
 
