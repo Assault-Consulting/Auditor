@@ -87,7 +87,7 @@ group("one weight distinction, and only one", () => {
     ]);
   });
 
-  it("has wording for every code palimpsests 0.13 emits", () => {
+  it("has wording for every code palimpsests emits, through 0.15's ADVISORY_CODES", () => {
     // Read from the package's own reader against 0.13.1, not from a
     // document: seventeen codes, five of them new for segment continuation
     // and one (tool_target_not_a_call, r3) emitted since 0.12 without words
@@ -100,6 +100,8 @@ group("one weight distinction, and only one", () => {
       "continuation_malformed", "continuation_predecessor_mismatch",
       "continuation_index_not_increasing", "continuation_index_gap",
       "continuation_prior_root_mismatch",
+      // Profile r8, 0.15 — the eighteenth, read from `ADVISORY_CODES` on main.
+      "boot_ended_without_close",
     ];
     expect([...KNOWN_CODES].sort()).toEqual([...emitted].sort());
   });

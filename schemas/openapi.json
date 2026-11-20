@@ -862,6 +862,9 @@
             "title": "Last Seq",
             "type": "integer"
           },
+          "lifecycle": {
+            "$ref": "#/components/schemas/HealthLifecycle"
+          },
           "records": {
             "title": "Records",
             "type": "integer"
@@ -953,7 +956,8 @@
           "spans_closed",
           "spans_open",
           "span_open_rate",
-          "span_median_ns"
+          "span_median_ns",
+          "lifecycle"
         ],
         "title": "HealthBoot",
         "type": "object"
@@ -1030,6 +1034,64 @@
           "count"
         ],
         "title": "HealthKindBoot",
+        "type": "object"
+      },
+      "HealthLifecycle": {
+        "description": "Whether the boot's writer marked its open and close (profile r8, 0.15).",
+        "properties": {
+          "close_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close Seq"
+          },
+          "open_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Seq"
+          },
+          "state": {
+            "description": "`closed`: WRITER_CLOSE is the boot's last record. `stopped`: the writer marked its open, a later boot follows, and no close came \u2014 the package's advisory `boot_ended_without_close`. `last_unclosed`: the last boot, open \u2014 still being written or stopped for good; the chain cannot tell which. `unmarked`: the writer does not mark its open and close (before profile r8, or turned off).",
+            "enum": [
+              "closed",
+              "stopped",
+              "last_unclosed",
+              "unmarked"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "writer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "WRITER_OPEN's detail: the writer's name and version.",
+            "title": "Writer"
+          }
+        },
+        "required": [
+          "state",
+          "writer",
+          "open_seq",
+          "close_seq"
+        ],
+        "title": "HealthLifecycle",
         "type": "object"
       },
       "HealthResponse": {
@@ -3759,7 +3821,7 @@
             }
           },
           {
-            "description": "Keep only tool calls and results whose evidence mark the package names this: 'reported-by-client' or 'parsed-from-wire'. No other record carries the mark, so none matches.",
+            "description": "Keep only tool calls and results whose evidence mark the package names this: 'reported-by-client', 'parsed-from-wire' or (profile r7) 'derived-from-telemetry'. No other record carries the mark, so none matches.",
             "in": "query",
             "name": "source_name",
             "required": false,
@@ -3772,7 +3834,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Keep only tool calls and results whose evidence mark the package names this: 'reported-by-client' or 'parsed-from-wire'. No other record carries the mark, so none matches.",
+              "description": "Keep only tool calls and results whose evidence mark the package names this: 'reported-by-client', 'parsed-from-wire' or (profile r7) 'derived-from-telemetry'. No other record carries the mark, so none matches.",
               "title": "Source Name"
             }
           },
