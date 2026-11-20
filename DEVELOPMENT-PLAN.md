@@ -56,6 +56,9 @@ status and what it unblocks.
 | R12 — `assemble_bundle(reader=…)`; a bundle is for a selection | in #373, 0.15 | E-01 (with a bound) |
 | R13 — the bundle reads time claims through `HEADER_FIELDS` | in #373, 0.15 | — |
 | **0.15 target: tagged by 24 December 2026** (R14) | announced | C-18, stage 2, Phase 4 |
+| Profile r8 — the writer's own `WRITER_OPEN` (13) / `WRITER_CLOSE` (12); advisory `boot_ended_without_close` | on `main`, 0.15 | T18 |
+| `EVT_SOURCE` 2 `derived-from-telemetry` (r7); digests over RFC 8785 | on `main`, 0.15 | T19, T20 |
+| R15 `build_report(health=True)` · R16 `SegmentCheck.declared_*` · R17 `TailingReader` (channel 9, provisional) | on `main`, 0.15 | E-04, segment panel, F15 |
 
 ## Phases
 
@@ -95,8 +98,27 @@ interactive is the live desktop check below, not yet done.
 
 **Next, in order:** the live desktop check on the Windows installer (F-01);
 on 0.15 (targeted by 24 December): C-18 and the surface review's stage 2
-(T8–T16), then E-04 (R15), the declared range of a missing segment (R16),
+(T8–T16) together with the addendum's T18 — without both CI is red on 0.15 —
+then T19–T20, E-04 (R15), the declared range of a missing segment (R16),
 E-01 and E-07, and watch mode (F15, R17 — provisional).
+
+## 0.15 addendum (T18–T23, 19 Nov 2026)
+
+`TASK-AUDITOR-0.15-ADDENDUM.uk.md` continues the surface review's T1–T17.
+On 0.15 the sidecar suite fails 40 tests: the 2 known (report `/2`, verdict
+`empty` — T8) and 38 from profile r8. Palimpsests' canary ledger lists them;
+a line goes when its test passes again.
+
+| # | Task | Size | What | Before the tag |
+|---|---|---|---|---|
+| 1 | T8 + T18 (tests) | M | fixtures that test records by number build with `lifecycle=False`; at least one stays in the default mode and its numbers are rewritten; vector counts read from the vectors | feature-detected, so the same suite runs on 0.14.1 and on `main` |
+| 2 | T18 (product) | M | `WRITER_OPEN` / `WRITER_CLOSE` in the list and the record card (`detail` = writer and version); `boot_ended_without_close` worded — not a violation, verdict unchanged; record health shows closed, unclosed and last boot; anchor advice: anchor after the writer stops | names and texts; shown once 0.15 writes them |
+| 3 | T19, T21 (R16) | S | `derived-from-telemetry`: the pair was written when the export arrived, not at the call; the segment panel says a missing segment's declared range and head | texts; R16 on 0.15 |
+| 4 | T21 (R15 → E-04) | M | the report's own `health` section | 0.15 |
+| 5 | T20, T22 | S | origin panel: a new origin at the 0.14 → 0.15 boundary is a digest-rule change, not a configuration change; file anchor named, not pathed; E-01's bounded selection; SCITT `key_type_mismatch` (19 codes); T12's exceptions removed | texts; code on 0.15 |
+| 6 | T21 (R17 → F15) | L | watch mode — a phase of its own, pinned to the minor | 0.15 |
+
+T23 (`docs/SERVE-SURFACE.md`) is reference only: Auditor never calls serve.
 
 ## Done recently
 
