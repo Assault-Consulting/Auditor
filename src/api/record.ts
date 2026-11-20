@@ -182,6 +182,11 @@ export interface RecordCard {
    */
   continuation: ContinuationCard | null;
   /**
+   * On the writer's own WRITER_OPEN / WRITER_CLOSE (profile r8): what the
+   * record is. Null on every other record.
+   */
+  lifecycle: string | null;
+  /**
    * Seq of the KEY_SHRED that shreds this record, resolved in the chain
    * and key_id-matched (U15), or null when it is not currently
    * shredded. Not "not shreddable" — a KEY_SHRED's own target_seqs can
@@ -238,11 +243,18 @@ export const REPORTED_BY_CLIENT_NOTE =
   "the client's assertion, faithfully recorded — the chain proves the report happened, what it digested, and when, never that the tool actually ran";
 export const PARSED_FROM_WIRE_NOTE =
   "the serving layer's own observation of a loop it mediated";
+/**
+ * T19, profile r7: the pair was written from an exported telemetry span.
+ * What matters to a reader is the time: written when the export arrived,
+ * not when the call was made.
+ */
+export const DERIVED_FROM_TELEMETRY_NOTE =
+  "written from an exported telemetry span when the export arrived, not at the call — its place in the chain and its time are the export's, not the call's";
 
 /**
  * How the serving layer learned of a tool call or result.
  *
- * Three states, not two. `reported` and `wire` are the two values the
+ * `reported`, `wire` and (profile r7) `telemetry` are the values the
  * profile defines; `unknown` is a value this build cannot interpret,
  * shown with its number and F7's sentence rather than guessed into either
  * — guessing `wire` would upgrade a claim, guessing `reported` would
@@ -251,6 +263,7 @@ export const PARSED_FROM_WIRE_NOTE =
 export type SourceMark =
   | { kind: "reported"; value: number; label: string; note: string }
   | { kind: "wire"; value: number; label: string; note: string }
+  | { kind: "telemetry"; value: number; label: string; note: string }
   | { kind: "unknown"; value: number; label: string; note: string };
 
 function sourceOf(view: RecordView): SourceMark | null {
@@ -262,7 +275,25 @@ function sourceOf(view: RecordView): SourceMark | null {
   if (s.name === "parsed-from-wire") {
     return { kind: "wire", value: s.value, label: "parsed from the wire", note: PARSED_FROM_WIRE_NOTE };
   }
+  if (s.name === "derived-from-telemetry") {
+    return { kind: "telemetry", value: s.value, label: "derived from telemetry", note: DERIVED_FROM_TELEMETRY_NOTE };
+  }
   return { kind: "unknown", value: s.value, label: `source ${s.value}, unknown`, note: UNRECOGNISED_NOTE };
+}
+
+/**
+ * T18. The writer's own two records, said for what they are. Its detail
+ * (name and version) is shown as the record's detail, so not repeated here.
+ */
+export const WRITER_OPEN_NOTE =
+  "the writer's own record: it started writing this boot and will mark its close. Its detail names the writer and its version";
+export const WRITER_CLOSE_NOTE =
+  "the writer's own last record: it closed this boot. A head taken before it is the head of a chain one record shorter — anchor after the writer stops";
+
+function lifecycleOf(view: RecordView): string | null {
+  if (view.kind_name === "WRITER_OPEN") return WRITER_OPEN_NOTE;
+  if (view.kind_name === "WRITER_CLOSE") return WRITER_CLOSE_NOTE;
+  return null;
 }
 
 /**
@@ -402,6 +433,7 @@ export function recordCard(view: RecordView): RecordCard {
     source: sourceOf(view),
     outcome: outcomeOf(view),
     continuation: continuationOf(view),
+    lifecycle: lifecycleOf(view),
     shredded: view.shredded_by,
     detail: view.detail,
     recurrenceCount: view.recurrence_count,

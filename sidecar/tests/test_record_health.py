@@ -9,8 +9,12 @@ route can only copy or count — and a test fails the day it starts deciding.
 
 from __future__ import annotations
 
+import inspect
 import pytest
+import subprocess
+import sys
 from fastapi.testclient import TestClient
+from palimpsests.audit.pala_writer import PalaWriter
 from palimpsests.audit.reader import AuditReader, boot_statistics, step_catalog
 from pathlib import Path
 
@@ -120,3 +124,59 @@ def test_an_empty_file_has_no_health_to_report(open_client: TestClient, tmp_path
     body = _health(open_client, empty)
     assert body["boots"] == [] and body["steps"] == [] and body["wall_gaps"] == []
     assert body["safety_total"] == 0
+
+
+# --- the writer's open and close (profile r8, 0.15) ---------------------------
+
+_MARKS = "lifecycle" in inspect.signature(PalaWriter.__init__).parameters
+
+
+def test_a_boot_without_the_writer_s_marks_says_unmarked(
+    open_client: TestClient, tmp_path: Path
+) -> None:
+    """Before r8 — or with the marks turned off — there is nothing to say
+    about a close, and nothing is guessed."""
+    path = tmp_path / "unmarked.pala"
+    w = PalaWriter(path, **({"lifecycle": False} if _MARKS else {}))
+    w.genesis()
+    w.boot()
+    w.close()
+    [boot] = _health(open_client, path)["boots"]
+    assert boot["lifecycle"] == {
+        "state": "unmarked", "writer": None, "open_seq": None, "close_seq": None
+    }
+
+
+@pytest.mark.skipif(not _MARKS, reason="the writer marks its open and close from r8 (0.15)")
+def test_closed_stopped_and_last_boots_are_the_package_s(
+    open_client: TestClient, tmp_path: Path
+) -> None:
+    """Three boots: one ended by a real process exit, one closed, one still
+    open. The stopped one is exactly the package's `boot_ended_without_close`."""
+    path = tmp_path / "three.pala"
+    code = (
+        "import os, sys\n"
+        "from palimpsests.audit.pala_writer import PalaWriter\n"
+        "w = PalaWriter(sys.argv[1]); w.genesis(); w.boot(); os._exit(0)\n"
+    )
+    subprocess.run([sys.executable, "-c", code, str(path)], check=True)
+    w = PalaWriter.open_existing(path)
+    w.boot()
+    w.close()
+    code_open = (
+        "import os, sys\n"
+        "from palimpsests.audit.pala_writer import PalaWriter\n"
+        "w = PalaWriter.open_existing(sys.argv[1]); w.boot(); os._exit(0)\n"
+    )
+    subprocess.run([sys.executable, "-c", code_open, str(path)], check=True)
+
+    boots = _health(open_client, path)["boots"]
+    assert [b["lifecycle"]["state"] for b in boots] == ["stopped", "closed", "last_unclosed"]
+    for b in boots:
+        assert b["lifecycle"]["writer"].startswith("palimpsests ")
+        assert b["lifecycle"]["open_seq"] == b["first_seq"] + 1
+    assert boots[1]["lifecycle"]["close_seq"] == boots[1]["last_seq"]
+
+    advisory = AuditReader.open(path).verify().advisory
+    stopped = {i.boot_id.hex() for i in advisory.items if i.code == "boot_ended_without_close"}
+    assert stopped == {b["boot_id"] for b in boots if b["lifecycle"]["state"] == "stopped"}

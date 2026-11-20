@@ -60,6 +60,13 @@ export interface BootLine {
   clockChanged: boolean;
   anchors: string;
   spans: string;
+  /**
+   * Whether the boot's writer marked its open and close (profile r8), worded;
+   * null when it did not mark them — before r8 there is nothing to say.
+   */
+  lifecycle: string | null;
+  /** Shown apart: a boot stopped without close is worth a look, never a finding. */
+  stopped: boolean;
 }
 
 export interface StepLine {
@@ -100,6 +107,26 @@ function stepText(kind: string, delta: number): string {
   }
 }
 
+type Lifecycle = RecordHealthView["boots"][number]["lifecycle"];
+
+/**
+ * T18. The sentence for a boot's open and close. The last boot, open, is the
+ * one the chain cannot settle: still being written, or stopped for good.
+ */
+export function lifecycleText(l: Lifecycle): string | null {
+  const by = l.writer ? ` by ${l.writer}` : "";
+  switch (l.state) {
+    case "closed":
+      return `opened${by} at #${l.open_seq} and closed at #${l.close_seq}`;
+    case "stopped":
+      return `opened${by} at #${l.open_seq}, never closed — the process was stopped before the next boot (a crash, a kill, a power cut); advisory, the chain is whole`;
+    case "last_unclosed":
+      return `opened${by} at #${l.open_seq}, not closed yet — still being written, or stopped for good; the chain cannot tell which`;
+    default:
+      return null;
+  }
+}
+
 export function recordHealth(h: RecordHealthView): RecordHealth {
   const boots = h.boots.map((b) => {
     const names = b.time_trust.map((t) => t.name ?? `value ${t.value}`);
@@ -123,6 +150,8 @@ export function recordHealth(h: RecordHealthView): RecordHealth {
       clockChanged: names.length > 1,
       anchors: anchorPart,
       spans: spanPart,
+      lifecycle: lifecycleText(b.lifecycle),
+      stopped: b.lifecycle.state === "stopped",
     };
   });
   const uptimes = h.boots.map((b) => b.uptime_ns).filter((u): u is number => u !== null);

@@ -1705,6 +1705,40 @@ class ChainHandle:
             }
         return {"state": "unloaded" if unloaded else "not_stated", "origin": None}
 
+    def _boot_lifecycle(self, first_seq: int, last_seq: int, *, last: bool) -> dict[str, object]:
+        """Whether a boot's writer marked its open and its close (profile r8).
+
+        Two records read, never the boot: a writer that marks its close
+        writes `WRITER_OPEN` straight after the record that begins the boot,
+        and `WRITER_CLOSE` as the boot's last. Kind names are the package's.
+        A marked boot that is not the last and does not end closed is the
+        package's advisory `boot_ended_without_close` — the same condition,
+        held to it in the tests. The last boot without a close is either
+        still being written or stopped for good, and the chain cannot say
+        which. Caller holds the lock.
+        """
+
+        def at(seq: int):
+            try:
+                return self._reader.record_by_seq(seq)
+            except (KeyError, IndexError, ValueError):
+                return None
+
+        opened = at(first_seq + 1) if last_seq > first_seq else None
+        if opened is None or opened.kind_name != "WRITER_OPEN":
+            return {"state": "unmarked", "writer": None, "open_seq": None, "close_seq": None}
+        closing = at(last_seq)
+        if closing is not None and closing.kind_name == "WRITER_CLOSE":
+            state, close_seq = "closed", last_seq
+        else:
+            state, close_seq = ("last_unclosed" if last else "stopped"), None
+        return {
+            "state": state,
+            "writer": opened.detail,
+            "open_seq": opened.seq,
+            "close_seq": close_seq,
+        }
+
     def record_health(self) -> dict[str, object]:
         """Record health (E-03, F12): analytics about the record, never about
         what it describes.
@@ -1727,6 +1761,12 @@ class ChainHandle:
             stats_list = list(boot_statistics(self._reader))
             safety = list(self._reader.safety_records())
         _, gaps = self._boundaries_and_gaps(idx) if len(idx) else ([], [])
+        with self._lock:
+            n_boots = len(stats_list)
+            lifecycles = [
+                self._boot_lifecycle(st.view.first_seq, st.view.last_seq, last=i == n_boots - 1)
+                for i, st in enumerate(stats_list)
+            ]
 
         per_kind: dict[str, Counter] = {}
         details: dict[str, dict[str, object]] = {}
@@ -1764,8 +1804,9 @@ class ChainHandle:
                     "spans_open": st.spans.open,
                     "span_open_rate": st.spans.open_rate,
                     "span_median_ns": st.spans.median_duration_ns,
+                    "lifecycle": lifecycles[i],
                 }
-                for st in stats_list
+                for i, st in enumerate(stats_list)
             ],
             "steps": [
                 {
