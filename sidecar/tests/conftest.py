@@ -19,6 +19,7 @@ import pytest
 from auditor_sidecar.main import TOKEN_ENV, build_app, new_token
 from auditor_sidecar.witness import PATH_ENV as WITNESS_PATH_ENV
 from fastapi.testclient import TestClient
+from writers import fixed_writer
 
 TEST_TOKEN = "test-token-not-a-secret"
 
@@ -173,10 +174,9 @@ def chain_path(tmp_path):
     would be this repository asserting what the format looks like, which is
     the thing ADR-0001 exists to prevent. The writer is the authority.
     """
-    from palimpsests.audit.pala_writer import PalaWriter
 
     path = tmp_path / "chain.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
@@ -212,10 +212,9 @@ def lagging_chain(tmp_path):
     here — a fixture that computed a head itself would be re-implementing the
     format in order to test the rule that forbids re-implementing the format.
     """
-    from palimpsests.audit.pala_writer import PalaWriter
 
     path = tmp_path / "lagging.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
@@ -243,11 +242,10 @@ def body_swapped_chain(tmp_path):
     touched a body, which is why a real overclaim survived nine pull requests
     of wording discipline.
     """
-    from palimpsests.audit.pala_writer import PalaWriter
 
     marker = b"A" * 16
     path = tmp_path / "bodyswap.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
@@ -269,10 +267,9 @@ def spanned_chain(tmp_path):
     looks exactly like this, and `end_seq` must come back null rather than
     filled in with the last record seen.
     """
-    from palimpsests.audit.pala_writer import PalaWriter
 
     path = tmp_path / "spanned.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.session_start("run-42")
@@ -295,10 +292,9 @@ def safety_heavy_chain(tmp_path):
     a test here cannot pass by asserting `record_type == 64` alone; it has
     to filter on the type this view claims to filter on.
     """
-    from palimpsests.audit.pala_writer import PalaWriter
 
     path = tmp_path / "safetyheavy.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
@@ -407,7 +403,7 @@ def multi_day_chain(tmp_path, monkeypatch):
     monkeypatch.setattr(pw.time, "time_ns", lambda: next(ticks, stamps[-1]))
 
     path = tmp_path / "multiday.pala"
-    w = pw.PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")

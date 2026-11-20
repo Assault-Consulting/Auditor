@@ -16,7 +16,7 @@ import json
 import re
 from auditor_sidecar import __version__
 from auditor_sidecar.pala_seam import open_chain
-from palimpsests.audit.report import build_report, derive_verdict
+from palimpsests.audit.report import REPORT_FORMAT, build_report, derive_verdict
 from palimpsests.audit.report_html import render_html
 
 
@@ -28,7 +28,8 @@ def test_the_report_is_the_packages_own(open_client, chain_path) -> None:
     sid = _open(open_client, chain_path)
     body = open_client.get(f"/session/{sid}/report").json()
     report = body["report"]
-    assert body["format"] == report["format"] == "pala-verification-report/1"
+    # Whatever format the installed package writes — /1 on 0.14, /2 on 0.15.
+    assert body["format"] == report["format"] == REPORT_FORMAT
     # The text is the package's serialisation, and parses to the same object.
     assert json.loads(body["json_text"]) == report
     # The verdict is the package's rule applied to the package's report.
