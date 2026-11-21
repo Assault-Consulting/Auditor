@@ -23,9 +23,9 @@ import pytest
 from auditor_sidecar.pala_seam import _span_or_none, open_chain
 from palimpsests.audit.names import assurance_tier_name
 from palimpsests.audit.pala import vectors
-from palimpsests.audit.pala_writer import PalaWriter
 from palimpsests.audit.reader import AuditReader
 from pathlib import Path
+from writers import fixed_writer
 
 
 def _oracle(handle, offset, limit, f) -> dict:
@@ -88,7 +88,7 @@ def _vector_chain(tmp_path: Path, name: str) -> Path:
 
 def _busy_chain(tmp_path: Path) -> Path:
     path = tmp_path / "busy.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")

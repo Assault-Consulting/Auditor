@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from palimpsests.audit.reader import AuditReader
 
 
 def _open(client: TestClient, path) -> str:
@@ -78,9 +79,9 @@ def test_the_two_axes_are_different_kinds_of_quantity(
     """The reason both axes exist, asserted as arithmetic rather than as a
     hope about timing.
 
-    Ask an eight-record chain for fifty buckets and the axes answer
+    Ask a chain of a few records for fifty buckets and the axes answer
     differently by construction. **seq is a discrete ordinal**: it cannot be
-    subdivided below one record, so fifty buckets collapse to eight, each
+    subdivided below one record, so fifty buckets collapse to one per record, each
     holding exactly one. **wall is a continuous measure**: records occupy
     points in an interval, so fifty buckets stay fifty and most of them hold
     nothing.
@@ -100,26 +101,32 @@ def test_the_two_axes_are_different_kinds_of_quantity(
     assertion two lines below did it anyway, in a form that merely looked
     like arithmetic.
 
-    What is actually guaranteed is stated below: at most eight of the fifty
-    buckets can be occupied, because there are eight records. That holds on
-    any clock, on any platform, for any distribution.
+    What is actually guaranteed is stated below: at most one bucket per
+    record can be occupied. That holds on any clock, on any platform, for any
+    distribution.
+
+    The fixture is a chain as users bring it, so the record count is read
+    from the package, not written here: eight records on 0.14, twelve on 0.15,
+    whose writer adds a `WRITER_OPEN` and a `WRITER_CLOSE` to each boot.
     """
+    n = AuditReader.open(two_boot_chain).record_count
+    assert n < 50  # the argument above needs fewer records than buckets
     sid = _open(open_client, two_boot_chain)
     by_seq = open_client.get(f"/session/{sid}/timeline?buckets=50").json()["buckets"]
     by_wall = open_client.get(
         f"/session/{sid}/timeline?axis=wall&buckets=50"
     ).json()["buckets"]
 
-    # seq cannot be subdivided below one record, so fifty collapse to eight
-    # and each holds exactly one. This one IS exact: the sequence numbers are
+    # seq cannot be subdivided below one record, so fifty collapse to n and
+    # each holds exactly one. This one IS exact: the sequence numbers are
     # consecutive integers, which is not a fact about timing.
-    assert len(by_seq) == 8
+    assert len(by_seq) == n
     assert all(b["count"] == 1 for b in by_seq)
 
-    # wall keeps all fifty, and at most eight of them can hold anything.
+    # wall keeps all fifty, and at most n of them can hold anything.
     assert len(by_wall) == 50
-    assert sum(1 for b in by_wall if b["count"] > 0) <= 8
-    assert sum(b["count"] for b in by_wall) == 8
+    assert sum(1 for b in by_wall if b["count"] > 0) <= n
+    assert sum(b["count"] for b in by_wall) == n
 
 
 def test_empty_buckets_are_reported_not_omitted(
