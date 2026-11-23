@@ -3,7 +3,7 @@
 
 """D-01 — the package's report, shown and never rebuilt.
 
-`build_report` (channel 2) produces `pala-verification-report/1`, and its
+`build_report` (channel 2) produces `pala-verification-report/2`, and its
 verdict comes from `derive_verdict`, the package's one verdict rule, which a
 renderer must not re-derive. These tests hold the sidecar to passing the
 report through: the dict is the package's, the text is the package's own
@@ -28,7 +28,6 @@ def test_the_report_is_the_packages_own(open_client, chain_path) -> None:
     sid = _open(open_client, chain_path)
     body = open_client.get(f"/session/{sid}/report").json()
     report = body["report"]
-    # Whatever format the installed package writes — /1 on 0.14, /2 on 0.15.
     assert body["format"] == report["format"] == REPORT_FORMAT
     # The text is the package's serialisation, and parses to the same object.
     assert json.loads(body["json_text"]) == report

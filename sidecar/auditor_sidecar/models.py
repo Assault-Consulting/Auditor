@@ -608,12 +608,15 @@ class ReportResponse(BaseModel):
         )
     )
     format: str = Field(
-        description="The report's own format id, e.g. 'pala-verification-report/1'."
+        description=(
+            "The report's own format id, e.g. 'pala-verification-report/2' (palimpsests 0.15)."
+        )
     )
     verdict: str = Field(
         description=(
             "The report's verdict as the package derived it (`derive_verdict`): "
-            "'sound', 'partial' or 'violation'. Copied from the report, never "
+            "'sound', 'partial', 'empty' (report /2) or 'violation'. Copied "
+            "from the report, never "
             "re-derived here."
         )
     )
@@ -737,6 +740,38 @@ class ContinuationModel(BaseModel):
             "SEG_PRIOR_ROOT, hex — the derived root of every record before "
             "this one, as the writer declared it."
         )
+    )
+
+
+class ShredNoteModel(BaseModel):
+    """A KEY_SHRED's erasure note as the writer declared it (profile §8)."""
+
+    key_id: int | None = Field(
+        description="The destroyed key, from the header; null: not declared."
+    )
+    reason: NamedValue = Field(
+        description="SHRED_REASON — its value, and the package's name (null: unknown)."
+    )
+    target_seqs: list[int] = Field(description="SHRED_TARGET_SEQS as written; empty when absent.")
+    detail: str | None = Field(description="SHRED_DETAIL — a ticket or request reference.")
+
+
+class ReportsRefusedModel(BaseModel):
+    """What a REPORTS_REFUSED counted (inference profile r9, §3.4).
+
+    The counts stood as written, since the serving layer started. A count of
+    requests to a reporting route — never of tool events, and never who sent
+    them: the serving layer did not learn that.
+    """
+
+    route: str = Field(description="EVT_ROUTE — the reporting route.")
+    refused_empty: int = Field(description="Refused for an absent or empty credential.")
+    refused_wrong: int = Field(
+        description="Refused for a credential that is not the serving layer's."
+    )
+    accepted: int = Field(description="Accepted on the same route.")
+    rejected: int = Field(
+        description="Read and rejected: answered with an error other than the credential's."
     )
 
 
@@ -945,6 +980,22 @@ class RecordView(BaseModel):
             "and on a kind-11 record that is not well formed (the advisory "
             "channel reports that). A declaration, never evidence that the "
             "records it describes exist."
+        ),
+    )
+    shred: ShredNoteModel | None = Field(
+        default=None,
+        description=(
+            "On a KEY_SHRED: its erasure note as the package decodes it "
+            "(`decode_shred`). A declaration; whether its targets exist and "
+            "carried the key is `shredded_by` and the advisories. Null elsewhere."
+        ),
+    )
+    reports_refused: ReportsRefusedModel | None = Field(
+        default=None,
+        description=(
+            "On a REPORTS_REFUSED (kind 14, profile r9): the route and its four "
+            "counts as the package decodes them. Null on every other record "
+            "and on one that is not well formed."
         ),
     )
     recurrence_count: int | None = Field(

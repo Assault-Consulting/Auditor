@@ -9,7 +9,6 @@ route can only copy or count — and a test fails the day it starts deciding.
 
 from __future__ import annotations
 
-import inspect
 import pytest
 import subprocess
 import sys
@@ -129,16 +128,13 @@ def test_an_empty_file_has_no_health_to_report(open_client: TestClient, tmp_path
 
 # --- the writer's open and close (profile r8, 0.15) ---------------------------
 
-_MARKS = "lifecycle" in inspect.signature(PalaWriter.__init__).parameters
-
-
 def test_a_boot_without_the_writer_s_marks_says_unmarked(
     open_client: TestClient, tmp_path: Path
 ) -> None:
-    """Before r8 — or with the marks turned off — there is nothing to say
+    """A writer before r8 — or one with the marks turned off — there is nothing to say
     about a close, and nothing is guessed."""
     path = tmp_path / "unmarked.pala"
-    w = PalaWriter(path, **({"lifecycle": False} if _MARKS else {}))
+    w = PalaWriter(path, lifecycle=False)
     w.genesis()
     w.boot()
     w.close()
@@ -148,7 +144,6 @@ def test_a_boot_without_the_writer_s_marks_says_unmarked(
     }
 
 
-@pytest.mark.skipif(not _MARKS, reason="the writer marks its open and close from r8 (0.15)")
 def test_closed_stopped_and_last_boots_are_the_package_s(
     open_client: TestClient, tmp_path: Path
 ) -> None:

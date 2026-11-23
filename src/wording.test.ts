@@ -82,6 +82,8 @@ const ALLOWED: Record<string, string> = {
   "not a certification": "a negation — what a report is",
   "the chain proves the report happened":
     "the inference profile's own sentence for reported-by-client (r5), quoted verbatim",
+  "nothing was found intact":
+    "a negation — the package's own sentence for the verdict `empty` (derive_verdict, 0.15), quoted verbatim",
 };
 
 group("the wording audit (D-03)", () => {

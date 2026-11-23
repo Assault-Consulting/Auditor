@@ -150,6 +150,12 @@ const WORDING: Record<string, Wording> = {
     title: "A boot ended without its writer closing it",
     note: "The writer marked this boot's start (WRITER_OPEN) and the next boot begins with no WRITER_CLOSE before it: the process was stopped without closing — a crash, a kill, a power cut. The chain itself is whole.",
   },
+  // Inference profile r9 (0.15): the serve records reports it refused or
+  // rejected. The reader reports each such record with its route and counts.
+  reports_refused: {
+    title: "Reports to a reporting route did not get in",
+    note: "The serving layer refused or rejected reports on this route and wrote down how many. For this run, the absence of reported events is not evidence that nothing happened. Not who tried, and not what the reports held — the serving layer did not learn that.",
+  },
 };
 
 /**

@@ -130,7 +130,7 @@ fi
 # ... and the seam imports only the consumer surface (C-16; CONSUMER-SURFACE.md
 # r2, "Only the declared surface"). r2 names `reader` and `anchors` (with
 # `anchors_pkcs11`) as the consumer modules and keeps channels 2-6 public
-# beside them; `names` is declared public, `report` is channel 2, and since
+# beside them (the name tables are in `reader` since 0.15); `report` is channel 2, and since
 # 0.14 so is `report_html` (render_html, R5 — it declares an `__all__`), and
 # since 0.14.1 `export` (export_jsonl, R9 — it declares one too), and
 # `segment_set` (verify_segment_set, channel 1 since 0.14, with an
@@ -139,7 +139,7 @@ fi
 # however importable it is. That each imported NAME is in its module's
 # `__all__` needs the package installed, so it is checked by
 # sidecar/tests/test_consumer_surface.py, not here.
-CONSUMER_MODULES='palimpsests\.audit\.(reader|anchors|anchors_pkcs11|names|report|report_html|export|segment_set)'
+CONSUMER_MODULES='palimpsests\.audit\.(reader|anchors|anchors_pkcs11|report|report_html|export|segment_set)'
 if hits=$(grep -n -E '^[[:space:]]*(from|import)[[:space:]]+palimpsests' "$SEAM" \
             | grep -Ev "^[0-9]+:[[:space:]]*from[[:space:]]+${CONSUMER_MODULES}[[:space:]]+import[[:space:]]"); then
   echo "FAIL: ${SEAM} imports palimpsests outside the consumer surface"

@@ -59,7 +59,6 @@ from palimpsests.audit.anchors_pkcs11 import (
     Pkcs11Unavailable,
 )
 from palimpsests.audit.export import export_jsonl
-from palimpsests.audit.names import assurance_tier_name, time_trust_name
 from palimpsests.audit.reader import (
     FORMAT_VERSION,
     HEADER_FIELDS,
@@ -68,9 +67,13 @@ from palimpsests.audit.reader import (
     NO_SPAN,
     RT_SAFETY,
     AuditReader,
+    assurance_tier_name,
     boot_statistics,
     decode_continuation,
+    decode_reports_refused,
+    decode_shred,
     step_catalog,
+    time_trust_name,
 )
 from palimpsests.audit.report import build_report
 from palimpsests.audit.report_html import render_html
@@ -621,7 +624,7 @@ class ChainHandle:
     def report(self, anchor_specs: list[dict[str, str]] | None = None) -> dict[str, object]:
         """The package's verification report, as the package built it (D-01).
 
-        ``build_report`` (channel 2) produces ``pala-verification-report/1``
+        ``build_report`` (channel 2) produces ``pala-verification-report/2``
         and its verdict, through ``derive_verdict`` — the one verdict rule,
         which a renderer must not re-derive. Nothing here edits, reorders or
         summarises it: the dict is the package's ``data`` and the text is its
@@ -1361,6 +1364,16 @@ class ChainHandle:
             # kind-11 record that is not well formed — the advisory channel
             # says so (continuation_malformed); this field never guesses.
             "continuation": self._continuation(record),
+            # What a REPORTS_REFUSED counted (inference profile r9, §3.4): the
+            # route and its four counts as the package decodes them, null on
+            # every other record and on one that is not well formed. A count
+            # of requests, never of tool events, and never who sent them.
+            "reports_refused": self._reports_refused(record),
+            # A KEY_SHRED's erasure note (profile §8; `decode_shred`, R4, 0.15):
+            # what the writer declared — reason, targets, a reference. Null on
+            # every other record. Whether the targets exist and carried the key
+            # is `shredded_by` and the shred_target_* advisories, not this.
+            "shred": self._shred(record),
             # How many SAFETY records in this container carry this
             # exact detail text, this one included — F8's own framing
             # ("detail text and a recurrence count for identical
@@ -2048,6 +2061,31 @@ class ChainHandle:
             "predecessor_head": view.predecessor_head.hex(),
             "retention_s": view.retention_s,
             "prior_root": view.prior_root.hex(),
+        }
+
+    @staticmethod
+    def _shred(record) -> dict[str, object] | None:
+        view = decode_shred(record)
+        if view is None:
+            return None
+        return {
+            "key_id": view.key_id,
+            "reason": {"value": view.reason, "name": view.reason_name},
+            "target_seqs": list(view.target_seqs),
+            "detail": view.detail,
+        }
+
+    @staticmethod
+    def _reports_refused(record) -> dict[str, object] | None:
+        view = decode_reports_refused(record)
+        if view is None:
+            return None
+        return {
+            "route": view.route,
+            "refused_empty": view.refused_empty,
+            "refused_wrong": view.refused_wrong,
+            "accepted": view.accepted,
+            "rejected": view.rejected,
         }
 
     @staticmethod

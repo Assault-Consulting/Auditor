@@ -100,8 +100,8 @@ group("one weight distinction, and only one", () => {
       "continuation_malformed", "continuation_predecessor_mismatch",
       "continuation_index_not_increasing", "continuation_index_gap",
       "continuation_prior_root_mismatch",
-      // Profile r8, 0.15 — the eighteenth, read from `ADVISORY_CODES` on main.
-      "boot_ended_without_close",
+      // 0.15's `ADVISORY_CODES`: r8 and r9 add one each — nineteen.
+      "boot_ended_without_close", "reports_refused",
     ];
     expect([...KNOWN_CODES].sort()).toEqual([...emitted].sort());
   });
