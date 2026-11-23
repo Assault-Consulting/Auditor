@@ -34,6 +34,15 @@ export type OriginCard =
   | { state: "unloaded" }
   | { state: "not_stated" };
 
+/**
+ * T20. From palimpsests 0.15 the configuration digest is taken over the
+ * RFC 8785 (JCS) form, so the same parameters digest differently either side
+ * of the 0.14 → 0.15 upgrade. Said under the digest, because a new origin at
+ * that boundary otherwise reads as a configuration change.
+ */
+export const CONFIG_DIGEST_NOTE =
+  "the writer's claim. Writers from palimpsests 0.15 digest the canonical (RFC 8785) form, so the same configuration digests differently across the 0.14 → 0.15 upgrade: a new origin there is not by itself a change of configuration — the boot's WRITER_OPEN names the writer's version";
+
 export function originCard(view: OriginState): OriginCard {
   if (view.state === "active" && view.origin !== null) {
     return {

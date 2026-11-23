@@ -48,6 +48,7 @@ import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useReco
 import { offsetLabel } from "./api/hexView";
 import { segmentState, setAnswers } from "./api/segmentSet";
 import { BASIS_LABEL, HEALTH_NOTE } from "./api/health";
+import { CONFIG_DIGEST_NOTE } from "./api/origin";
 import { WITNESS_LIMITS, witnessLine, witnessRows, witnessStatus } from "./api/witness";
 
 // C-11's page size. Well inside the sidecar's own 1000-record ceiling, and
@@ -1133,6 +1134,14 @@ export default function App() {
                       {b.anchors}
                       <br />
                       {b.spans}
+                      {b.lifecycle !== null && (
+                        <>
+                          <br />
+                          <span className="health-lifecycle" data-stopped={b.stopped ? "" : undefined}>
+                            writer: {b.lifecycle}
+                          </span>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -1269,7 +1278,11 @@ export default function App() {
                             that matters. */}
                         {r.source !== null && r.source.kind !== "wire" && (
                           <span className="records-source" data-source={r.source.kind}>
-                            {r.source.kind === "reported" ? "reported" : `source ${r.source.value}?`}
+                            {r.source.kind === "reported"
+                              ? "reported"
+                              : r.source.kind === "telemetry"
+                                ? "telemetry"
+                                : `source ${r.source.value}?`}
                           </span>
                         )}
                         {/* C-14. Every outcome but ok is marked on the row,
@@ -1583,6 +1596,16 @@ export default function App() {
                       </dd>
                     </div>
                   )}
+                  {record.value.lifecycle !== null && (
+                    <div>
+                      <dt>Writer</dt>
+                      {/* T18, r8. The writer's own record, said for what it
+                          is; WRITER_OPEN's name and version are its detail. */}
+                      <dd className="record-source">
+                        <span className="record-source-note">{record.value.lifecycle}</span>
+                      </dd>
+                    </div>
+                  )}
                   {record.value.continuation !== null && (
                     <div>
                       <dt>Continues</dt>
@@ -1791,6 +1814,7 @@ export default function App() {
                         <dt>Config</dt>
                         <dd className="record-recorded">
                           {origin.value.configDigest.slice(0, 12)}…
+                          <span className="record-source-note">{CONFIG_DIGEST_NOTE}</span>
                         </dd>
                       </div>
                       <div>

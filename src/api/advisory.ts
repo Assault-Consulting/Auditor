@@ -144,6 +144,12 @@ const WORDING: Record<string, Wording> = {
     note: "The reader recomputed the root of every record before the continuation, and it differs from the root the writer declared at the cut.",
     weight: "notable",
   },
+  // Inference profile r8 (palimpsests 0.15): the writer marks its own open
+  // and close. Not a violation — the chain is whole and the verdict the same.
+  boot_ended_without_close: {
+    title: "A boot ended without its writer closing it",
+    note: "The writer marked this boot's start (WRITER_OPEN) and the next boot begins with no WRITER_CLOSE before it: the process was stopped without closing — a crash, a kill, a power cut. The chain itself is whole.",
+  },
 };
 
 /**

@@ -4,7 +4,7 @@
 import { describe as group, expect, it } from "vitest";
 
 import type { RecordHealthView } from "./generated/types";
-import { BASIS_LABEL, HEALTH_NOTE, recordHealth, span } from "./health";
+import { BASIS_LABEL, HEALTH_NOTE, lifecycleText, recordHealth, span } from "./health";
 
 const BOOT_A = "aaaaaaaa" + "0".repeat(24);
 const BOOT_B = "bbbbbbbb" + "0".repeat(24);
@@ -17,12 +17,14 @@ function view(over: Partial<RecordHealthView> = {}): RecordHealthView {
         time_trust: [{ value: 1, name: "UNSYNCED" }, { value: 3, name: "NTP_SYNCED" }],
         recovery_seq: null, anchors: 3, anchor_gaps_ns: [10e9, 30e9], widest_anchor_gap_ns: 30e9,
         spans_closed: 2, spans_open: 1, span_open_rate: 1 / 3, span_median_ns: 2e9,
+        lifecycle: { state: "stopped", writer: "palimpsests 0.15.0; inference r8", open_seq: 1, close_seq: null },
       },
       {
         boot_id: BOOT_B, first_seq: 10, last_seq: 10, records: 1, uptime_ns: 3600e9,
         time_trust: [{ value: 3, name: "NTP_SYNCED" }], recovery_seq: 10, anchors: 0,
         anchor_gaps_ns: [], widest_anchor_gap_ns: null, spans_closed: 0, spans_open: 0,
         span_open_rate: null, span_median_ns: null,
+        lifecycle: { state: "last_unclosed", writer: "palimpsests 0.15.0; inference r8", open_seq: 11, close_seq: null },
       },
     ],
     steps: [
@@ -104,5 +106,19 @@ group("record health, in words (E-03, F12)", () => {
     const all = [HEALTH_NOTE, ...Object.values(BASIS_LABEL), JSON.stringify(recordHealth(view()))].join(" ");
     expect(all).not.toMatch(/anomal|suspicious|tamper|attack|healthy|unhealthy|threshold|bad clock/i);
     expect(HEALTH_NOTE).toMatch(/does not affect the verdict/);
+  });
+
+  it("says which boots their writer closed, and leaves the last one open as it is (T18)", () => {
+    const h = recordHealth(view());
+    expect(h.boots[0]!.stopped).toBe(true);
+    expect(h.boots[0]!.lifecycle).toContain("never closed");
+    expect(h.boots[0]!.lifecycle).toContain("the chain is whole");
+    expect(h.boots[1]!.stopped).toBe(false);
+    expect(h.boots[1]!.lifecycle).toContain("the chain cannot tell which");
+    expect(lifecycleText({ state: "closed", writer: "w 1", open_seq: 1, close_seq: 9 })).toBe(
+      "opened by w 1 at #1 and closed at #9",
+    );
+    // Before r8 nothing is marked, and nothing is said.
+    expect(lifecycleText({ state: "unmarked", writer: null, open_seq: null, close_seq: null })).toBeNull();
   });
 });

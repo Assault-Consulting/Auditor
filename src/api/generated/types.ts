@@ -345,6 +345,7 @@ export interface HealthBoot {
   spans_open: number;
   span_open_rate: number | null;
   span_median_ns: number | null;
+  lifecycle: HealthLifecycle;
 }
 
 /**
@@ -369,6 +370,18 @@ export interface HealthKind {
 export interface HealthKindBoot {
   boot_id: string;
   count: number;
+}
+
+/**
+ * Whether the boot's writer marked its open and close (profile r8, 0.15).
+ */
+export interface HealthLifecycle {
+  /** `closed`: WRITER_CLOSE is the boot's last record. `stopped`: the writer marked its open, a later boot follows, and no close came — the package's advisory `boot_ended_without_close`. `last_unclosed`: the last boot, open — still being written or stopped for good; the chain cannot tell which. `unmarked`: the writer does not mark its open and close (before profile r8, or turned off). */
+  state: "closed" | "stopped" | "last_unclosed" | "unmarked";
+  /** WRITER_OPEN's detail: the writer's name and version. */
+  writer: string | null;
+  open_seq: number | null;
+  close_seq: number | null;
 }
 
 /**

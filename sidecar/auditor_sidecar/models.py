@@ -16,7 +16,7 @@ generated client carries.
 from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Any
+from typing import Any, Literal
 
 
 class HealthResponse(BaseModel):
@@ -1030,6 +1030,24 @@ class RecordBytesView(BaseModel):
     )
 
 
+class HealthLifecycle(BaseModel):
+    """Whether the boot's writer marked its open and close (profile r8, 0.15)."""
+
+    state: Literal["closed", "stopped", "last_unclosed", "unmarked"] = Field(
+        description=(
+            "`closed`: WRITER_CLOSE is the boot's last record. `stopped`: the "
+            "writer marked its open, a later boot follows, and no close came — "
+            "the package's advisory `boot_ended_without_close`. `last_unclosed`: "
+            "the last boot, open — still being written or stopped for good; the "
+            "chain cannot tell which. `unmarked`: the writer does not mark its "
+            "open and close (before profile r8, or turned off)."
+        )
+    )
+    writer: str | None = Field(description="WRITER_OPEN's detail: the writer's name and version.")
+    open_seq: int | None
+    close_seq: int | None
+
+
 class HealthBoot(BaseModel):
     """One boot's statistics, as the package computes them (U3)."""
 
@@ -1051,6 +1069,7 @@ class HealthBoot(BaseModel):
     spans_open: int
     span_open_rate: float | None
     span_median_ns: int | None
+    lifecycle: HealthLifecycle
 
 
 class HealthStep(BaseModel):

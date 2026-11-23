@@ -378,8 +378,9 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
             default=None,
             description=(
                 "Keep only tool calls and results whose evidence mark the "
-                "package names this: 'reported-by-client' or "
-                "'parsed-from-wire'. No other record carries the mark, so "
+                "package names this: 'reported-by-client', "
+                "'parsed-from-wire' or (profile r7) 'derived-from-telemetry'. "
+                "No other record carries the mark, so "
                 "none matches."
             ),
         ),
