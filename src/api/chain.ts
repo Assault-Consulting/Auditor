@@ -17,6 +17,8 @@
  */
 
 import type {
+  ConsistencyCheckView,
+  ConsistencyProofView,
   AnchorProfile,
   BootView,
   NearestRecord,
@@ -498,4 +500,37 @@ export async function checkSegmentSet(session: Session, path: string): Promise<S
   });
   if (!response.ok) await raise(response);
   return (await response.json()) as SegmentSetView;
+}
+
+/**
+ * A prefix-consistency proof between two counts of this chain (E-07): the
+ * package's `consistency_proof`. Counts, not seqs.
+ */
+export async function getConsistencyProof(
+  session: Session,
+  sessionId: string,
+  first: number,
+  second?: number,
+): Promise<ConsistencyProofView> {
+  const q = `first=${first}` + (second === undefined ? "" : `&second=${second}`);
+  const response = await fetch(url(session, `/session/${sessionId}/consistency?${q}`), {
+    headers: headers(session),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as ConsistencyProofView;
+}
+
+/** A proof someone holds, read from `path` and checked against this chain (E-07). */
+export async function checkConsistencyProof(
+  session: Session,
+  sessionId: string,
+  path: string,
+): Promise<ConsistencyCheckView> {
+  const response = await fetch(url(session, `/session/${sessionId}/consistency/check`), {
+    method: "POST",
+    headers: headers(session),
+    body: JSON.stringify({ path }),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as ConsistencyCheckView;
 }

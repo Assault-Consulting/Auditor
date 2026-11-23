@@ -21,8 +21,11 @@ a liveness probe that cannot be trusted. It discloses only versions.
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
+import shutil
+import tempfile
 import uvicorn
 from . import __version__
 from .anchors import NO_ANCHOR, AnchorProfiles, ProfileNotFound
@@ -33,6 +36,9 @@ from .models import (
     AnchorProfile,
     BootView,
     ChainSubject,
+    ConsistencyCheckRequest,
+    ConsistencyCheckView,
+    ConsistencyProofView,
     HealthResponse,
     KeychainSeedRequest,
     KeychainStatus,
@@ -60,8 +66,9 @@ from .witness import WitnessLog, WitnessRefused
 from .witness import default_path as default_witness_path
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pathlib import Path
+from starlette.background import BackgroundTask
 
 #: Not 8765. A fixed, distinctive default avoids colliding with another local
 #: service on a developer machine, which would otherwise present as the shell
@@ -855,6 +862,138 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
         return StreamingResponse(
             session.export(from_seq, to_seq), media_type="application/x-ndjson"
         )
+
+    @app.get(
+        "/session/{session_id}/bundle",
+        response_class=FileResponse,
+        responses={
+            200: {
+                "content": {"application/x-tar": {}},
+                "description": (
+                    "`pala-bundle/1`, as the package assembled it. What the "
+                    "package said about it travels in `X-Bundle-*` headers: "
+                    "Records, Proven, Head, Chain-Ok, Consistent, From-Seq, "
+                    "To-Seq. Content-Length is the tar's size, so a transfer "
+                    "cut short is detectable."
+                ),
+            }
+        },
+    )
+    def bundle_session(
+        session_id: str,
+        from_seq: int | None = Query(default=None, ge=0, description="First seq, inclusive."),
+        to_seq: int | None = Query(default=None, ge=0, description="Last seq, inclusive."),
+        profile: str = Query(
+            default=NO_ANCHOR,
+            description="Anchor profile whose head the bundle carries, as for /verify.",
+        ),
+    ) -> FileResponse:
+        """An evidence bundle for a selection of this session's records (E-01).
+
+        `assemble_bundle` (channel 4) writes the tar into a directory of the
+        sidecar's own; it is sent, then removed. The desktop shell streams it
+        into the file the user chose, as it does the export — the webview
+        never holds it.
+
+        **Bounded.** A bundle carries each record and its proof path, so it
+        outgrows its source (R12): at most 100,000 records per bundle; 422
+        for more, for a range outside the chain or backwards, and for a file
+        with no records. 409 if the file changed, 404 for an unknown profile.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        try:
+            sources = app.state.anchors.get(profile)
+        except ProfileNotFound:
+            raise HTTPException(
+                status_code=404, detail=f"no anchor profile named {profile!r}"
+            ) from None
+        workdir = Path(tempfile.mkdtemp(prefix="auditor-bundle-"))
+        out = workdir / "bundle.tar"
+        try:
+            result = session.chain.bundle(out, from_seq, to_seq, sources)
+        except ValueError as exc:
+            shutil.rmtree(workdir, ignore_errors=True)
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        except UnknownAnchorKind as exc:
+            shutil.rmtree(workdir, ignore_errors=True)
+            raise HTTPException(
+                status_code=422, detail=f"unknown anchor source kind: {exc}"
+            ) from None
+        except BaseException:
+            shutil.rmtree(workdir, ignore_errors=True)
+            raise
+        headers = {
+            "X-Bundle-Format": str(result["format"]),
+            "X-Bundle-Records": str(result["records"]),
+            "X-Bundle-Proven": str(result["proven"]),
+            "X-Bundle-Head": str(result["head"]),
+            "X-Bundle-Chain-Ok": "true" if result["chain_ok"] else "false",
+            "X-Bundle-Consistent": "true" if result["consistent"] else "false",
+            "X-Bundle-From-Seq": str(result["from_seq"]),
+            "X-Bundle-To-Seq": str(result["to_seq"]),
+        }
+        return FileResponse(
+            out,
+            media_type="application/x-tar",
+            headers=headers,
+            background=BackgroundTask(shutil.rmtree, workdir, ignore_errors=True),
+        )
+
+    @app.get("/session/{session_id}/consistency", response_model=ConsistencyProofView)
+    def consistency_session(
+        session_id: str,
+        first: int = Query(ge=1, description="Records in the prefix: a count, not a seq."),
+        second: int | None = Query(
+            default=None, ge=1, description="Records in the longer chain; default: all present."
+        ),
+    ) -> ConsistencyProofView:
+        """A prefix-consistency proof between two counts of this chain (E-07).
+
+        The package's `consistency_proof` (channel 3): the first `first`
+        records are a prefix of the first `second`, over the derived §4.3
+        root of record hashes. Derived and unsigned: it proves two roots are
+        consistent, never where a root came from. 422 for counts outside
+        1 ≤ first ≤ second ≤ records; 409 if the file changed.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        try:
+            body = session.chain.consistency(first, second)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return ConsistencyProofView(**body)
+
+    @app.post("/session/{session_id}/consistency/check", response_model=ConsistencyCheckView)
+    def consistency_check(
+        session_id: str, body: ConsistencyCheckRequest
+    ) -> ConsistencyCheckView:
+        """A proof someone holds, checked against this chain (E-07).
+
+        The document is read from `path` — a file the desktop shell's dialog
+        chose — and checked three ways, kept apart: whether its path connects
+        its two roots, and whether this chain's own roots at its two counts
+        are the roots it names. 422 when the file cannot be read or is not a
+        `pala-consistency-proof/1`.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        try:
+            raw = Path(body.path).read_bytes()[: (1 << 20) + 1]
+        except OSError as exc:
+            raise HTTPException(
+                status_code=422, detail=f"the proof could not be read: {exc.strerror or exc}"
+            ) from None
+        if len(raw) > 1 << 20:
+            raise HTTPException(status_code=422, detail="not a consistency proof: over 1 MiB")
+        try:
+            doc = json.loads(raw)
+            checked = session.chain.check_consistency(doc)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422, detail=f"not a consistency proof: {exc}"
+            ) from None
+        return ConsistencyCheckView(**checked)
 
     @app.delete("/session/{session_id}", status_code=204)
     def close_session(session_id: str) -> None:

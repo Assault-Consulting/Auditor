@@ -59,6 +59,13 @@ from palimpsests.audit.anchors_pkcs11 import (
     Pkcs11Unavailable,
 )
 from palimpsests.audit.export import export_jsonl
+from palimpsests.audit.pala.bundle import BUNDLE_FORMAT, assemble_bundle
+from palimpsests.audit.pala.proofs import (
+    CONSISTENCY_FORMAT,
+    ConsistencyProof,
+    chain_root,
+    consistency_proof,
+)
 from palimpsests.audit.reader import (
     ADVISORY_CODES,
     DIAGNOSIS_PATTERNS,
@@ -113,6 +120,17 @@ _EXPORT_QUEUE_CHUNKS = 16
 #: as "palimpsests-auditor X.Y.Z", so the version travels with the name — a
 #: report read later says which build of this shell made it (T4).
 _REPORT_TOOL = f"palimpsests-auditor-sidecar {__version__}"
+
+#: The most records one evidence bundle may select (E-01). A bundle carries
+#: each selected record and its proof path, so it outgrows its source: on a
+#: 10^6-record chain the package measured 1,000 records at 9 s / 0.4 GB and
+#: 100,000 at 14 s / 1.3 GB, and the whole chain does not fit in 8 GB (R12).
+#: Measured here on 0.15.0, same chain, no proof windows: 100,000 records
+#: 11.7 s / 0.52 GB peak, 250,000 13.6 s / 0.63 GB — so the proofs, not the
+#: records, are what grows, and 100,000 is the largest selection measured with
+#: them that stays well inside a laptop. A bundle is a selection: an excerpt
+#: around a finding, not the archive.
+MAX_BUNDLE_RECORDS = 100_000
 
 #: How much of a body the bytes view carries (C-06d). A header is at most a
 #: few hundred bytes; a body can be megabytes, and a hex view of a megabyte
@@ -315,6 +333,11 @@ def _anchor_source(specs: list[dict[str, str]]):
         else:
             raise UnknownAnchorKind(kind)
     return ChainedAnchorSource(sources)
+
+
+def _same(here: bytes | None, claimed: bytes) -> bool | None:
+    """A root computed here against one a document claims; None: not here."""
+    return None if here is None else here == claimed
 
 
 def _span_or_none(span_id: bytes | None) -> str | None:
@@ -2180,6 +2203,115 @@ class ChainHandle:
             for v in sorted(values)
         ]
 
+
+    # --- the evidence bundle (E-01, channel 4) ---------------------------------
+
+    def bundle(
+        self,
+        out: Path,
+        from_seq: int | None,
+        to_seq: int | None,
+        anchor_specs: list[dict[str, str]] | None = None,
+    ) -> dict[str, object]:
+        """The package's `pala-bundle/1` for a selection, written to ``out``.
+
+        `assemble_bundle` (channel 4) writes every member — the records, their
+        proofs, the verification, the anchor — and nothing here composes one.
+        Without an anchor it is assembled from the session's reader
+        (`reader=`, 0.15), so the file is not read again; with one, the
+        package opens the file itself, because a shared reader answers with
+        the anchor it was opened with (the same rule as the report).
+
+        The selection is bounded (`MAX_BUNDLE_RECORDS`): a range wider than
+        that, or one outside the chain, raises ``ValueError`` before any
+        byte is written. A damaged chain bundles too — the verification
+        inside says so, which is half the point.
+        """
+        idx = self._header_index()
+        if len(idx) == 0:
+            raise ValueError("the file holds no records to bundle")
+        # A segment starts where its predecessor ended, not at 0: an open
+        # side of the range reaches the file's own first or last record.
+        first, last = int(min(idx.seq)), int(max(idx.seq))
+        lo = first if from_seq is None else from_seq
+        hi = last if to_seq is None else to_seq
+        if lo > last or hi < first:
+            raise ValueError(f"#{lo}–#{hi} lies outside this file's records, #{first}–#{last}")
+        if lo > hi:
+            raise ValueError(f"the range starts at {lo}, after its end at {hi}")
+        if hi - lo + 1 > MAX_BUNDLE_RECORDS:
+            raise ValueError(
+                f"a bundle selects at most {MAX_BUNDLE_RECORDS:,} records; "
+                f"#{lo}–#{hi} is {hi - lo + 1:,}. A bundle is an excerpt around "
+                "a finding: export the whole chain as records instead"
+            )
+        specs = anchor_specs or []
+        if specs:
+            result = assemble_bundle(
+                self._path, out, from_seq=lo, to_seq=hi, anchor_source=_anchor_source(specs)
+            )
+        else:
+            with self._lock:
+                result = assemble_bundle(
+                    self._path, out, from_seq=lo, to_seq=hi, reader=self._reader
+                )
+        return {
+            "format": BUNDLE_FORMAT,
+            "from_seq": lo,
+            "to_seq": hi,
+            "records": result.records,
+            "proven": result.proven,
+            "head": result.head,
+            "chain_ok": result.chain_ok,
+            "consistent": result.consistent,
+        }
+
+    # --- prefix consistency (E-07, channel 3) ----------------------------------
+
+    def consistency(self, first: int, second: int | None = None) -> dict[str, object]:
+        """The package's prefix-consistency proof between two counts.
+
+        Counts, not seqs: the first ``first`` records are a prefix of the
+        first ``second`` (default every record present). The roots are the
+        derived §4.3 tree over record hashes — computed from headers, added
+        to nothing — and the proof is RFC 6962/9162's. Derived and unsigned:
+        it says two roots are consistent, never where a root came from.
+        """
+        with self._lock:
+            n = self._reader.record_count
+            second = n if second is None else second
+            if not 1 <= first <= second <= n:
+                raise ValueError(
+                    f"counts must satisfy 1 ≤ first ≤ second ≤ {n} (the records here); "
+                    f"got first={first}, second={second}"
+                )
+            proof = consistency_proof(self._reader, first, second)
+        return {"proof": proof.to_json(), "verifies": proof.verify(), "records_here": n}
+
+    def check_consistency(self, doc: object) -> dict[str, object]:
+        """A proof someone holds, checked against this chain (E-07).
+
+        Three answers, kept apart: whether the path connects the document's
+        two roots (`verify()`); whether this chain's own root over the first
+        ``first`` records is the document's ``first_root`` — the prefix
+        someone archived is intact here; and the same for ``second``, when
+        this chain holds that many. Raises ``ValueError`` for a document
+        that is not of the proof's shape.
+        """
+        proof = ConsistencyProof.from_json(doc)
+        with self._lock:
+            n = self._reader.record_count
+            first_here = chain_root(self._reader, proof.first) if proof.first <= n else None
+            second_here = chain_root(self._reader, proof.second) if proof.second <= n else None
+        return {
+            "format": CONSISTENCY_FORMAT,
+            "first": proof.first,
+            "second": proof.second,
+            "path_verifies": proof.verify(),
+            "first_root_matches": _same(first_here, proof.first_root),
+            "second_root_matches": _same(second_here, proof.second_root),
+            "records_here": n,
+        }
 
 def open_chain(path: Path) -> ChainHandle:
     """Open a container for reading.

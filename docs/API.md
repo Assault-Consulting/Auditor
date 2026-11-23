@@ -301,6 +301,33 @@ no verdict. Without it the key is `null` — not asked for, never "healthy".
 The two are two builds and two attestations, cached apart per (profile,
 health).
 
+### A bundle is a bounded selection, streamed
+
+`GET /session/{id}/bundle?from_seq&to_seq&profile` (E-01) has the package's
+`assemble_bundle` write `pala-bundle/1` for the selection into a directory
+of the sidecar's own, sends it, and removes it. What the package said about
+it travels in `X-Bundle-*` headers; `Content-Length` lets the shell tell a
+whole tar from a cut one (`src-tauri/src/bundle.rs`). Without an anchor the
+session's reader is used (`reader=`, 0.15); with one, the package opens the
+file, since a shared reader answers with the anchor it was opened with.
+
+A bundle carries each record and its proof path, so it outgrows its source
+(R12): at most 100,000 records (`MAX_BUNDLE_RECORDS`, measured on 0.15);
+422 above that, for a range outside the file, backwards, or a file with no
+records. An open side reaches the file's own first or last record — a
+segment does not start at 0. A damaged chain bundles too.
+
+### Prefix consistency: made, and checked
+
+`GET /session/{id}/consistency?first&second` (E-07) is the package's
+`consistency_proof` between two **counts**; `POST
+/session/{id}/consistency/check {path}` reads a `pala-consistency-proof/1`
+someone holds and returns three answers, kept apart: the path connects the
+document's roots; this chain's root over its first `first` records is the
+document's first root; and the same at `second` (null when the chain holds
+fewer). A proof is derived and unsigned — useful against a root held from
+elsewhere, never on its own.
+
 ### The vocabularies are generated
 
 `src/api/generated/vocabulary.json` is the installed package's closed

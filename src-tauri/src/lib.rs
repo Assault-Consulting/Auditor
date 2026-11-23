@@ -10,6 +10,7 @@
 //! exactly the kind of small, reasonable helper that ADR exists to prevent.
 
 mod artifact;
+mod bundle;
 mod export;
 mod print;
 mod sidecar;
@@ -170,6 +171,59 @@ fn export_records(
         .map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Save an evidence bundle of a selection of an open chain where the user
+/// chooses (E-01).
+///
+/// Streamed like the export: the dialog runs here, this process asks the
+/// sidecar for the bundle and writes it as it arrives (`bundle.rs`), with
+/// its SHA-256 beside it. The webview names a session, a range and an anchor
+/// profile — never a path. Back goes what the package said about the bundle.
+/// A bundle of a damaged chain is saved too: the verification inside says so.
+///
+/// `Ok(None)` is a cancelled dialog, not an error.
+#[tauri::command(async)]
+fn save_bundle(
+    app: tauri::AppHandle,
+    supervisor: State<'_, Supervisor>,
+    session_id: String,
+    from_seq: Option<u64>,
+    to_seq: Option<u64>,
+    profile: String,
+    suggested_name: String,
+) -> Result<Option<bundle::BundledArtifact>, String> {
+    if !export::valid_session_id(&session_id) {
+        return Err("not a session id".to_owned());
+    }
+    let Some(chosen) = app
+        .dialog()
+        .file()
+        .set_file_name(&suggested_name)
+        .add_filter("PALA evidence bundle", &["tar"])
+        .add_filter("All files", &["*"])
+        .blocking_save_file()
+    else {
+        return Ok(None);
+    };
+    let path = chosen.into_path().map_err(|e| e.to_string())?;
+    let session = supervisor.session();
+    let target = bundle::bundle_target(&session_id, from_seq, to_seq, &profile);
+    bundle::fetch_bundle(session.port, &session.token, &target, &path)
+        .map(Some)
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Ask for a prefix-consistency proof someone holds (E-07):
+/// `pala-consistency-proof/1`, JSON. The same boundary as `pick_chain_file`.
+#[tauri::command(async)]
+fn pick_consistency_proof(app: tauri::AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .add_filter("PALA consistency proof", &["json"])
+        .add_filter("All files", &["*"])
+        .blocking_pick_file()
+        .map(|chosen| chosen.to_string())
+}
+
 /// Each print window gets a label of its own: closing one is asynchronous,
 /// and reusing the label of a window still closing fails the build.
 static PRINT_WINDOWS: AtomicU32 = AtomicU32::new(0);
@@ -224,6 +278,8 @@ pub fn run() {
             pick_segment_manifest,
             save_artifact,
             export_records,
+            save_bundle,
+            pick_consistency_proof,
             print_report
         ])
         .build(tauri::generate_context!())

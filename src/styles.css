@@ -2003,6 +2003,22 @@ body {
   margin: 0 0 calc(var(--step) * 1.2);
 }
 
+/* E-01, E-07: the bundle and the prefix proof, under the export they share
+   a range with. */
+.export-sub {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--vellum-dim);
+  margin: calc(var(--step) * 2.4) 0 calc(var(--step) * 0.8);
+  font-weight: normal;
+}
+
+.report-facts > div[data-holds="false"] dd {
+  color: var(--recorded);
+}
+
 .export-note {
   margin: 0 0 calc(var(--step) * 1.5);
   font-size: 0.86rem;
