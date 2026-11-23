@@ -294,10 +294,12 @@ export interface ContinuationModel {
  * the report stops saying what the verifier said.
  */
 export interface DiagnosisModel {
-  /** The package's pattern, an open vocabulary (a newer verifier may add one; a consumer renders an unknown one with the narrative). As of 0.14: empty_container, not_a_container, truncated_tail, declared_continuation, continuation_contradicts_manifest, prefix_absent, seq_gap, chain_break, record_violation, unanchored_tail, replaced_or_rolled_back. */
+  /** The package's pattern, an open vocabulary (a newer verifier may add one; a consumer renders an unknown one with the narrative). As of 0.15: empty_container, not_a_container, truncated_tail, declared_continuation, continuation_contradicts_manifest, prefix_absent, seq_gap, chain_break, record_violation, unanchored_tail, replaced_or_rolled_back. */
   pattern: string;
   /** Where, when the pattern has a location. */
   at_seq: number | null;
+  /** Which question the diagnosis is about (`Diagnosis.question`, 0.15): the panel its sentence belongs under. Null for a pattern the package does not place — shown, unguided. */
+  question?: "consistency" | "completeness" | null;
   /** What the verifier expected to find. */
   expected: string | null;
   /** The verifier's own description, verbatim. */
@@ -356,6 +358,19 @@ export interface HealthDetail {
   kind: string;
   count: number;
   first_seq: number;
+}
+
+/**
+ * One boot's drift, as `drift_series` gives it (channel 5).
+ */
+export interface HealthDrift {
+  boot_id: string;
+  /** Wall against monotonic, parts per million; null with fewer than two points. */
+  slope_ppm: number | null;
+  /** How many records the slope was taken over. */
+  points: number;
+  /** Every trust level named in the boot. */
+  time_trusts: Array<string>;
 }
 
 /**
@@ -590,8 +605,9 @@ export interface RecordHealthView {
   boots: Array<HealthBoot>;
   steps: Array<HealthStep>;
   wall_gaps: Array<HealthWallGap>;
-  /** Not on this version; see drift_note. */
-  drift: null;
+  /** Per boot, in chain order: the package's `drift_series`, copied. */
+  drift: Array<HealthDrift>;
+  /** The clock the drift figures are measured on. */
   drift_note: string;
   safety_total: number;
   safety_by_kind: Array<HealthKind>;
@@ -758,6 +774,12 @@ export interface SegmentCheckView {
   seam_ok: boolean;
   /** Why something did not hold, in the package's words. */
   detail: string | null;
+  /** The manifest entry's first seq (R16, 0.15). Declared, never verified: for a segment that is gone, the only evidence left of it. */
+  declared_first_seq?: number | null;
+  /** The entry's last seq, declared. */
+  declared_last_seq?: number | null;
+  /** The entry's head, declared, hex. */
+  declared_head?: string | null;
 }
 
 export interface SegmentSetRequest {
@@ -958,6 +980,8 @@ export interface VerificationResponse {
   chain: ChainResult;
   /** The body-digest walk. Required rather than optional: a response that could omit it would let a consumer answer question one from the header chain alone. */
   container: ContainerCheck;
+  /** Question one in the package's one answer (`is_consistent()`, 0.15): the header chain links, the container walks to its end, and every body matches its digest — `consistency.ok` in `pala verify --json`, `consistent` in the export and the bundle. True for a file with no records, which is not a log found intact. */
+  consistent: boolean;
   completeness: Completeness;
   /** The source that answered, or null when none did. A completeness answer is worth exactly as much as the anchor behind it, so the two are never separated. */
   anchor: AnchorReadingModel | null;

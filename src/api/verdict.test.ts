@@ -11,6 +11,7 @@
 
 import { describe as group, expect, it } from "vitest";
 
+import vocabulary from "./generated/vocabulary.json";
 import type { ChainSubject, VerificationResponse } from "./generated/types";
 import { type Panel, triptych } from "./verdict";
 
@@ -28,8 +29,32 @@ const TIER_A: ChainSubject = {
   time_trust_values: [{ value: 1, name: "UNSYNCED" }],
 };
 
+/**
+ * The package's placement of each pattern (DIAGNOSIS_QUESTIONS, 0.15) —
+ * the fixture fills `question` from it as the sidecar would.
+ */
+const QUESTIONS = vocabulary.diagnosis_questions as Record<string, "consistency" | "completeness" | null>;
+
+/**
+ * `consistent` is `is_consistent()` (T10): headers link, the container walks
+ * to its end, every body matches. Derived here from the facts the fixture
+ * states, so each test's facts and answer cannot disagree.
+ */
 function response(over: Partial<VerificationResponse> = {}): VerificationResponse {
+  const r = raw(over);
+  const d = r.diagnosis ?? null;
   return {
+    ...r,
+    consistent:
+      over.consistent ??
+      (r.chain.chain_ok && r.container.well_formed && r.container.body_digest_mismatches.length === 0),
+    diagnosis: d === null ? null : { ...d, question: d.question !== undefined ? d.question : (QUESTIONS[d.pattern] ?? null) },
+  };
+}
+
+function raw(over: Partial<VerificationResponse>): VerificationResponse {
+  return {
+    consistent: true,
     session_id: "s1",
     subject_sha256: "ab".repeat(32),
     verifier: { package: "palimpsests 0.10.0", spec: "PALA-1 format_version 1" },
@@ -389,6 +414,31 @@ group("a whole chain read against an anchor it has outrun or that names nothing"
     expect(q1.standing).toBe("answered-yes");
     expect(q1.answer).toContain("no guidance");
     expect(q1.narrative).toBe("A sentence from a newer verifier.");
+  });
+
+  it("places a sentence by the package's question, not by a list kept here (T10)", () => {
+    // A pattern this build has never heard of, placed by the package under
+    // question two: its sentence leaves panel one alone.
+    const [q1] = triptych(
+      response({
+        diagnosis: {
+          pattern: "a_newer_completeness_pattern",
+          question: "completeness",
+          at_seq: null,
+          expected: null,
+          narrative: "About the anchor.",
+        },
+      }),
+      TIER_A,
+    );
+    expect(q1.standing).toBe("answered-yes");
+    expect(q1.narrative).toBeUndefined();
+    expect(q1.answer).not.toContain("no guidance");
+  });
+
+  it("answers from the package's consistent when the facts it sees are not in the response", () => {
+    const [q1] = triptych(response({ consistent: false }), TIER_A);
+    expect(q1.standing).toBe("answered-no");
   });
 
   it("a cut container is still no, whatever chain_ok says", () => {

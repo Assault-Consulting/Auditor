@@ -57,7 +57,7 @@ class Session:
     #: Not only for cost: the report carries `checked_at`, so building it
     #: again would hand out a second, differently timestamped attestation of
     #: the same check. One check, one report (D-01).
-    reports: dict[str, dict] = field(default_factory=dict)
+    reports: dict[tuple[str, bool], dict] = field(default_factory=dict)
     #: Where each check went in the witness log (E-05), keyed as above.
     witnessed: dict[str, dict] = field(default_factory=dict)
     _record_health: dict | None = field(default=None, repr=False)
@@ -143,12 +143,18 @@ class Session:
         }
 
     def report(
-        self, profile: str = "none", sources: list[dict[str, str]] | None = None
+        self,
+        profile: str = "none",
+        sources: list[dict[str, str]] | None = None,
+        *,
+        health: bool = False,
     ) -> dict:
-        """The package's report for this session and profile, built at most once."""
-        if profile not in self.reports:
-            self.reports[profile] = self.chain.report(sources)
-        return self.reports[profile]
+        """The package's report for this session, profile and health flag,
+        built at most once: a second build would be a second attestation."""
+        key = (profile, health)
+        if key not in self.reports:
+            self.reports[key] = self.chain.report(sources, health=health)
+        return self.reports[key]
 
     def boots(self) -> list[dict]:
         """The boots in this container, computed at most once."""

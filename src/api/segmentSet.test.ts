@@ -43,6 +43,12 @@ group("a segment set, in words (§22.1)", () => {
   it("describes each segment by what was found", () => {
     expect(segmentState(seg())).toEqual({ text: "holds", failed: false });
     expect(segmentState(seg({ present: false, verified: null }))).toEqual({ text: "listed, not here", failed: true });
+    // R16: a gone segment says what its entry declared, as a declaration.
+    expect(
+      segmentState(
+        seg({ present: false, verified: null, declared_first_seq: 0, declared_last_seq: 3, declared_head: "ab".repeat(32) }),
+      ),
+    ).toEqual({ text: "listed, not here — declared records #0–#3, head abababababab…; not here to check", failed: true });
     expect(segmentState(seg({ verified: false, head_matches: false }))).toEqual({
       text: "does not hold; its last record is not the head the manifest gives",
       failed: true,

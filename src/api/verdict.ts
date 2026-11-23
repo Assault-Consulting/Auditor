@@ -21,12 +21,12 @@
  * the response carries a separate `container` block.
  *
  * **Nor is `diagnosis` the answer to it.** The package gives one diagnosis
- * for all three questions, and two of its patterns are about question two:
- * a whole chain read against an anchor it has outrun (`unanchored_tail`) or
- * that names nothing in it (`replaced_or_rolled_back`). Question one is
- * answered from the facts — the rule `pala verify --json` calls
- * `consistency.ok` and the export calls `consistent` — and a diagnosis only
- * decides under which question its sentence is shown.
+ * for all three questions, and some of its patterns are about question two
+ * (an anchor the chain has outrun, or one that names nothing in it).
+ * Question one is the package's `consistent` — `is_consistent()`, the rule
+ * `pala verify --json` calls `consistency.ok` (T10, 0.15) — and the
+ * diagnosis's `question`, also the package's, decides under which panel its
+ * sentence is shown. No list of patterns is kept here.
  */
 
 import type {
@@ -87,35 +87,6 @@ function tierPhrase(subject: ChainSubject): string {
  * behind a PIN) do not share that exposure, so they do not get the caveat.
  */
 const HOST_LOCAL_SOURCES: ReadonlySet<string> = new Set(["file", "keychain"]);
-
-/**
- * Diagnosis patterns that answer question two, not question one. Their
- * sentence belongs beside the completeness answer, which already carries the
- * verifier's own reason for it (`anchor_reason`).
- */
-const COMPLETENESS_PATTERNS: ReadonlySet<string> = new Set([
-  "unanchored_tail",
-  "replaced_or_rolled_back",
-]);
-
-/**
- * Diagnosis patterns about question one. Each arrives with the facts below
- * already failing — a gap, a break, a violation or a cut container — so this
- * list never turns a yes into a no on its own; it says whose sentence the
- * narrative is. A pattern in neither list is shown with the facts' answer
- * and a sentence saying this build has no guidance for it.
- */
-const CONSISTENCY_PATTERNS: ReadonlySet<string> = new Set([
-  "not_a_container",
-  "empty_container",
-  "truncated_tail",
-  "prefix_absent",
-  "declared_continuation",
-  "continuation_contradicts_manifest",
-  "seq_gap",
-  "chain_break",
-  "record_violation",
-]);
 
 /** Whether every record was written under tier A — the floor. */
 function isTierAOnly(subject: ChainSubject): boolean {
@@ -183,22 +154,21 @@ function consistency(v: VerificationResponse): Panel {
     };
   }
 
-  // The facts, not the diagnosis (see the module docstring): the headers
-  // link, the container parsed to its end, and every body matched above.
-  // chain_ok alone is true for a truncated container.
-  const pattern = v.diagnosis?.pattern ?? null;
-  const own =
-    v.diagnosis !== null && !COMPLETENESS_PATTERNS.has(v.diagnosis.pattern)
-      ? v.diagnosis.narrative
-      : undefined;
-  if (v.chain.chain_ok && v.container.well_formed) {
+  // The package's answer, not the diagnosis (see the module docstring).
+  // chain_ok alone is true for a truncated container and a swapped body.
+  const d = v.diagnosis;
+  const about = d?.question ?? null;
+  // The sentence is shown here unless the package places it under question
+  // two. A pattern it does not place is shown here, said to be unguided.
+  const own = d !== null && about !== "completeness" ? d.narrative : undefined;
+  if (v.consistent) {
     const linked = `${v.chain.count} records, each linked to the one before it and matching its own body digest.`;
-    if (pattern === null || COMPLETENESS_PATTERNS.has(pattern)) {
+    if (d === null || about === "completeness") {
       return { index: "01", question, standing: "answered-yes", answer: linked, basis };
     }
-    if (CONSISTENCY_PATTERNS.has(pattern)) {
-      // Not reached on 0.14.1 — each of these patterns comes with a failing
-      // fact — but a diagnosis about this question is not overruled here.
+    if (about === "consistency") {
+      // Not reached on 0.15 — such a diagnosis comes with an inconsistent
+      // file — but when the two disagree, the narrower no is not overruled.
       return {
         index: "01",
         question,
@@ -208,8 +178,8 @@ function consistency(v: VerificationResponse): Panel {
         narrative: own,
       };
     }
-    // A pattern this build does not know: the facts answer, and the
-    // verifier's sentence is shown as what it is.
+    // A pattern this build of the package does not place: the answer stands,
+    // and the verifier's sentence is shown as what it is.
     return {
       index: "01",
       question,

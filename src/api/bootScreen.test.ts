@@ -60,6 +60,7 @@ const OPENED: SessionResponse = {
 
 function result(over: Partial<VerificationResponse> = {}): VerificationResponse {
   return {
+    consistent: true,
     session_id: "s1",
     subject_sha256: SUBJECT.sha256,
     verifier: OPENED.verifier,

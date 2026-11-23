@@ -156,6 +156,14 @@ wrong.
 The cost is a second pass over the file, paid once per (session, profile)
 and cached with the verification.
 
+Since palimpsests 0.15 the response also carries `consistent`, the
+package's `is_consistent()` — the one answer to question one, which
+`pala verify --json` calls `consistency.ok` (T10). The two walks stay in the
+response so a screen can say *which* fact failed; `consistent` says whether
+one did, and the UI answers from it. A diagnosis carries `question`
+(`consistency`, `completeness`, or null), and that decides under which panel
+its sentence is shown: no list of patterns is kept on this side.
+
 ### An answer of "the file does not say" is a 200, not a 404
 
 `GET /session/{id}/origin` returns **200 with a null body** when no origin
@@ -279,8 +287,29 @@ manifest or cannot be read.
 and boot statistics as they come, the wall gaps the timeline computes, and
 counts of SAFETY records by kind, by boot and by identical detail. It draws
 no threshold and names nothing anomalous: those words would be the shell
-deciding what the record means. `drift` is null before palimpsests 0.15,
-and `drift_note` says why.
+deciding what the record means. `drift` is the package's `drift_series`
+per boot (channel 5, 0.15) — a slope of the writer's wall clock against its
+monotonic one, so a claim, and `drift_note` names that clock. Each boot
+carries `lifecycle`: whether its writer marked its open and close
+(profile r8).
+
+### The report's own health section is asked for
+
+`GET /session/{id}/report?health=true` (E-04, R15) asks `build_report` for
+its `health` section: a fixed-size summary of channel 5, advisory, read by
+no verdict. Without it the key is `null` — not asked for, never "healthy".
+The two are two builds and two attestations, cached apart per (profile,
+health).
+
+### The vocabularies are generated
+
+`src/api/generated/vocabulary.json` is the installed package's closed
+vocabularies — verdicts, diagnosis patterns and their questions, advisory
+codes, violation codes, manifest statuses — written by
+`scripts/generate_api_client.py` beside the schema and diffed by CI. The
+frontend's tests hold every table of sentences to it (T11), both ways: a
+word the package adds fails a test before it can reach the window
+unexplained.
 
 ### Every route but `/health` requires the session token
 

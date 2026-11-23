@@ -58,6 +58,11 @@ def test_a_segment_gone_makes_it_incomplete_not_inconsistent(
     assert body["absent"] == [first.name]
     gone = next(s for s in body["segments"] if s["file"] == first.name)
     assert gone["present"] is False and gone["verified"] is None and gone["path"] is None
+    # What the manifest declared it held is all that is left of it (R16).
+    entry = next(c for c in verify_segment_set(segmented).segments if c.file == first.name)
+    assert gone["declared_first_seq"] == entry.declared_first_seq == 0
+    assert gone["declared_last_seq"] == entry.declared_last_seq
+    assert gone["declared_head"] == entry.declared_head.hex()
 
 
 def test_a_segment_altered_makes_it_inconsistent(

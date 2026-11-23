@@ -81,7 +81,8 @@ export interface RecordHealth {
   cadence: string | null;
   steps: StepLine[];
   gaps: string[];
-  drift: string;
+  /** The clock the drift is measured on, then one line per boot with a slope. */
+  drift: string[];
   safetyTotal: number;
   kinds: { kind: string; total: number; perBoot: string }[];
   recurring: string[];
@@ -125,6 +126,26 @@ export function lifecycleText(l: Lifecycle): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * Drift per boot, the package's `drift_series` (channel 5, 0.15). A slope in
+ * parts per million of the writer's wall clock against its monotonic one —
+ * so the writer's claim, said with its basis. No line is drawn.
+ */
+function driftLines(h: RecordHealthView): string[] {
+  const lines = h.drift
+    .filter((d) => d.slope_ppm !== null)
+    .map((d) => {
+      const ppm = d.slope_ppm!;
+      const sign = ppm < 0 ? "−" : "+";
+      const v = Math.abs(ppm);
+      const shown = v >= 10 ? Math.round(v) : Math.round(v * 10) / 10;
+      return `Boot ${short(d.boot_id)}: ${sign}${shown} ppm over ${count(d.points, "record")}` +
+        (d.time_trusts.length > 0 ? ` (${d.time_trusts.join(" → ")})` : "");
+    });
+  const head = `Clock drift per boot, ${h.drift_note}.`;
+  return lines.length === 0 ? [`${head} No boot has two records to take a slope over.`] : [head, ...lines];
 }
 
 export function recordHealth(h: RecordHealthView): RecordHealth {
@@ -178,7 +199,7 @@ export function recordHealth(h: RecordHealthView): RecordHealth {
     cadence,
     steps,
     gaps,
-    drift: `Clock drift per boot: ${h.drift_note}.`,
+    drift: driftLines(h),
     safetyTotal: h.safety_total,
     kinds,
     recurring,

@@ -31,6 +31,9 @@ export interface ManifestLine {
   unrecognised: boolean;
 }
 
+/** The statuses this module has a sentence for — held to the package's (T11). */
+export const KNOWN_STATUSES: readonly string[] = ["matches", "contradicts", "declared_only"];
+
 export function manifestLine(manifest: ManifestReadingModel | null | undefined): ManifestLine | null {
   if (manifest === null || manifest === undefined) return null;
   const { path, status, sha256, detail } = manifest;

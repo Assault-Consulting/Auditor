@@ -219,9 +219,14 @@ export async function getReport(
   session: Session,
   sessionId: string,
   profile = "none",
+  health = true,
 ): Promise<ReportResponse> {
+  // E-04: the report carries its own health section unless asked not to.
   const response = await fetch(
-    url(session, `/session/${sessionId}/report?profile=${encodeURIComponent(profile)}`),
+    url(
+      session,
+      `/session/${sessionId}/report?profile=${encodeURIComponent(profile)}&health=${health ? "true" : "false"}`,
+    ),
     { headers: headers(session) },
   );
   if (!response.ok) await raise(response);

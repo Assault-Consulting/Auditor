@@ -60,12 +60,17 @@ from palimpsests.audit.anchors_pkcs11 import (
 )
 from palimpsests.audit.export import export_jsonl
 from palimpsests.audit.reader import (
+    ADVISORY_CODES,
+    DIAGNOSIS_PATTERNS,
+    DIAGNOSIS_QUESTIONS,
     FORMAT_VERSION,
     HEADER_FIELDS,
     KIND_INCIDENT_CANDIDATE,
+    MANIFEST_STATUSES,
     NO_PREDECESSOR,
     NO_SPAN,
     RT_SAFETY,
+    VIOLATION_CODES,
     AuditReader,
     assurance_tier_name,
     boot_statistics,
@@ -75,9 +80,10 @@ from palimpsests.audit.reader import (
     step_catalog,
     time_trust_name,
 )
-from palimpsests.audit.report import build_report
+from palimpsests.audit.report import REPORT_FORMAT, VERDICTS, build_report
 from palimpsests.audit.report_html import render_html
 from palimpsests.audit.segment_set import verify_segment_set
+from palimpsests.audit.timehealth import drift_series
 from pathlib import Path
 
 __all__ = [
@@ -395,6 +401,27 @@ def verifier_identity() -> dict[str, str]:
     }
 
 
+def vocabulary() -> dict[str, object]:
+    """The package's closed vocabularies, as this build of it has them (T11).
+
+    Every word the UI has a sentence for comes from one of these, and a word
+    the package adds must fail a test rather than reach the window with no
+    guidance. Written to `src/api/generated/vocabulary.json` by
+    scripts/generate_api_client.py, which CI re-runs and diffs, so a package
+    upgrade that adds a word shows up as a stale file, and the frontend's
+    tests hold its tables to that file.
+    """
+    return {
+        "report_format": REPORT_FORMAT,
+        "verdicts": sorted(VERDICTS),
+        "diagnosis_patterns": sorted(DIAGNOSIS_PATTERNS),
+        "diagnosis_questions": {p: DIAGNOSIS_QUESTIONS.get(p) for p in sorted(DIAGNOSIS_PATTERNS)},
+        "advisory_codes": sorted(ADVISORY_CODES),
+        "violation_codes": sorted(VIOLATION_CODES),
+        "manifest_statuses": sorted(MANIFEST_STATUSES),
+    }
+
+
 @dataclass
 class _HeaderIndex:
     """Every record's header fields, read once, kept as flat arrays (C-10b).
@@ -621,7 +648,9 @@ class ChainHandle:
             "body_digest_mismatches": list(check.body_digest_mismatches),
         }
 
-    def report(self, anchor_specs: list[dict[str, str]] | None = None) -> dict[str, object]:
+    def report(
+        self, anchor_specs: list[dict[str, str]] | None = None, *, health: bool = False
+    ) -> dict[str, object]:
         """The package's verification report, as the package built it (D-01).
 
         ``build_report`` (channel 2) produces ``pala-verification-report/2``
@@ -636,6 +665,11 @@ class ChainHandle:
         one, ``build_report`` opens its own, because a shared reader answers
         with the anchor it was opened with — none, and the package refuses
         the pair (0.12.0, F4).
+
+        ``health`` asks the package for the report's own ``health`` section
+        (E-04, R15, 0.15): a fixed-size summary of channel 5, advisory, read
+        by no verdict. Without it the key is null — "not asked for", never
+        "healthy". It costs a walk (10^6 records: 11 s against 9 s).
         """
         specs = anchor_specs or []
         if specs:
@@ -643,6 +677,7 @@ class ChainHandle:
                 self._path,
                 anchor_source=_anchor_source(specs),
                 tool=_REPORT_TOOL,
+                health=health,
             )
         else:
             with self._lock:
@@ -650,6 +685,7 @@ class ChainHandle:
                     self._path,
                     reader=self._reader,
                     tool=_REPORT_TOOL,
+                    health=health,
                 )
         # The HTML is the package's rendering of the same report (render_html,
         # channel 2 since 0.14, R5) — one self-contained page, no script, no
@@ -708,6 +744,13 @@ class ChainHandle:
         # different question: `chain` is about how records link, `container`
         # is about whether each record is the bytes its header claims.
         rendered["container"] = self.container(anchor_specs)
+        # Question one in the package's one answer (T10, 0.15):
+        # `is_consistent()` — headers link, the container walks to its end,
+        # every body matches its digest. Independent of any anchor, so the
+        # session's reader answers it, once, and keeps it. An empty file is
+        # consistent: nothing contradicts anything (C-8); not a log found intact.
+        with self._lock:
+            rendered["consistent"] = self._reader.is_consistent()
         return rendered
 
     def _render(self, result) -> dict[str, object]:
@@ -782,6 +825,11 @@ class ChainHandle:
                 # None for every other pattern. What to branch on — the
                 # `expected` sentence beside it carries the reason.
                 "code": diagnosis.code,
+                # Which question the sentence is about (T10, 0.15) —
+                # "consistency", "completeness", or None for a pattern this
+                # build of the package does not place. Derived from the
+                # pattern by the package, so the two cannot disagree.
+                "question": diagnosis.question,
             },
             # The second file a verdict may rest on (U17, 0.13): the segments
             # manifest a continuation diagnosis was decided against. Carried as
@@ -1765,13 +1813,17 @@ class ChainHandle:
         threshold is applied and nothing is called anomalous here (F12's
         second discipline; §22.4 leaves thresholds open).
 
-        The drift series (U1, `drift_series`) is not in the declared surface
-        before 0.15 (R10), so `drift` is null and says so.
+        Drift per boot is the package's `drift_series` (channel 5, U1; in
+        `timehealth.__all__` since 0.15, R10): the slope of the writer's wall
+        clock against its monotonic clock, in parts per million, within one
+        boot — a figure on the wall clock, so the writer's claim. Copied, not
+        fitted here; the points stay with the package.
         """
         idx = self._header_index()
         with self._lock:
             step_data = list(step_catalog(self._reader))
             stats_list = list(boot_statistics(self._reader))
+            drifts = list(drift_series(self._reader))
             safety = list(self._reader.safety_records())
         _, gaps = self._boundaries_and_gaps(idx) if len(idx) else ([], [])
         with self._lock:
@@ -1838,10 +1890,18 @@ class ChainHandle:
                 }
                 for g in gaps
             ],
-            "drift": None,
+            "drift": [
+                {
+                    "boot_id": d.boot_id.hex(),
+                    "slope_ppm": d.slope_ppm,
+                    "points": len(d.points),
+                    "time_trusts": list(d.time_trusts),
+                }
+                for d in drifts
+            ],
             "drift_note": (
-                "the drift series (U1) is in palimpsests' declared surface from 0.15 (R10); "
-                "not shown on this version"
+                "the writer's wall clock against its monotonic clock, within one boot — "
+                "the writer's claim"
             ),
             "safety_total": sum(sum(c.values()) for c in per_kind.values()),
             "safety_by_kind": [
@@ -2191,6 +2251,12 @@ def check_segment_set(manifest_path: Path) -> dict[str, object]:
                 "head_matches": c.head_matches,
                 "seam_ok": c.seam_ok,
                 "detail": c.detail,
+                # What the manifest's entry declares the segment holds (R16,
+                # 0.15) — for one that is gone, the only evidence left of it.
+                # Declared, never verified; null for an unlisted live tail.
+                "declared_first_seq": c.declared_first_seq,
+                "declared_last_seq": c.declared_last_seq,
+                "declared_head": None if c.declared_head is None else c.declared_head.hex(),
             }
             for c in result.segments
         ],

@@ -54,6 +54,7 @@ const OPENED: SessionResponse = {
 // Typed for the same reason OPENED is: a response model that grows a
 // required field must fail here rather than in a component.
 const VERIFIED: VerificationResponse = {
+  consistent: true,
   session_id: "s1",
   subject_sha256: "ab".repeat(32),
   verifier: { package: "palimpsests 0.10.0", spec: "PALA-1 format_version 1" },

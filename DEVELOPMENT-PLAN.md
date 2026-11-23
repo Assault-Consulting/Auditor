@@ -91,17 +91,16 @@ interactive is the live desktop check below, not yet done.
 | E-01 | Evidence bundle UI over `assemble_bundle(reader=…)` from the session. **Bounded selection** — a bundle carries a proof path per record and outgrows its source (R12: 1,000 records 9 s / 406 MB; 100,000 records 14 s / 1.3 GB; the whole of 10⁶ does not fit in 8 GB); the bound is set by measuring on 0.15 | 1.5 | 0.15 (R10, R12) |
 | E-02 | Re-verification harness for bundles, from the spec, with no Auditor code | 3 | E-01 |
 | ◐ E-03 | Record health over U1–U3, with F12's three disciplines. **Built on 0.14.1:** `/record-health` (step catalog, boot statistics with anchor gaps, wall gaps between boots, SAFETY by kind × boot, recurring details) and the **Record health** panel, every block under its basis (proved / monotonic / recorded), no threshold, no verdict word. **Left:** drift per boot (U1, 0.15 via R10); warnings against origin events; baseline change — §22.4's thresholds stay open | 5 | 0.15 for drift |
-| E-04 | Health summary in the report, labelled advisory — **decided by R15 (Palimpsests #380, 0.15):** `build_report(health=True)`; Auditor shows the report's own `health` section beside E-03's series, and makes no document of its own | 1 | 0.15 |
+| ✓ E-04 | Health summary in the report, labelled advisory — **decided by R15 (Palimpsests #380, 0.15):** `build_report(health=True)`; Auditor shows the report's own `health` section beside E-03's series, and makes no document of its own | 1 | 0.15 |
 | ✓ E-05 | Local witness log: `auditor-witness/1`, JSON Lines, each entry the SHA-256 of the one before (ADR-0003, `docs/WITNESS-LOG.md`). One entry per first `/verify` of a session and profile, holding the package's facts, never a verdict; `GET /witness` walks it; a log that does not link is not appended to and the check says so. The panel says what it shows and what it does not — a cut tail still links. `scripts/check_witness_log.py` checks a log with nothing from this repository | 3 | — |
 | E-06 | SCITT receipts as pins, displayed, never minted | ? | — |
 | E-07 | Prefix-consistency proofs (`consistency_proof`, `chain_root`) | ? | 0.15 (R10) |
 | Phase 5 | Watch mode; the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; `uk` pass. **Watch mode (F15)** is planned against 0.15: `TailingReader` is channel 9, provisional (R17) — pin the minor | — | — |
 
 **Next, in order:** the live desktop check on the Windows installer (F-01);
-on 0.15 (targeted by 24 December): C-18 and the surface review's stage 2
-(T8–T16) together with the addendum's T18 — without both CI is red on 0.15 —
-then T19–T20, E-04 (R15), the declared range of a missing segment (R16),
-E-01 and E-07, and watch mode (F15, R17 — provisional).
+E-01 (bundle, bounded selection — T15, T22) and E-07 (consistency proofs);
+then watch mode (F15, R17 — provisional, its own phase). Done on 0.15
+(23 Nov 2026): C-18 and stage 2 T8–T14, T16; the addendum's T18–T21.
 
 ## 0.15 addendum (T18–T23, 19 Nov 2026)
 
@@ -112,10 +111,10 @@ a line goes when its test passes again.
 
 | # | Task | Size | What | Before the tag |
 |---|---|---|---|---|
-| 1 | T8 + T18 (tests) | M | fixtures that test records by number build with `lifecycle=False`; at least one stays in the default mode and its numbers are rewritten; vector counts read from the vectors | feature-detected, so the same suite runs on 0.14.1 and on `main` |
-| 2 | T18 (product) | M | `WRITER_OPEN` / `WRITER_CLOSE` in the list and the record card (`detail` = writer and version); `boot_ended_without_close` worded — not a violation, verdict unchanged; record health shows closed, unclosed and last boot; anchor advice: anchor after the writer stops | names and texts; shown once 0.15 writes them |
-| 3 | T19, T21 (R16) | S | `derived-from-telemetry`: the pair was written when the export arrived, not at the call; the segment panel says a missing segment's declared range and head | texts; R16 on 0.15 |
-| 4 | T21 (R15 → E-04) | M | the report's own `health` section | 0.15 |
+| ✓ 1 | T8 + T18 (tests) | M | fixtures that test records by number build with `lifecycle=False`; at least one stays in the default mode and its numbers are rewritten; vector counts read from the vectors | feature-detected, so the same suite runs on 0.14.1 and on `main` |
+| ✓ 2 | T18 (product) | M | `WRITER_OPEN` / `WRITER_CLOSE` in the list and the record card (`detail` = writer and version); `boot_ended_without_close` worded — not a violation, verdict unchanged; record health shows closed, unclosed and last boot; anchor advice: anchor after the writer stops | names and texts; shown once 0.15 writes them |
+| ✓ 3 | T19, T21 (R16) | S | `derived-from-telemetry`: the pair was written when the export arrived, not at the call; the segment panel says a missing segment's declared range and head | texts; R16 on 0.15 |
+| ✓ 4 | T21 (R15 → E-04) | M | the report's own `health` section | 0.15 |
 | 5 | T20, T22 | S | origin panel: a new origin at the 0.14 → 0.15 boundary is a digest-rule change, not a configuration change; file anchor named, not pathed; E-01's bounded selection; SCITT `key_type_mismatch` (19 codes); T12's exceptions removed | texts; code on 0.15 |
 | 6 | T21 (R17 → F15) | L | watch mode — a phase of its own, pinned to the minor | 0.15 |
 
