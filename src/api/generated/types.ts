@@ -1053,6 +1053,74 @@ export interface WallGap {
 }
 
 /**
+ * One thing that happened at the tail, as the package named it (channel 9).
+ */
+export interface WatchEvent {
+  /** Cursor: events are numbered from 0 in the order they happened. */
+  n: number;
+  /** record, pending_tail, shrunk, recovered, anchor_seen or diagnosis (`TAIL_EVENT_KINDS`, provisional in 0.15). */
+  kind: string;
+  seq: number | null;
+  /** The record's kind or type name, the package's. */
+  record_kind: string | null;
+  /** The package's sentence, or the record's own detail. */
+  detail: string | null;
+  /** When this desk saw it, Unix seconds — not a record's time. */
+  at: number;
+}
+
+export interface WatchEvents {
+  events: Array<WatchEvent>;
+  /** The cursor to ask from next. */
+  next: number;
+  /** Events after `after` no longer kept: the reader fell behind. */
+  dropped: number;
+  state: WatchState;
+}
+
+export interface WatchRequest {
+  /** The file to watch, local. */
+  path: string;
+  /** Anchor profile, as for /verify. */
+  profile?: string;
+  /** Seconds between looks at the file. */
+  poll_interval?: number;
+}
+
+/**
+ * The package's batch verification over the verified prefix (channel 9).
+ */
+export interface WatchSnapshot {
+  chain: ChainResult;
+  completeness: Completeness;
+  anchor: AnchorReadingModel | null;
+  anchor_attempts: Array<AnchorAttemptModel>;
+  diagnosis: DiagnosisModel | null;
+}
+
+export interface WatchStarted {
+  watch_id: string;
+  path: string;
+  profile: string;
+}
+
+export interface WatchState {
+  state: "watching" | "stopped" | "limit" | "failed";
+  /** Why it is not watching, in words; null while it is. */
+  reason: string | null;
+  path: string;
+  /** Records verified so far. */
+  records: number;
+  last_seq: number | null;
+  /** Records by kind or type name, most first. */
+  by_kind: Record<string, number>;
+  /** When the watch started, Unix seconds, this desk's clock. */
+  since: number;
+  /** Where the watch stops itself (memory: R17). */
+  max_records: number;
+}
+
+/**
  * The log's own linkage, and what it does and does not show (E-05).
  */
 export interface WitnessCheckView {

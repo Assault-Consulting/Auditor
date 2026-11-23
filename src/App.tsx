@@ -44,7 +44,8 @@ import {
   summaryLine,
 } from "./api/exportFile";
 import { PRINT_OPENED, printReport, reportFileName, saveArtifact, savedLine } from "./api/saveFile";
-import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecordHealth, useRecords, useSafety, useSegmentSet, useWitness } from "./state";
+import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecordHealth, useRecords, useSafety, useSegmentSet, useWatch, useWitness } from "./state";
+import { WATCH_NOTE, snapshotLine, stateLine } from "./api/watch";
 import { offsetLabel } from "./api/hexView";
 import { segmentState, setAnswers } from "./api/segmentSet";
 import { BASIS_LABEL, HEALTH_NOTE } from "./api/health";
@@ -71,6 +72,7 @@ export default function App() {
   const [chosenProfile, setChosenProfile] = useState("none");
   // §22.1. Declared before the chain so a dropped manifest can reach it.
   const segmentSet = useSegmentSet(probe);
+  const watcher = useWatch(probe);
   const [chain, choice, pick, verify, openPathInShell] = useChain(probe, segmentSet.check);
   const rail = useRail(probe, chain);
   const { boots, spans } = useBrowse(probe, chain);
@@ -587,6 +589,14 @@ export default function App() {
           </button>
           <button
             className="choose-button"
+            disabled={watcher.watch.kind === "starting" || (watcher.watch.kind === "on" && watcher.watch.state?.state === "watching")}
+            onClick={() => watcher.pick(chosenProfile)}
+            type="button"
+          >
+            {watcher.watch.kind === "starting" ? "Starting the watch…" : "Watch a file…"}
+          </button>
+          <button
+            className="choose-button"
             disabled={!canVerify}
             onClick={() => verify(chosenProfile, sourcesOf(chosenProfile))}
             type="button"
@@ -729,6 +739,85 @@ export default function App() {
               Close the set
             </button>
           </div>
+        </section>
+      )}
+
+      {/* F15 — a file read as it is written: the package's TailingReader
+          (channel 9, provisional), its events said in words. Not a session:
+          to read the file whole, stop and open it. */}
+      {watcher.watch.kind !== "idle" && (
+        <section aria-labelledby="watch-title" className="watch">
+          <h2 className="segment-set-title" id="watch-title">
+            Watch{watcher.watch.kind === "on" ? ` — ${watcher.watch.path}` : ""}
+          </h2>
+          <p className="export-note">{WATCH_NOTE}</p>
+          {watcher.watch.kind === "starting" && <p role="status">Starting the watch on {watcher.watch.path}…</p>}
+          {watcher.watch.kind === "failed" && (
+            <p className="report-failed" role="alert">
+              {watcher.watch.detail}
+            </p>
+          )}
+          {watcher.watch.kind === "on" && (() => {
+            const w = watcher.watch;
+            const st = w.state === null ? null : stateLine(w.state);
+            return (
+              <>
+                <p className="chain-line" role="status" data-live={st?.live ? "" : undefined}>
+                  {st?.text ?? "Reading the file…"}
+                </p>
+                {w.dropped > 0 && (
+                  <p className="footnote">
+                    {w.dropped} events went by faster than this panel read them — the counts above include them.
+                  </p>
+                )}
+                {/* Latest first, so the newest is what is in view without
+                    managing a scroll; focusable, so the window scrolls by
+                    keyboard too (WCAG 2.1.1). */}
+                <ol className="watch-events" aria-label="What happened at the tail, latest first" tabIndex={0}>
+                  {[...w.lines].reverse().map((l) => (
+                    <li data-weight={l.weight} key={l.n}>
+                      <span className="watch-seq">{l.seq}</span> {l.text}
+                    </li>
+                  ))}
+                </ol>
+                {w.snapshot.kind === "got" && (() => {
+                  const snap = snapshotLine(w.snapshot.value);
+                  return <p className={snap.finding ? "report-failed" : "report-saved"}>{snap.text}</p>;
+                })()}
+                {w.snapshot.kind === "failed" && <p className="report-failed">{w.snapshot.detail}</p>}
+                <div className="export-range">
+                  <button
+                    className="choose-button"
+                    disabled={w.snapshot.kind === "asking"}
+                    onClick={watcher.snapshot}
+                    type="button"
+                  >
+                    {w.snapshot.kind === "asking" ? "Verifying what is held…" : "Ask the three questions so far"}
+                  </button>
+                  {w.state?.state === "watching" ? (
+                    <button className="choose-button" onClick={watcher.stop} type="button">
+                      Stop watching
+                    </button>
+                  ) : (
+                    <button
+                      className="choose-button"
+                      onClick={() => {
+                        const path = w.path;
+                        watcher.close();
+                        openPathInShell(path);
+                      }}
+                      type="button"
+                    >
+                      Open the file
+                    </button>
+                  )}
+                  <button className="choose-button" onClick={watcher.close} type="button">
+                    Close
+                  </button>
+                </div>
+              </>
+            );
+          })()}
         </section>
       )}
 

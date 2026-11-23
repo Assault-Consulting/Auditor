@@ -3089,6 +3089,277 @@
         "title": "WallGap",
         "type": "object"
       },
+      "WatchEvent": {
+        "description": "One thing that happened at the tail, as the package named it (channel 9).",
+        "properties": {
+          "at": {
+            "description": "When this desk saw it, Unix seconds \u2014 not a record's time.",
+            "title": "At",
+            "type": "number"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's sentence, or the record's own detail.",
+            "title": "Detail"
+          },
+          "kind": {
+            "description": "record, pending_tail, shrunk, recovered, anchor_seen or diagnosis (`TAIL_EVENT_KINDS`, provisional in 0.15).",
+            "title": "Kind",
+            "type": "string"
+          },
+          "n": {
+            "description": "Cursor: events are numbered from 0 in the order they happened.",
+            "title": "N",
+            "type": "integer"
+          },
+          "record_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The record's kind or type name, the package's.",
+            "title": "Record Kind"
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq"
+          }
+        },
+        "required": [
+          "n",
+          "kind",
+          "seq",
+          "record_kind",
+          "detail",
+          "at"
+        ],
+        "title": "WatchEvent",
+        "type": "object"
+      },
+      "WatchEvents": {
+        "properties": {
+          "dropped": {
+            "description": "Events after `after` no longer kept: the reader fell behind.",
+            "title": "Dropped",
+            "type": "integer"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/WatchEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "next": {
+            "description": "The cursor to ask from next.",
+            "title": "Next",
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/WatchState"
+          }
+        },
+        "required": [
+          "events",
+          "next",
+          "dropped",
+          "state"
+        ],
+        "title": "WatchEvents",
+        "type": "object"
+      },
+      "WatchRequest": {
+        "properties": {
+          "path": {
+            "description": "The file to watch, local.",
+            "title": "Path",
+            "type": "string"
+          },
+          "poll_interval": {
+            "default": 0.5,
+            "description": "Seconds between looks at the file.",
+            "maximum": 10.0,
+            "minimum": 0.1,
+            "title": "Poll Interval",
+            "type": "number"
+          },
+          "profile": {
+            "default": "none",
+            "description": "Anchor profile, as for /verify.",
+            "title": "Profile",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "WatchRequest",
+        "type": "object"
+      },
+      "WatchSnapshot": {
+        "description": "The package's batch verification over the verified prefix (channel 9).",
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnchorReadingModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "anchor_attempts": {
+            "items": {
+              "$ref": "#/components/schemas/AnchorAttemptModel"
+            },
+            "title": "Anchor Attempts",
+            "type": "array"
+          },
+          "chain": {
+            "$ref": "#/components/schemas/ChainResult"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/Completeness"
+          },
+          "diagnosis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiagnosisModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "chain",
+          "completeness",
+          "anchor",
+          "anchor_attempts",
+          "diagnosis"
+        ],
+        "title": "WatchSnapshot",
+        "type": "object"
+      },
+      "WatchStarted": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "watch_id": {
+            "title": "Watch Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "watch_id",
+          "path",
+          "profile"
+        ],
+        "title": "WatchStarted",
+        "type": "object"
+      },
+      "WatchState": {
+        "properties": {
+          "by_kind": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Records by kind or type name, most first.",
+            "title": "By Kind",
+            "type": "object"
+          },
+          "last_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seq"
+          },
+          "max_records": {
+            "description": "Where the watch stops itself (memory: R17).",
+            "title": "Max Records",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it is not watching, in words; null while it is.",
+            "title": "Reason"
+          },
+          "records": {
+            "description": "Records verified so far.",
+            "title": "Records",
+            "type": "integer"
+          },
+          "since": {
+            "description": "When the watch started, Unix seconds, this desk's clock.",
+            "title": "Since",
+            "type": "number"
+          },
+          "state": {
+            "enum": [
+              "watching",
+              "stopped",
+              "limit",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "reason",
+          "path",
+          "records",
+          "last_seq",
+          "by_kind",
+          "since",
+          "max_records"
+        ],
+        "title": "WatchState",
+        "type": "object"
+      },
       "WitnessCheckView": {
         "description": "The log's own linkage, and what it does and does not show (E-05).",
         "properties": {
@@ -4764,6 +5035,185 @@
           }
         },
         "summary": "Verify Session"
+      }
+    },
+    "/watch": {
+      "post": {
+        "description": "Watch a file as it is written (F15), through the package's\n`TailingReader` (channel 9, provisional in 0.15).\n\nNot a session: a session is pinned to the bytes it opened, and a\nwatched file grows. The watch reports what happens at the tail and\nanswers the batch questions over what it has verified, on request.\nAt most `MAX_WATCHES` at once; 422 for a path that is not a file,\n404 for an unknown profile.",
+        "operationId": "start_watch_watch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Watch"
+      }
+    },
+    "/watch/{watch_id}": {
+      "delete": {
+        "description": "Stop watching and forget the watch. The file is never touched.",
+        "operationId": "stop_watch_watch__watch_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "watch_id",
+            "required": true,
+            "schema": {
+              "title": "Watch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stop Watch"
+      }
+    },
+    "/watch/{watch_id}/events": {
+      "get": {
+        "description": "What happened at the tail since `after`, and the watch's state.\n\nLong-polled: with nothing new and the watch live, the answer waits up\nto `wait` seconds. Only the latest events are kept; `dropped` says how\nmany a reader that fell behind did not see.",
+        "operationId": "watch_events_watch__watch_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "watch_id",
+            "required": true,
+            "schema": {
+              "title": "Watch Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The cursor: events numbered from here.",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "The cursor: events numbered from here.",
+              "minimum": 0,
+              "title": "After",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Seconds to wait for one when there is none.",
+            "in": "query",
+            "name": "wait",
+            "required": false,
+            "schema": {
+              "default": 0.0,
+              "description": "Seconds to wait for one when there is none.",
+              "maximum": 25.0,
+              "minimum": 0.0,
+              "title": "Wait",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchEvents"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Watch Events"
+      }
+    },
+    "/watch/{watch_id}/snapshot": {
+      "get": {
+        "description": "The batch verification over the records verified so far.\n\n`TailingReader.snapshot()` \u2014 the package's batch path, so live and\nafter the fact agree. It re-verifies every record held on each call\n(R17), so it is asked for, not polled. Only what that verification\nholds is returned: no container walk and no `is_consistent()` \u2014 a\ntorn tail still being written is `pending`, not a finding. For those,\nstop and open the file.",
+        "operationId": "watch_snapshot_watch__watch_id__snapshot_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "watch_id",
+            "required": true,
+            "schema": {
+              "title": "Watch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Watch Snapshot"
       }
     },
     "/witness": {

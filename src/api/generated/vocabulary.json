@@ -52,6 +52,14 @@
     "matches"
   ],
   "report_format": "pala-verification-report/2",
+  "tail_event_kinds": [
+    "anchor_seen",
+    "diagnosis",
+    "pending_tail",
+    "record",
+    "recovered",
+    "shrunk"
+  ],
   "verdicts": [
     "empty",
     "partial",
