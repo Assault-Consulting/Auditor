@@ -89,7 +89,7 @@ interactive is the live desktop check below, not yet done.
 | ✓ C-19 | 0.14.1: pin `>=0.14.1,<0.15`; R7 — the package's HTML is shown for an empty container too (the withheld page is gone; the JSON block's gloss override stays until report /2) | — | 0.14.1 |
 | ✓ D-06 | **The record export, streamed.** `GET /session/{id}/export` carries `export_jsonl`'s `pala-jsonl/1` out as it is written — from a thread of its own, on a read-only mapping of the file (the package's ask: a mapping, not a copy), in blocks of ~256 KB through a queue of 16 (~4 MB in flight). The shell's `export_records` runs the save dialog, reads the response itself over loopback (no HTTP library: status, headers, chunked or close-framed body), writes it to the file as it arrives with its SHA-256 on the way, checks the last line is the summary (a cut-short stream leaves no file), and writes `.sha256` beside it. The webview names a session and a range only. **Measured at 1M records:** 767 MB in 48.6 s; the shell held 26 MB; the sidecar's peak, 674 MB, is the session's header index (C-10b) — held whole, the export alone took 1.7 GB. Byte-identical to `export_jsonl` for the same file. | 1.5 | 0.14.1 (R9) |
 | ✓ E-01 | Evidence bundle UI over `assemble_bundle(reader=…)` from the session. **Bounded selection** — a bundle carries a proof path per record and outgrows its source (R12: 1,000 records 9 s / 406 MB; 100,000 records 14 s / 1.3 GB; the whole of 10⁶ does not fit in 8 GB); the bound is set by measuring on 0.15 | 1.5 | 0.15 (R10, R12) |
-| E-02 | Re-verification harness for bundles, from the spec, with no Auditor code | 3 | E-01 |
+| ✓ E-02 | Re-verification harness for bundles, from the spec, with no Auditor code — `scripts/check_bundle.py`, standard library only (`docs/BUNDLE-CHECK.md`) | 3 | E-01 |
 | ◐ E-03 | Record health over U1–U3, with F12's three disciplines. **Built on 0.14.1:** `/record-health` (step catalog, boot statistics with anchor gaps, wall gaps between boots, SAFETY by kind × boot, recurring details) and the **Record health** panel, every block under its basis (proved / monotonic / recorded), no threshold, no verdict word. **Left:** drift per boot (U1, 0.15 via R10); warnings against origin events; baseline change — §22.4's thresholds stay open | 5 | 0.15 for drift |
 | ✓ E-04 | Health summary in the report, labelled advisory — **decided by R15 (Palimpsests #380, 0.15):** `build_report(health=True)`; Auditor shows the report's own `health` section beside E-03's series, and makes no document of its own | 1 | 0.15 |
 | ✓ E-05 | Local witness log: `auditor-witness/1`, JSON Lines, each entry the SHA-256 of the one before (ADR-0003, `docs/WITNESS-LOG.md`). One entry per first `/verify` of a session and profile, holding the package's facts, never a verdict; `GET /witness` walks it; a log that does not link is not appended to and the check says so. The panel says what it shows and what it does not — a cut tail still links. `scripts/check_witness_log.py` checks a log with nothing from this repository | 3 | — |
@@ -98,10 +98,9 @@ interactive is the live desktop check below, not yet done.
 | Phase 5 | ~~Watch mode~~ (✓ 23 Nov 2026, F15 — channel 9, provisional); the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; `uk` pass. **Watch mode (F15)** runs `TailingReader` (channel 9, provisional, R17) — the pin holds the minor; a watch stops itself at 250,000 records (memory, measured) | — | — |
 
 **Next, in order:** the live desktop check on the Windows installer (F-01);
-then E-02 (a bundle re-checked by a harness written from the spec alone);
-the rest of phase 5 (the one write behind its ADR, Rekor/TSA anchors,
+then the rest of phase 5 (the one write behind its ADR, Rekor/TSA anchors,
 signed installers, the `uk` pass). Done on 0.15
-(23 Nov 2026): C-18 and stage 2 T8–T16; the addendum's T18–T22; E-01, E-04, E-07.
+(23 Nov 2026): C-18 and stage 2 T8–T16; the addendum's T18–T22; E-01, E-02, E-04, E-07; F15.
 
 ## 0.15 addendum (T18–T23, 19 Nov 2026)
 

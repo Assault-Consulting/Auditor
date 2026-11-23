@@ -59,7 +59,14 @@ TREES=(sidecar src src-tauri/src scripts)
 #                         byte. The checker is the stand-alone version of the
 #                         same rule, for a reader who does not trust this
 #                         application. Two named files, for the reason above.
-EXEMPT_RE="^(${SEAM}|sidecar/tests/|src/api/generated/|sidecar/auditor_sidecar/digest\.py|sidecar/auditor_sidecar/witness\.py|scripts/check_witness_log\.py)"
+#   check_bundle.py     — E-02: the recipient's re-check of an evidence
+#                         bundle, written from the specifications alone. It
+#                         parses PALA-1 bytes on purpose: its whole point is
+#                         to trust neither this application nor the package
+#                         that assembled the bundle. A stand-alone script
+#                         the application never imports — not the shell —
+#                         so ADR-0001's reason does not reach it.
+EXEMPT_RE="^(${SEAM}|sidecar/tests/|src/api/generated/|sidecar/auditor_sidecar/digest\.py|sidecar/auditor_sidecar/witness\.py|scripts/check_witness_log\.py|scripts/check_bundle\.py)"
 
 # Primitives that indicate byte-level interpretation of a container.
 #
