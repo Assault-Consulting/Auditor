@@ -70,8 +70,8 @@ status and what it unblocks.
 | 2 — browse (C-01…C-12) | ✓ closed (C-06d on 0.14.1) |
 | 0.13–0.15 follow-up (C-13…C-19) | ✓; C-16(b) closed unbuilt |
 | 3 — report (D-01…D-07) | ✓ closed (D-02 last) |
-| 4 — evidence artifacts (E-01…E-07) | started 16 Nov 2026: E-05 ✓; E-01, E-07 on 0.15 |
-| 5 — beyond MVP | not started |
+| 4 — evidence artifacts (E-01…E-07) | ✓ except E-06 (SCITT receipts) and E-03's open half |
+| 5 — beyond MVP | started 23 Nov 2026: F15 ✓; next the language system (L-01…L-05) |
 
 **Phase 2's exit criterion** — a 1M-record chain opens, the timeline stays
 interactive, "what happened at 22:41 on 6 Aug" in under five interactions —
@@ -89,19 +89,39 @@ interactive is the live desktop check below, not yet done.
 | ✓ C-19 | 0.14.1: pin `>=0.14.1,<0.15`; R7 — the package's HTML is shown for an empty container too (the withheld page is gone; the JSON block's gloss override stays until report /2) | — | 0.14.1 |
 | ✓ D-06 | **The record export, streamed.** `GET /session/{id}/export` carries `export_jsonl`'s `pala-jsonl/1` out as it is written — from a thread of its own, on a read-only mapping of the file (the package's ask: a mapping, not a copy), in blocks of ~256 KB through a queue of 16 (~4 MB in flight). The shell's `export_records` runs the save dialog, reads the response itself over loopback (no HTTP library: status, headers, chunked or close-framed body), writes it to the file as it arrives with its SHA-256 on the way, checks the last line is the summary (a cut-short stream leaves no file), and writes `.sha256` beside it. The webview names a session and a range only. **Measured at 1M records:** 767 MB in 48.6 s; the shell held 26 MB; the sidecar's peak, 674 MB, is the session's header index (C-10b) — held whole, the export alone took 1.7 GB. Byte-identical to `export_jsonl` for the same file. | 1.5 | 0.14.1 (R9) |
 | ✓ E-01 | Evidence bundle UI over `assemble_bundle(reader=…)` from the session. **Bounded selection** — a bundle carries a proof path per record and outgrows its source (R12: 1,000 records 9 s / 406 MB; 100,000 records 14 s / 1.3 GB; the whole of 10⁶ does not fit in 8 GB); the bound is set by measuring on 0.15 | 1.5 | 0.15 (R10, R12) |
-| E-02 | Re-verification harness for bundles, from the spec, with no Auditor code | 3 | E-01 |
-| ◐ E-03 | Record health over U1–U3, with F12's three disciplines. **Built on 0.14.1:** `/record-health` (step catalog, boot statistics with anchor gaps, wall gaps between boots, SAFETY by kind × boot, recurring details) and the **Record health** panel, every block under its basis (proved / monotonic / recorded), no threshold, no verdict word. **Left:** drift per boot (U1, 0.15 via R10); warnings against origin events; baseline change — §22.4's thresholds stay open | 5 | 0.15 for drift |
+| ✓ E-02 | Re-verification harness for bundles, from the spec, with no Auditor code — `scripts/check_bundle.py`, standard library only (`docs/BUNDLE-CHECK.md`) | 3 | E-01 |
+| ◐ E-03 | Record health over U1–U3, with F12's three disciplines. **Built on 0.14.1:** `/record-health` (step catalog, boot statistics with anchor gaps, wall gaps between boots, SAFETY by kind × boot, recurring details) and the **Record health** panel, every block under its basis (proved / monotonic / recorded), no threshold, no verdict word. **On 0.15:** drift per boot (`drift_series`) and closed / stopped / open boots (r8). **Left:** warnings against origin events; baseline change — §22.4's thresholds stay open | 5 | — |
 | ✓ E-04 | Health summary in the report, labelled advisory — **decided by R15 (Palimpsests #380, 0.15):** `build_report(health=True)`; Auditor shows the report's own `health` section beside E-03's series, and makes no document of its own | 1 | 0.15 |
 | ✓ E-05 | Local witness log: `auditor-witness/1`, JSON Lines, each entry the SHA-256 of the one before (ADR-0003, `docs/WITNESS-LOG.md`). One entry per first `/verify` of a session and profile, holding the package's facts, never a verdict; `GET /witness` walks it; a log that does not link is not appended to and the check says so. The panel says what it shows and what it does not — a cut tail still links. `scripts/check_witness_log.py` checks a log with nothing from this repository | 3 | — |
 | E-06 | SCITT receipts as pins, displayed, never minted | ? | — |
 | ✓ E-07 | Prefix-consistency proofs (`consistency_proof`, `chain_root`): a proof made and saved, a held proof checked three ways (path, first root, second root) | 1 | 0.15 (R10) |
-| Phase 5 | ~~Watch mode~~ (✓ 23 Nov 2026, F15 — channel 9, provisional); the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; `uk` pass. **Watch mode (F15)** runs `TailingReader` (channel 9, provisional, R17) — the pin holds the minor; a watch stops itself at 250,000 records (memory, measured) | — | — |
+| Phase 5 | ~~Watch mode~~ (✓ 23 Nov 2026, F15 — channel 9, provisional); the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; ~~`uk` pass~~ → the language system, L-01…L-05 below. **Watch mode (F15)** runs `TailingReader` (channel 9, provisional, R17) — the pin holds the minor; a watch stops itself at 250,000 records (memory, measured) | — | — |
 
 **Next, in order:** the live desktop check on the Windows installer (F-01);
-then E-02 (a bundle re-checked by a harness written from the spec alone);
-the rest of phase 5 (the one write behind its ADR, Rekor/TSA anchors,
-signed installers, the `uk` pass). Done on 0.15
-(23 Nov 2026): C-18 and stage 2 T8–T16; the addendum's T18–T22; E-01, E-04, E-07.
+the language system (L-01…L-05); then the rest of phase 5 — the one write
+behind its ADR, Rekor/TSA anchors (network, air-gap first), signed
+installers (needs a code-signing certificate), E-06. Done on 0.15
+(23 Nov 2026): C-18 and stage 2 T8–T16; the addendum's T18–T22; E-01, E-02, E-04, E-07; F15.
+
+## Language system (L-01…L-05)
+
+Not a Ukrainian pass: a system any language can be added to by adding one
+file, without touching code. English stays the source language and the
+fallback; Ukrainian is the first language added through it, and the proof
+that the system works.
+
+| Id | What | Days |
+|---|---|---|
+| L-01 | **The mechanism.** One catalog per locale (`src/locales/<bcp47>.json`), keys by screen and meaning, never by English text; `t(key, params)` with named placeholders; plurals and numbers through the platform's own `Intl.PluralRules` / `Intl.NumberFormat` / `Intl.DateTimeFormat` (Ukrainian has one / few / many; no plural is written by hand); a missing key falls back to English and is counted, never shown as a key. Locale chosen from the system (`navigator.languages`) with a persisted override in the window; `<html lang>` follows it, so screen readers switch voice. No library unless one earns its place — the platform covers plurals and formats | 2 |
+| L-02 | **Extraction.** Every sentence the window says moves into `en.json`: the API modules' notes and texts (`verdict.ts`, `advisory.ts`, `diagnosis.ts`, `record.ts`, `health.ts`, `watch.ts`, …) and the JSX in `App.tsx`. `plural.ts`'s English-only `count()` becomes the catalog's plural. The wording audit (D-03) and the "no verdict word" guards run per locale | 3 |
+| L-03 | **What is never translated, by rule.** The package's own words — diagnosis narratives, advisory details, record details, kind and type names, verdict codes — are shown as the package wrote them, marked as its words; only Auditor's sentences around them are translated. Hashes, seqs, paths unchanged. A translation must not turn a verifier's statement into a different claim | — |
+| L-04 | **The guards.** A test that every catalog has exactly English's keys, the same placeholders in each, and every plural category its language needs (from `Intl.PluralRules`); the vocabulary test (T11) per locale — a package word without a sentence fails in every language; axe and the layout at the longer strings (German and Ukrainian run ~30 % longer) | 1 |
+| L-05 | **Ukrainian**, `uk.json`, the first catalog added through L-01…L-04, and `docs/TRANSLATING.md`: how to add a language — one file, the checks to run, the terms that are fixed (a glossary of verification terms per language, so "consistent", "complete", "anchor" read the same everywhere) | 2 |
+
+The Rust shell's few strings (dialog titles, the print window) take the
+locale from the webview's choice through the IPC they already use; the
+sidecar's API stays English — its sentences are data the window renders,
+under L-03's rule.
 
 ## 0.15 addendum (T18–T23, 19 Nov 2026)
 

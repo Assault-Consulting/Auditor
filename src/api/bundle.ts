@@ -44,7 +44,7 @@ export interface BundledArtifact extends SavedArtifact {
 
 /** Said beside the button: what a bundle is and what it is not. */
 export const BUNDLE_NOTE =
-  "An evidence bundle: the selected records, an inclusion proof for each one a proof window covers, the verification and the anchor, in one tar a recipient re-checks from the specification alone. Derived and unsigned — the chain stays authoritative. A selection, at most 100,000 records: an excerpt around a finding, not the archive.";
+  "An evidence bundle: the selected records, an inclusion proof for each one a proof window covers, the verification and the anchor, in one tar a recipient re-checks from the specification alone (check_bundle.py, in Auditor's repository, does it with Python's standard library). Derived and unsigned — the chain stays authoritative. A selection, at most 100,000 records: an excerpt around a finding, not the archive.";
 
 /**
  * Whether the range as typed can be bundled, given the records present. An
