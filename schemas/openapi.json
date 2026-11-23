@@ -780,9 +780,25 @@
             "type": "string"
           },
           "pattern": {
-            "description": "The package's pattern, an open vocabulary (a newer verifier may add one; a consumer renders an unknown one with the narrative). As of 0.14: empty_container, not_a_container, truncated_tail, declared_continuation, continuation_contradicts_manifest, prefix_absent, seq_gap, chain_break, record_violation, unanchored_tail, replaced_or_rolled_back.",
+            "description": "The package's pattern, an open vocabulary (a newer verifier may add one; a consumer renders an unknown one with the narrative). As of 0.15: empty_container, not_a_container, truncated_tail, declared_continuation, continuation_contradicts_manifest, prefix_absent, seq_gap, chain_break, record_violation, unanchored_tail, replaced_or_rolled_back.",
             "title": "Pattern",
             "type": "string"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "enum": [
+                  "consistency",
+                  "completeness"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which question the diagnosis is about (`Diagnosis.question`, 0.15): the panel its sentence belongs under. Null for a pattern the package does not place \u2014 shown, unguided.",
+            "title": "Question"
           }
         },
         "required": [
@@ -989,6 +1005,48 @@
           "first_seq"
         ],
         "title": "HealthDetail",
+        "type": "object"
+      },
+      "HealthDrift": {
+        "description": "One boot's drift, as `drift_series` gives it (channel 5).",
+        "properties": {
+          "boot_id": {
+            "title": "Boot Id",
+            "type": "string"
+          },
+          "points": {
+            "description": "How many records the slope was taken over.",
+            "title": "Points",
+            "type": "integer"
+          },
+          "slope_ppm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Wall against monotonic, parts per million; null with fewer than two points.",
+            "title": "Slope Ppm"
+          },
+          "time_trusts": {
+            "description": "Every trust level named in the boot.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Time Trusts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "boot_id",
+          "slope_ppm",
+          "points",
+          "time_trusts"
+        ],
+        "title": "HealthDrift",
         "type": "object"
       },
       "HealthKind": {
@@ -1558,11 +1616,15 @@
             "type": "array"
           },
           "drift": {
-            "description": "Not on this version; see drift_note.",
+            "description": "Per boot, in chain order: the package's `drift_series`, copied.",
+            "items": {
+              "$ref": "#/components/schemas/HealthDrift"
+            },
             "title": "Drift",
-            "type": "null"
+            "type": "array"
           },
           "drift_note": {
+            "description": "The clock the drift figures are measured on.",
             "title": "Drift Note",
             "type": "string"
           },
@@ -2117,6 +2179,42 @@
       "SegmentCheckView": {
         "description": "One segment of a set, as the package checked it (U18).",
         "properties": {
+          "declared_first_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The manifest entry's first seq (R16, 0.15). Declared, never verified: for a segment that is gone, the only evidence left of it.",
+            "title": "Declared First Seq"
+          },
+          "declared_head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The entry's head, declared, hex.",
+            "title": "Declared Head"
+          },
+          "declared_last_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The entry's last seq, declared.",
+            "title": "Declared Last Seq"
+          },
           "detail": {
             "anyOf": [
               {
@@ -2770,6 +2868,11 @@
           "completeness": {
             "$ref": "#/components/schemas/Completeness"
           },
+          "consistent": {
+            "description": "Question one in the package's one answer (`is_consistent()`, 0.15): the header chain links, the container walks to its end, and every body matches its digest \u2014 `consistency.ok` in `pala verify --json`, `consistent` in the export and the bundle. True for a file with no records, which is not a log found intact.",
+            "title": "Consistent",
+            "type": "boolean"
+          },
           "container": {
             "$ref": "#/components/schemas/ContainerCheck",
             "description": "The body-digest walk. Required rather than optional: a response that could omit it would let a consumer answer question one from the header chain alone."
@@ -2832,6 +2935,7 @@
           "verifier",
           "chain",
           "container",
+          "consistent",
           "completeness",
           "anchor",
           "anchor_attempts",
@@ -4090,6 +4194,18 @@
               "description": "Anchor profile the report's check is made against, as for /verify. The default leaves completeness not checked, and the report's verdict says so ('partial', or 'empty' for a file with no records).",
               "title": "Profile",
               "type": "string"
+            }
+          },
+          {
+            "description": "Ask the package for the report's `health` section (E-04, palimpsests 0.15): boots, the widest gap between anchors, wall-clock steps and drift, open spans \u2014 advisory, read by no verdict. Without it the key is null: not asked for, never 'healthy'.",
+            "in": "query",
+            "name": "health",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Ask the package for the report's `health` section (E-04, palimpsests 0.15): boots, the widest gap between anchors, wall-clock steps and drift, open spans \u2014 advisory, read by no verdict. Without it the key is null: not asked for, never 'healthy'.",
+              "title": "Health",
+              "type": "boolean"
             }
           }
         ],

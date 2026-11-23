@@ -1,0 +1,73 @@
+{
+  "advisory_codes": [
+    "ack_target_not_a_candidate",
+    "anchor_never_written",
+    "boot_ended_without_close",
+    "continuation_index_gap",
+    "continuation_index_not_increasing",
+    "continuation_malformed",
+    "continuation_predecessor_mismatch",
+    "continuation_prior_root_mismatch",
+    "mid_boot_time_trust_change",
+    "mono_regression_in_boot",
+    "reference_hash_mismatch",
+    "reference_unresolved",
+    "reports_refused",
+    "shred_target_key_mismatch",
+    "shred_target_unresolved",
+    "span_unclosed",
+    "span_unopened",
+    "tool_target_not_a_call",
+    "wall_regression_in_boot"
+  ],
+  "diagnosis_patterns": [
+    "chain_break",
+    "continuation_contradicts_manifest",
+    "declared_continuation",
+    "empty_container",
+    "not_a_container",
+    "prefix_absent",
+    "record_violation",
+    "replaced_or_rolled_back",
+    "seq_gap",
+    "truncated_tail",
+    "unanchored_tail"
+  ],
+  "diagnosis_questions": {
+    "chain_break": "consistency",
+    "continuation_contradicts_manifest": "consistency",
+    "declared_continuation": "consistency",
+    "empty_container": null,
+    "not_a_container": "consistency",
+    "prefix_absent": "consistency",
+    "record_violation": "consistency",
+    "replaced_or_rolled_back": "completeness",
+    "seq_gap": "consistency",
+    "truncated_tail": "consistency",
+    "unanchored_tail": "completeness"
+  },
+  "manifest_statuses": [
+    "contradicts",
+    "declared_only",
+    "matches"
+  ],
+  "report_format": "pala-verification-report/2",
+  "verdicts": [
+    "empty",
+    "partial",
+    "sound",
+    "violation"
+  ],
+  "violation_codes": [
+    "empty_body_digest_nonzero",
+    "encrypted_body_too_short",
+    "genesis_not_first",
+    "genesis_prev_hash_nonzero",
+    "header_len_mismatch",
+    "malformed_tlv",
+    "nonempty_body_digest_zero",
+    "prefix_absent",
+    "time_trust_undefined",
+    "time_unknown_with_wall_clock"
+  ]
+}

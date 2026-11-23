@@ -55,7 +55,20 @@ export function setAnswers(v: SegmentSetView): { consistent: SetAnswer; complete
 
 /** One segment's state, in words that name what was found and no cause. */
 export function segmentState(s: SegmentCheckView): { text: string; failed: boolean } {
-  if (!s.present) return { text: "listed, not here", failed: true };
+  if (!s.present) {
+    // R16: what the manifest declared the segment held is all that is left
+    // of it — said as a declaration, never as records that existed.
+    const range =
+      s.declared_first_seq != null && s.declared_last_seq != null
+        ? `records #${s.declared_first_seq}–#${s.declared_last_seq}`
+        : null;
+    const head = s.declared_head ? `head ${s.declared_head.slice(0, 12)}…` : null;
+    const declared = [range, head].filter((x) => x !== null).join(", ");
+    return {
+      text: declared ? `listed, not here — declared ${declared}; not here to check` : "listed, not here",
+      failed: true,
+    };
+  }
   const parts: string[] = [];
   let failed = false;
   if (s.verified === true) parts.push("holds");

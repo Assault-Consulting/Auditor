@@ -13,6 +13,7 @@ from __future__ import annotations
 import pytest
 from auditor_sidecar.pala_seam import open_chain
 from fastapi.testclient import TestClient
+from palimpsests.audit.reader import DIAGNOSIS_QUESTIONS, AuditReader
 
 # --- the shape of an answer -------------------------------------------------
 
@@ -300,6 +301,55 @@ def test_with_an_anchor_only_verify_opens_a_second_reader(
     # again (container_check() on the session's reader, C-17); it was two.
     assert open_calls == open_calls_after_session + 1
     assert body["container"]["well_formed"] is True
+
+
+# --- question one in the package's one answer (T10, 0.15) --------------------
+
+
+@pytest.mark.parametrize(
+    "fixture", ["chain_path", "lagging_chain", "body_swapped_chain", "truncated_chain"]
+)
+def test_consistent_is_the_package_s_is_consistent(
+    request: pytest.FixtureRequest, open_client: TestClient, fixture: str
+) -> None:
+    path = request.getfixturevalue(fixture)
+    if isinstance(path, tuple):  # lagging_chain: (path, early head, lag)
+        path = path[0]
+    body = _verify(open_client, path)
+    assert body["consistent"] is AuditReader.open(path).is_consistent()
+    # And it is not the header chain alone: a swapped body keeps chain_ok.
+    if fixture == "body_swapped_chain":
+        assert body["chain"]["chain_ok"] is True and body["consistent"] is False
+
+
+def test_the_diagnosis_says_which_question_it_is_about(
+    open_client: TestClient, lagging_chain, truncated_chain
+) -> None:
+    """The package places each pattern; the panel follows it. A cut file is
+    about question one, an anchor the chain has outrun about question two."""
+    cut = _verify(open_client, truncated_chain)["diagnosis"]
+    assert cut["question"] == DIAGNOSIS_QUESTIONS[cut["pattern"]] == "consistency"
+
+    path, early_head, _ = lagging_chain
+    open_client.put(
+        "/anchors/profiles/early",
+        json={"name": "early", "sources": [{"kind": "manual", "head": early_head}]},
+    )
+    sid = open_client.post("/session", json={"path": str(path)}).json()["session_id"]
+    body = open_client.get(f"/session/{sid}/verify?profile=early").json()
+    assert body["diagnosis"]["pattern"] == "unanchored_tail"
+    assert body["diagnosis"]["question"] == "completeness"
+    assert body["consistent"] is True  # outrun, not broken
+
+
+def test_an_empty_file_is_consistent_and_says_nothing_was_checked(
+    open_client: TestClient, tmp_path
+) -> None:
+    empty = tmp_path / "empty.pala"
+    empty.write_bytes(b"")
+    body = _verify(open_client, empty)
+    assert body["consistent"] is True
+    assert body["chain"]["count"] == 0
 
 
 # --- helpers ----------------------------------------------------------------

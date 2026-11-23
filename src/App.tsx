@@ -1170,7 +1170,11 @@ export default function App() {
                     {g}
                   </p>
                 ))}
-                <p className="health-line">{health.value.drift}</p>
+                {health.value.drift.map((d) => (
+                  <p className="health-line" key={d}>
+                    {d}
+                  </p>
+                ))}
 
                 <h3 className="health-sub">
                   Warnings <span className="health-basis">{BASIS_LABEL.proved}</span>
@@ -1937,6 +1941,36 @@ export default function App() {
                   )}{" "}
                   · {report.profile === "none" ? "no anchor" : `profile ${report.profile}`}
                 </p>
+                {report.view.facts.length > 0 && (
+                  <dl className="report-facts">
+                    {report.view.facts.map((f) => (
+                      <div key={f.label}>
+                        <dt>{f.label}</dt>
+                        <dd>{f.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {report.view.health !== null && (
+                  <section className="report-health" aria-labelledby="report-health-title">
+                    {/* E-04, R15: the report's own section, said with its clocks. */}
+                    <h3 className="health-sub" id="report-health-title">
+                      Record health, as the report gives it
+                    </h3>
+                    {report.view.healthNote !== null && <p className="health-note">{report.view.healthNote}</p>}
+                    <dl className="report-facts">
+                      {report.view.health.map((f) => (
+                        <div key={f.label}>
+                          <dt>{f.label}</dt>
+                          <dd>
+                            {f.value}
+                            {f.basis !== undefined && <span className="health-basis"> — {f.basis}</span>}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+                )}
                 <details className="report-json">
                   <summary>The report as the package wrote it</summary>
                   <pre>{report.view.jsonText}</pre>

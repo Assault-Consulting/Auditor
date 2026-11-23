@@ -32,6 +32,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "schemas" / "openapi.json"
 TYPES_PATH = ROOT / "src" / "api" / "generated" / "types.ts"
+#: The package's closed vocabularies (T11): the frontend's tables are tested
+#: against this file, and CI regenerates it, so a word the package adds
+#: fails a test instead of reaching the window unexplained.
+VOCABULARY_PATH = ROOT / "src" / "api" / "generated" / "vocabulary.json"
 
 HEADER = """// SPDX-FileCopyrightText: Assault Consulting
 // SPDX-License-Identifier: Apache-2.0
@@ -150,6 +154,14 @@ def build_schema() -> dict[str, Any]:
     return build_app(token=None).openapi()
 
 
+def build_vocabulary() -> dict[str, Any]:
+    """The installed package's vocabularies, through the seam (ADR-0001)."""
+    sys.path.insert(0, str(ROOT / "sidecar"))
+    from auditor_sidecar.pala_seam import vocabulary
+
+    return vocabulary()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -165,7 +177,13 @@ def main() -> int:
     schema_text = json.dumps(schema, indent=2, sort_keys=True) + "\n"
     types_text = render(schema)
 
-    targets = [(SCHEMA_PATH, schema_text), (TYPES_PATH, types_text)]
+    vocabulary_text = json.dumps(build_vocabulary(), indent=2, sort_keys=True) + "\n"
+
+    targets = [
+        (SCHEMA_PATH, schema_text),
+        (TYPES_PATH, types_text),
+        (VOCABULARY_PATH, vocabulary_text),
+    ]
 
     if args.check:
         stale = [

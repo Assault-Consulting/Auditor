@@ -146,3 +146,26 @@ def test_the_html_carries_the_verdict_of_its_profile(open_client, chain_path, he
     anchored = open_client.get(f"/session/{sid}/report", params={"profile": "stranger"}).json()
     assert plain["verdict"] == "partial" and "PARTIAL" in plain["html_text"]
     assert anchored["verdict"] == "violation" and "VIOLATION" in anchored["html_text"]
+
+
+# --- the report's own health section (E-04, R15, 0.15) -----------------------
+
+
+def test_health_is_null_unless_asked_for(open_client, chain_path) -> None:
+    """Null means not asked for, never healthy."""
+    sid = _open(open_client, chain_path)
+    assert open_client.get(f"/session/{sid}/report").json()["report"]["health"] is None
+
+
+def test_health_when_asked_is_the_package_s_section(open_client, two_boot_chain) -> None:
+    sid = _open(open_client, two_boot_chain)
+    body = open_client.get(f"/session/{sid}/report", params={"health": "true"}).json()
+    section = body["report"]["health"]
+    theirs = build_report(two_boot_chain, tool="x", health=True).data["health"]
+    assert section == theirs
+    assert section["boots"]["count"] == 2
+    # Advisory: the section is read by no verdict.
+    assert body["verdict"] == derive_verdict(body["report"])
+    # And the two builds are two attestations, kept apart.
+    plain = open_client.get(f"/session/{sid}/report").json()
+    assert plain["report"]["health"] is None

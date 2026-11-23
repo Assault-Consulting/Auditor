@@ -3,7 +3,7 @@
 
 import { describe as group, expect, it } from "vitest";
 
-import { ATTESTATION, reportView, VERDICT_MEANING } from "./report";
+import { ATTESTATION, reportFacts, reportHealth, reportHealthNote, reportView, VERDICT_MEANING } from "./report";
 import type { ReportResponse } from "./generated/types";
 
 function response(over: Partial<ReportResponse> = {}): ReportResponse {
@@ -106,5 +106,48 @@ group("the verdict empty (report /2, 0.15)", () => {
     expect(view.meaning).toContain("nothing was checked");
     // The verdict says it itself: no gloss from the diagnosis over the top.
     expect(view.meaning).not.toBe("nothing to check");
+  });
+});
+
+group("what report /2 says beyond its verdict (T13)", () => {
+  it("names the diagnosis with its code and question, the violation codes, the manifest", () => {
+    const facts = reportFacts({
+      diagnosis: { pattern: "record_violation", code: "genesis_not_first", at_seq: 3, question: "consistency" },
+      chain: { violation_codes: [[3, "genesis_not_first"]] },
+      manifest: { filename: "x.segments.json", status: "matches", sha256: "ab".repeat(32), detail: null },
+    });
+    expect(facts).toEqual([
+      { label: "Diagnosis", value: "record_violation (genesis_not_first) at #3 — about question one, consistency" },
+      { label: "Violation codes", value: "#3 genesis_not_first" },
+      { label: "Segments manifest", value: `x.segments.json — matches, SHA-256 ${"ab".repeat(8)}…` },
+    ]);
+  });
+
+  it("ignores what it does not know and shows nothing that is absent", () => {
+    expect(reportFacts({ diagnosis: null, manifest: null, a_newer_key: { x: 1 } })).toEqual([]);
+  });
+});
+
+group("the report's own health section (E-04)", () => {
+  const health = {
+    note: "advisory: the record's own account",
+    boots: { basis: "proved order", count: 2, resumed_after_truncated_tail: 0, with_time_trust_change: 0 },
+    anchors: { basis: "the monotonic clock, within one boot", count: 1, boots_without_anchor: 1, widest_gap_ns: 830548, widest_gap_boot_first_seq: 0 },
+    wall_clock: { basis: "wall against monotonic", steps: 0, regressions: 0, slews: 0, largest_delta_ns: null, largest_at_seq: null, drift_boots_measured: 2, drift_slope_ppm_min: -43.416, drift_slope_ppm_max: 625.215 },
+    spans: { basis: "proved order", closed: 0, open: 0 },
+  };
+
+  it("is null when not asked for — never healthy", () => {
+    expect(reportHealth({ health: null })).toBeNull();
+  });
+
+  it("says each group with the clock it names", () => {
+    expect(reportHealth({ health })).toEqual([
+      { label: "Boots", value: "2", basis: "proved order" },
+      { label: "Anchors", value: "1, widest gap 831 µs (boot starting at #0), 1 boot without one", basis: "the monotonic clock, within one boot" },
+      { label: "Wall clock", value: "0 steps, 0 regressions, 0 slews; drift −43.4 to +625.2 ppm over 2 boots", basis: "wall against monotonic" },
+      { label: "Spans", value: "0 closed, 0 open", basis: "proved order" },
+    ]);
+    expect(reportHealthNote({ health })).toBe("advisory: the record's own account");
   });
 });

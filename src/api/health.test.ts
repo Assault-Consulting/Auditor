@@ -33,8 +33,11 @@ function view(over: Partial<RecordHealthView> = {}): RecordHealthView {
       { seq: 7, boot_id: BOOT_A, kind: "jitter", delta_ns: 5e8 },
     ],
     wall_gaps: [{ after_boot_id: BOOT_A, before_boot_id: BOOT_B, duration_ns: -120e9 }],
-    drift: null,
-    drift_note: "the drift series (U1) is in palimpsests' declared surface from 0.15 (R10); not shown on this version",
+    drift: [
+      { boot_id: BOOT_A, slope_ppm: 625.215, points: 9, time_trusts: ["UNSYNCED"] },
+      { boot_id: BOOT_B, slope_ppm: null, points: 1, time_trusts: ["NTP_SYNCED"] },
+    ],
+    drift_note: "the writer's wall clock against its monotonic clock, within one boot — the writer's claim",
     safety_total: 4,
     safety_by_kind: [
       { kind: "GUARD_STATE_REJECT", total: 3, per_boot: [{ boot_id: BOOT_A, count: 3 }] },
@@ -98,7 +101,10 @@ group("record health, in words (E-03, F12)", () => {
       { kind: "INCIDENT_CANDIDATE", total: 1, perBoot: "bbbbbbbb: 1" },
     ]);
     expect(h.recurring).toEqual(["“no frame magic” — 3 times (GUARD_STATE_REJECT), first at #2"]);
-    expect(h.drift).toMatch(/^Clock drift per boot: .*0\.15/);
+    expect(h.drift).toEqual([
+      "Clock drift per boot, the writer's wall clock against its monotonic clock, within one boot — the writer's claim.",
+      "Boot aaaaaaaa: +625 ppm over 9 records (UNSYNCED)",
+    ]);
   });
 
   it("names a basis for every block and judges nothing", () => {

@@ -249,13 +249,21 @@ class DiagnosisModel(BaseModel):
         description=(
             "The package's pattern, an open vocabulary (a newer verifier may "
             "add one; a consumer renders an unknown one with the narrative). "
-            "As of 0.14: empty_container, not_a_container, truncated_tail, "
+            "As of 0.15: empty_container, not_a_container, truncated_tail, "
             "declared_continuation, continuation_contradicts_manifest, "
             "prefix_absent, seq_gap, chain_break, record_violation, "
             "unanchored_tail, replaced_or_rolled_back."
         )
     )
     at_seq: int | None = Field(description="Where, when the pattern has a location.")
+    question: Literal["consistency", "completeness"] | None = Field(
+        default=None,
+        description=(
+            "Which question the diagnosis is about (`Diagnosis.question`, 0.15): "
+            "the panel its sentence belongs under. Null for a pattern the "
+            "package does not place — shown, unguided."
+        ),
+    )
     expected: str | None = Field(description="What the verifier expected to find.")
     narrative: str = Field(description="The verifier's own description, verbatim.")
     code: str | None = Field(
@@ -551,6 +559,15 @@ class VerificationResponse(BaseModel):
             "The body-digest walk. Required rather than optional: a response "
             "that could omit it would let a consumer answer question one "
             "from the header chain alone."
+        )
+    )
+    consistent: bool = Field(
+        description=(
+            "Question one in the package's one answer (`is_consistent()`, "
+            "0.15): the header chain links, the container walks to its end, "
+            "and every body matches its digest — `consistency.ok` in "
+            "`pala verify --json`, `consistent` in the export and the bundle. "
+            "True for a file with no records, which is not a log found intact."
         )
     )
     completeness: Completeness
@@ -1162,6 +1179,17 @@ class HealthDetail(BaseModel):
     first_seq: int
 
 
+class HealthDrift(BaseModel):
+    """One boot's drift, as `drift_series` gives it (channel 5)."""
+
+    boot_id: str
+    slope_ppm: float | None = Field(
+        description="Wall against monotonic, parts per million; null with fewer than two points."
+    )
+    points: int = Field(description="How many records the slope was taken over.")
+    time_trusts: list[str] = Field(description="Every trust level named in the boot.")
+
+
 class RecordHealthView(BaseModel):
     """Record health (E-03, F12): the record as an artefact, never its content.
 
@@ -1173,8 +1201,10 @@ class RecordHealthView(BaseModel):
     boots: list[HealthBoot]
     steps: list[HealthStep]
     wall_gaps: list[HealthWallGap]
-    drift: None = Field(description="Not on this version; see drift_note.")
-    drift_note: str
+    drift: list[HealthDrift] = Field(
+        description="Per boot, in chain order: the package's `drift_series`, copied."
+    )
+    drift_note: str = Field(description="The clock the drift figures are measured on.")
     safety_total: int
     safety_by_kind: list[HealthKind]
     recurring_details: list[HealthDetail] = Field(
@@ -1201,6 +1231,17 @@ class SegmentCheckView(BaseModel):
     )
     seam_ok: bool = Field(description="Its declared predecessor is the previous entry's head.")
     detail: str | None = Field(description="Why something did not hold, in the package's words.")
+    declared_first_seq: int | None = Field(
+        default=None,
+        description=(
+            "The manifest entry's first seq (R16, 0.15). Declared, never verified: "
+            "for a segment that is gone, the only evidence left of it."
+        ),
+    )
+    declared_last_seq: int | None = Field(
+        default=None, description="The entry's last seq, declared."
+    )
+    declared_head: str | None = Field(default=None, description="The entry's head, declared, hex.")
 
 
 class SegmentSetView(BaseModel):

@@ -1895,6 +1895,28 @@ body {
   border-left-color: var(--unchecked);
 }
 
+/* Report /2's facts beyond the verdict (T13) and its health section (E-04). */
+.report-facts {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+}
+
+.report-facts > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, max-content) 1fr;
+  gap: 0.75rem;
+}
+
+.report-facts dt {
+  color: var(--vellum-dim);
+}
+
+.report-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Report /2's fourth verdict: nothing was checked. Neither a pass nor a
    failure, and not partial either — dotted, so it is not folded into it. */
 .report-body[data-verdict="empty"] {

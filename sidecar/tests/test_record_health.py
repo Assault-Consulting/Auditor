@@ -15,6 +15,7 @@ import sys
 from fastapi.testclient import TestClient
 from palimpsests.audit.pala_writer import PalaWriter
 from palimpsests.audit.reader import AuditReader, boot_statistics, step_catalog
+from palimpsests.audit.timehealth import drift_series
 from pathlib import Path
 from writers import fixed_writer
 
@@ -104,10 +105,20 @@ def test_a_recurring_detail_is_a_pattern(open_client: TestClient, recurring_chai
     assert any(s["kind"] == "step" and s["seq"] == 4 for s in body["steps"])
 
 
-def test_drift_waits_for_the_declared_surface(open_client: TestClient, chain_path: Path) -> None:
-    body = _health(open_client, chain_path)
-    assert body["drift"] is None
-    assert "0.15" in body["drift_note"]
+def test_drift_is_the_package_s_series(open_client: TestClient, two_boot_chain: Path) -> None:
+    body = _health(open_client, two_boot_chain)
+    series = drift_series(AuditReader.open(two_boot_chain))
+    assert body["drift"] == [
+        {
+            "boot_id": d.boot_id.hex(),
+            "slope_ppm": d.slope_ppm,
+            "points": len(d.points),
+            "time_trusts": list(d.time_trusts),
+        }
+        for d in series
+    ]
+    assert len(body["drift"]) == len(body["boots"])
+    assert "claim" in body["drift_note"]
 
 
 def test_no_verdict_word_and_no_threshold(open_client: TestClient, recurring_chain: Path) -> None:

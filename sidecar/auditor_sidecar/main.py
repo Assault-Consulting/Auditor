@@ -758,6 +758,16 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
                 "file with no records)."
             ),
         ),
+        health: bool = Query(
+            default=False,
+            description=(
+                "Ask the package for the report's `health` section (E-04, "
+                "palimpsests 0.15): boots, the widest gap between anchors, "
+                "wall-clock steps and drift, open spans — advisory, read by no "
+                "verdict. Without it the key is null: not asked for, never "
+                "'healthy'."
+            ),
+        ),
     ) -> ReportResponse:
         """The package's verification report for this session (D-01).
 
@@ -776,7 +786,7 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
                 status_code=404, detail=f"no anchor profile named {profile!r}"
             ) from None
         try:
-            built = session.report(profile, sources)
+            built = session.report(profile, sources, health=health)
         except UnknownAnchorKind as exc:
             raise HTTPException(
                 status_code=422, detail=f"unknown anchor source kind: {exc}"
