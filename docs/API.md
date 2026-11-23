@@ -328,6 +328,24 @@ document's first root; and the same at `second` (null when the chain holds
 fewer). A proof is derived and unsigned — useful against a root held from
 elsewhere, never on its own.
 
+### A watch is not a session
+
+`POST /watch {path, profile, poll_interval}` (F15) runs the package's
+`TailingReader` (channel 9 — **provisional** in 0.15, R17) on a thread. A
+session is pinned to the bytes it opened; a watched file grows, so a watch
+is its own thing, with its own id, and never becomes a session.
+`GET /watch/{id}/events?after&wait` long-polls the events after a cursor —
+the package's kinds (`record`, `pending_tail`, `shrunk`, `recovered`,
+`anchor_seen`, `diagnosis`) and its sentences — with the watch's state and
+counts. Only the latest 500 are kept; `dropped` says how many a reader that
+fell behind missed. `GET /watch/{id}/snapshot` is the package's batch
+verification over what was verified so far; it re-verifies everything held,
+so it is asked for, never polled. `DELETE /watch/{id}` stops and forgets.
+
+`TailingReader` holds every verified record in memory (R17: 10⁶ records,
+2.5 GB). A watch stops itself at 250,000 (`WATCH_MAX_RECORDS`) and says to
+open the file instead; at most four watch at once.
+
 ### The vocabularies are generated
 
 `src/api/generated/vocabulary.json` is the installed package's closed

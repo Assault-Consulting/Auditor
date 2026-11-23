@@ -2003,6 +2003,33 @@ body {
   margin: 0 0 calc(var(--step) * 1.2);
 }
 
+/* F15: the watch's events, latest last, in a window of their own. */
+.watch-events {
+  list-style: none;
+  margin: var(--step) 0;
+  padding: 0 var(--step);
+  max-height: 18rem;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  border-left: 1px solid var(--rule);
+}
+
+.watch-events li[data-weight="notable"] {
+  color: var(--recorded);
+}
+
+.watch-events li[data-weight="alarm"] {
+  color: var(--recorded);
+  font-weight: bold;
+}
+
+.watch-seq {
+  color: var(--vellum-dim);
+  display: inline-block;
+  min-width: 5ch;
+}
+
 /* E-01, E-07: the bundle and the prefix proof, under the export they share
    a range with. */
 .export-sub {
@@ -2262,7 +2289,8 @@ body {
 }
 
 /* §22.1's segment set: framed like the panels, above the three questions. */
-.segment-set {
+.segment-set,
+.watch {
   margin-top: calc(var(--step) * 3);
   border: 1px solid var(--rule);
   padding: calc(var(--step) * 2);

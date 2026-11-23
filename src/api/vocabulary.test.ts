@@ -20,6 +20,7 @@ import { KNOWN_PATTERNS } from "./diagnosis";
 import vocabulary from "./generated/vocabulary.json";
 import { KNOWN_STATUSES } from "./manifest";
 import { VERDICT_MEANING } from "./report";
+import { KNOWN_TAIL_KINDS } from "./watch";
 
 const sorted = (xs: Iterable<string>) => [...xs].sort();
 
@@ -38,6 +39,10 @@ group("the UI's tables are the package's vocabularies", () => {
 
   it("every manifest status has a sentence", () => {
     expect(sorted(KNOWN_STATUSES)).toEqual(sorted(vocabulary.manifest_statuses));
+  });
+
+  it("every tail event the watch can report has words (channel 9)", () => {
+    expect(sorted(KNOWN_TAIL_KINDS)).toEqual(sorted(vocabulary.tail_event_kinds));
   });
 
   it("places every pattern under a question, or under none on purpose", () => {

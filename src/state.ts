@@ -26,7 +26,8 @@ import type { AnchorProfile } from "./api/generated/types";
 import { isSegmentManifest, onChainFilesDropped, pickChainFile, pickSegmentManifest } from "./api/openFile";
 import { type HexView, hexView } from "./api/hexView";
 import { type RecordHealth, recordHealth } from "./api/health";
-import type { SegmentSetView, WitnessCheckView } from "./api/generated/types";
+import type { SegmentSetView, WatchSnapshot, WatchState, WitnessCheckView } from "./api/generated/types";
+import { type EventLine, PANEL_EVENTS, eventLine, startWatch, stopWatch, watchEvents, watchSnapshot } from "./api/watch";
 import { type OriginCard, originCard } from "./api/origin";
 import { type RecordCard, recordCard } from "./api/record";
 import { nextOffset, recordsPage, type RecordsPage } from "./api/records";
@@ -679,4 +680,133 @@ export function useSegmentSet(probe: Probe): {
       .catch(() => setSet({ kind: "failed", path: null, detail: "there is no desktop shell to open a dialog" }));
   };
   return { set, pick, check, close: () => setSet({ kind: "idle" }) };
+}
+
+/** A watch (F15): idle, starting, live or ended, with its latest events. */
+export type WatchView =
+  | { kind: "idle" }
+  | { kind: "starting"; path: string }
+  | {
+      kind: "on";
+      id: string;
+      path: string;
+      state: WatchState | null;
+      lines: EventLine[];
+      dropped: number;
+      snapshot: { kind: "none" } | { kind: "asking" } | { kind: "got"; value: WatchSnapshot } | { kind: "failed"; detail: string };
+    }
+  | { kind: "failed"; detail: string };
+
+/**
+ * Watch a file as it is written. Events are long-polled with a cursor; the
+ * snapshot is asked for, never polled (it re-verifies everything held, R17).
+ */
+export function useWatch(probe: Probe): {
+  watch: WatchView;
+  pick: (profile: string) => void;
+  snapshot: () => void;
+  stop: () => void;
+  close: () => void;
+} {
+  const [watch, setWatch] = useState<WatchView>({ kind: "idle" });
+  const live = useRef<{ id: string; abort: AbortController } | null>(null);
+
+  const poll = (id: string, after: number, abort: AbortController) => {
+    if (probe.kind !== "ready") return;
+    void watchEvents(probe.session, id, after, 20, abort.signal)
+      .then((body) => {
+        if (live.current?.id !== id) return;
+        setWatch((w) => {
+          if (w.kind !== "on" || w.id !== id) return w;
+          const lines = [...w.lines, ...body.events.map(eventLine)].slice(-PANEL_EVENTS);
+          return { ...w, state: body.state, lines, dropped: w.dropped + body.dropped };
+        });
+        if (body.state.state === "watching") poll(id, body.next, abort);
+        else live.current = null;
+      })
+      .catch((e: unknown) => {
+        if (abort.signal.aborted) return;
+        setWatch({ kind: "failed", detail: e instanceof Error ? e.message : String(e) });
+        live.current = null;
+      });
+  };
+
+  const start = (path: string, profile: string) => {
+    if (probe.kind !== "ready") return;
+    setWatch({ kind: "starting", path });
+    void startWatch(probe.session, path, profile)
+      .then((started) => {
+        const abort = new AbortController();
+        live.current = { id: started.watch_id, abort };
+        setWatch({
+          kind: "on",
+          id: started.watch_id,
+          path: started.path,
+          state: null,
+          lines: [],
+          dropped: 0,
+          snapshot: { kind: "none" },
+        });
+        poll(started.watch_id, 0, abort);
+      })
+      .catch((e: unknown) => setWatch({ kind: "failed", detail: e instanceof Error ? e.message : String(e) }));
+  };
+
+  const pick = (profile: string) => {
+    void pickChainFile()
+      .then((path) => {
+        if (path !== null) start(path, profile);
+      })
+      .catch(() => setWatch({ kind: "failed", detail: "there is no desktop shell to open a dialog" }));
+  };
+
+  const snapshot = () => {
+    if (probe.kind !== "ready" || watch.kind !== "on") return;
+    const id = watch.id;
+    setWatch((w) => (w.kind === "on" ? { ...w, snapshot: { kind: "asking" } } : w));
+    void watchSnapshot(probe.session, id)
+      .then((value) => setWatch((w) => (w.kind === "on" && w.id === id ? { ...w, snapshot: { kind: "got", value } } : w)))
+      .catch((e: unknown) =>
+        setWatch((w) =>
+          w.kind === "on" && w.id === id
+            ? { ...w, snapshot: { kind: "failed", detail: e instanceof Error ? e.message : String(e) } }
+            : w,
+        ),
+      );
+  };
+
+  // Stopped: the watch's events are fetched once more, so the panel shows
+  // where it ended; then the sidecar forgets it on close.
+  const stop = () => {
+    if (probe.kind !== "ready" || watch.kind !== "on") return;
+    live.current?.abort.abort();
+    live.current = null;
+    const id = watch.id;
+    void stopWatch(probe.session, id).then(() =>
+      setWatch((w) =>
+        w.kind === "on" && w.id === id && w.state !== null
+          ? { ...w, state: { ...w.state, state: "stopped", reason: null } }
+          : w,
+      ),
+    );
+  };
+
+  const close = () => {
+    if (watch.kind === "on" && live.current !== null && probe.kind === "ready") {
+      live.current.abort.abort();
+      void stopWatch(probe.session, watch.id);
+    }
+    live.current = null;
+    setWatch({ kind: "idle" });
+  };
+
+  // A watch does not outlive the window that shows it.
+  useEffect(
+    () => () => {
+      live.current?.abort.abort();
+    },
+    [],
+  );
+
+  return { watch, pick, snapshot, stop, close };
 }

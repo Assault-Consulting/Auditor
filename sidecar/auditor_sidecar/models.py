@@ -1624,3 +1624,61 @@ class ConsistencyCheckView(BaseModel):
         description="The same at `second`; null when this chain holds fewer records."
     )
     records_here: int
+
+
+class WatchRequest(BaseModel):
+    path: str = Field(description="The file to watch, local.")
+    profile: str = Field(default="none", description="Anchor profile, as for /verify.")
+    poll_interval: float = Field(
+        default=0.5, ge=0.1, le=10.0, description="Seconds between looks at the file."
+    )
+
+
+class WatchStarted(BaseModel):
+    watch_id: str
+    path: str
+    profile: str
+
+
+class WatchEvent(BaseModel):
+    """One thing that happened at the tail, as the package named it (channel 9)."""
+
+    n: int = Field(description="Cursor: events are numbered from 0 in the order they happened.")
+    kind: str = Field(
+        description=(
+            "record, pending_tail, shrunk, recovered, anchor_seen or diagnosis "
+            "(`TAIL_EVENT_KINDS`, provisional in 0.15)."
+        )
+    )
+    seq: int | None
+    record_kind: str | None = Field(description="The record's kind or type name, the package's.")
+    detail: str | None = Field(description="The package's sentence, or the record's own detail.")
+    at: float = Field(description="When this desk saw it, Unix seconds — not a record's time.")
+
+
+class WatchState(BaseModel):
+    state: Literal["watching", "stopped", "limit", "failed"]
+    reason: str | None = Field(description="Why it is not watching, in words; null while it is.")
+    path: str
+    records: int = Field(description="Records verified so far.")
+    last_seq: int | None
+    by_kind: dict[str, int] = Field(description="Records by kind or type name, most first.")
+    since: float = Field(description="When the watch started, Unix seconds, this desk's clock.")
+    max_records: int = Field(description="Where the watch stops itself (memory: R17).")
+
+
+class WatchEvents(BaseModel):
+    events: list[WatchEvent]
+    next: int = Field(description="The cursor to ask from next.")
+    dropped: int = Field(description="Events after `after` no longer kept: the reader fell behind.")
+    state: WatchState
+
+
+class WatchSnapshot(BaseModel):
+    """The package's batch verification over the verified prefix (channel 9)."""
+
+    chain: ChainResult
+    completeness: Completeness
+    anchor: AnchorReadingModel | None
+    anchor_attempts: list[AnchorAttemptModel]
+    diagnosis: DiagnosisModel | None

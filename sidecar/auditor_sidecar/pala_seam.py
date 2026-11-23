@@ -36,6 +36,7 @@ import io
 import mmap
 import queue
 import threading
+import time
 from . import __version__
 from .keychain import KeychainUnavailable
 from .keychain import read as keychain_read
@@ -90,6 +91,7 @@ from palimpsests.audit.reader import (
 from palimpsests.audit.report import REPORT_FORMAT, VERDICTS, build_report
 from palimpsests.audit.report_html import render_html
 from palimpsests.audit.segment_set import verify_segment_set
+from palimpsests.audit.tailing import TAIL_EVENT_KINDS, TailingReader
 from palimpsests.audit.timehealth import drift_series
 from pathlib import Path
 
@@ -442,6 +444,8 @@ def vocabulary() -> dict[str, object]:
         "advisory_codes": sorted(ADVISORY_CODES),
         "violation_codes": sorted(VIOLATION_CODES),
         "manifest_statuses": sorted(MANIFEST_STATUSES),
+        # Channel 9 (provisional, R17): what happened at a watched tail.
+        "tail_event_kinds": sorted(TAIL_EVENT_KINDS),
     }
 
 
@@ -776,7 +780,8 @@ class ChainHandle:
             rendered["consistent"] = self._reader.is_consistent()
         return rendered
 
-    def _render(self, result) -> dict[str, object]:
+    @staticmethod
+    def _render(result) -> dict[str, object]:
         chain = result.chain
         diagnosis = result.diagnosis
 
@@ -2393,3 +2398,170 @@ def check_segment_set(manifest_path: Path) -> dict[str, object]:
             for c in result.segments
         ],
     }
+
+
+# --- watch mode (F15, channel 9 — provisional in 0.15, R17) --------------------
+
+#: Records a watch may hold. `TailingReader` keeps every verified record in
+#: memory (R17: one of the two properties that may change). Measured on 0.15:
+#: a 10^6-record file took 21.6 s to catch up and 2.5 GB; the batch snapshot
+#: over it 10 s. A watch is for a log that is being written, not an archive:
+#: at this many records it stops itself and says to open the file instead.
+WATCH_MAX_RECORDS = 250_000
+
+#: Events kept for the window; a reader that falls further behind is told
+#: how many it missed. Catching up on an existing file yields one event per
+#: record, so this is what keeps a watch of a large file from flooding.
+WATCH_KEEP_EVENTS = 500
+
+
+class LiveWatch:
+    """One file watched as it is written, through the package's TailingReader.
+
+    The package tells the reasons a tail moves apart — a partial record
+    still being written (`pending_tail`), a torn tail left by a crash (a
+    `truncated_tail` diagnosis after the grace), a resume that cut it
+    (`shrunk`, then `recovered`), and the one real alarm, the file shrinking
+    below what was verified (`replaced_or_rolled_back`). This class only
+    runs it on a thread, keeps the latest events with a cursor, and counts.
+
+    `snapshot()` is the package's batch `Verification` over what has been
+    verified so far, rendered exactly as /verify renders one: live and after
+    the fact give the same answer because they are the same code (channel 9).
+    It re-verifies on every call (R17), so it is asked for, never polled.
+    """
+
+    def __init__(
+        self,
+        path: Path,
+        anchor_specs: list[dict[str, str]] | None = None,
+        *,
+        poll_interval: float = 0.5,
+        torn_grace: float = 5.0,
+        max_records: int | None = None,
+        keep: int | None = None,
+    ) -> None:
+        self.path = path
+        specs = anchor_specs or []
+        self._tail = TailingReader(
+            path,
+            anchor=_anchor_source(specs) if specs else None,
+            poll_interval=poll_interval,
+            torn_grace=torn_grace,
+        )
+        self._max = WATCH_MAX_RECORDS if max_records is None else max_records
+        self._keep = WATCH_KEEP_EVENTS if keep is None else keep
+        self._cond = threading.Condition()
+        self._events: list[dict[str, object]] = []
+        self._next = 0  # cursor of the next event
+        self._records = 0
+        self._last_seq: int | None = None
+        self._by_kind: Counter = Counter()
+        self._state = "watching"
+        self._reason: str | None = None
+        self._started = time.time()
+        self._thread = threading.Thread(target=self._run, name=f"watch {path.name}", daemon=True)
+        self._thread.start()
+
+    def _push(self, event: dict[str, object]) -> None:
+        with self._cond:
+            event["n"] = self._next
+            self._next += 1
+            self._events.append(event)
+            if len(self._events) > self._keep:
+                del self._events[: len(self._events) - self._keep]
+            self._cond.notify_all()
+
+    def _run(self) -> None:
+        try:
+            for ev in self._tail.events():
+                record = ev.record
+                if ev.kind == "record":
+                    self._records += 1
+                    self._last_seq = ev.seq
+                    if record is not None:
+                        self._by_kind[record.kind_name or ev.detail] += 1
+                self._push(
+                    {
+                        "kind": ev.kind,
+                        "seq": ev.seq,
+                        # The package's names: the kind for an EVENT, the
+                        # record type otherwise; its detail, verbatim.
+                        "record_kind": None
+                        if record is None
+                        else (record.kind_name or ev.detail),
+                        "detail": ev.detail if ev.kind != "record" else record_detail(record),
+                        "at": time.time(),
+                    }
+                )
+                if self._records >= self._max:
+                    self._stop(
+                        "limit",
+                        f"stopped at {self._max:,} records: a watch holds every verified "
+                        "record in memory. Open the file to read it whole",
+                    )
+                    break
+                if self._state != "watching":
+                    break
+        except Exception as exc:  # noqa: BLE001 — said to the user, never swallowed
+            with self._cond:
+                self._state, self._reason = "failed", f"{type(exc).__name__}: {exc}"
+                self._cond.notify_all()
+
+    def _stop(self, state: str, reason: str | None) -> None:
+        with self._cond:
+            if self._state == "watching":
+                self._state, self._reason = state, reason
+            self._cond.notify_all()
+        self._tail.close()
+
+    def stop(self) -> None:
+        """Stop watching. The file is untouched; the events stay readable."""
+        self._stop("stopped", None)
+        self._thread.join(timeout=5)
+
+    def events_after(self, after: int, wait: float = 0.0) -> dict[str, object]:
+        """Events with a cursor of at least `after`, waiting up to `wait`
+        seconds for one when there are none and the watch is live."""
+        deadline = time.monotonic() + max(0.0, wait)
+        with self._cond:
+            while self._next <= after and self._state == "watching":
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._cond.wait(remaining)
+            first_kept = self._events[0]["n"] if self._events else self._next
+            dropped = max(0, int(first_kept) - after) if after < self._next else 0
+            events = [e for e in self._events if int(e["n"]) >= after]
+            return {
+                "events": events,
+                "next": self._next,
+                "dropped": dropped,
+                "state": self.state_locked(),
+            }
+
+    def state_locked(self) -> dict[str, object]:
+        return {
+            "state": self._state,
+            "reason": self._reason,
+            "path": str(self.path),
+            "records": self._records,
+            "last_seq": self._last_seq,
+            "by_kind": dict(self._by_kind.most_common()),
+            "since": self._started,
+            "max_records": self._max,
+        }
+
+    def snapshot(self) -> dict[str, object]:
+        """The batch answer over what has been verified so far (channel 9)."""
+        return ChainHandle._render(self._tail.snapshot())
+
+
+def record_detail(record) -> str | None:
+    """A record's own detail text, when the package decoded one."""
+    detail = getattr(record, "detail", None)
+    return detail if isinstance(detail, str) else None
+
+
+#: The event kinds the package names (channel 9), carried to the vocabulary.
+WATCH_EVENT_KINDS = tuple(TAIL_EVENT_KINDS)

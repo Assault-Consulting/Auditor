@@ -95,11 +95,12 @@ interactive is the live desktop check below, not yet done.
 | ✓ E-05 | Local witness log: `auditor-witness/1`, JSON Lines, each entry the SHA-256 of the one before (ADR-0003, `docs/WITNESS-LOG.md`). One entry per first `/verify` of a session and profile, holding the package's facts, never a verdict; `GET /witness` walks it; a log that does not link is not appended to and the check says so. The panel says what it shows and what it does not — a cut tail still links. `scripts/check_witness_log.py` checks a log with nothing from this repository | 3 | — |
 | E-06 | SCITT receipts as pins, displayed, never minted | ? | — |
 | ✓ E-07 | Prefix-consistency proofs (`consistency_proof`, `chain_root`): a proof made and saved, a held proof checked three ways (path, first root, second root) | 1 | 0.15 (R10) |
-| Phase 5 | Watch mode; the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; `uk` pass. **Watch mode (F15)** is planned against 0.15: `TailingReader` is channel 9, provisional (R17) — pin the minor | — | — |
+| Phase 5 | ~~Watch mode~~ (✓ 23 Nov 2026, F15 — channel 9, provisional); the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; `uk` pass. **Watch mode (F15)** runs `TailingReader` (channel 9, provisional, R17) — the pin holds the minor; a watch stops itself at 250,000 records (memory, measured) | — | — |
 
 **Next, in order:** the live desktop check on the Windows installer (F-01);
-then watch mode (F15, R17 — provisional, its own phase); E-02 (a bundle
-re-checked by a harness written from the spec alone). Done on 0.15
+then E-02 (a bundle re-checked by a harness written from the spec alone);
+the rest of phase 5 (the one write behind its ADR, Rekor/TSA anchors,
+signed installers, the `uk` pass). Done on 0.15
 (23 Nov 2026): C-18 and stage 2 T8–T16; the addendum's T18–T22; E-01, E-04, E-07.
 
 ## 0.15 addendum (T18–T23, 19 Nov 2026)
@@ -116,7 +117,7 @@ a line goes when its test passes again.
 | ✓ 3 | T19, T21 (R16) | S | `derived-from-telemetry`: the pair was written when the export arrived, not at the call; the segment panel says a missing segment's declared range and head | texts; R16 on 0.15 |
 | ✓ 4 | T21 (R15 → E-04) | M | the report's own `health` section | 0.15 |
 | ✓ 5 | T20, T22 | S | origin panel: a new origin at the 0.14 → 0.15 boundary is a digest-rule change, not a configuration change; file anchor named, not pathed; E-01's bounded selection; SCITT `key_type_mismatch` (19 codes); T12's exceptions removed | texts; code on 0.15 |
-| 6 | T21 (R17 → F15) | L | watch mode — a phase of its own, pinned to the minor | 0.15 |
+| ✓ 6 | T21 (R17 → F15) | L | watch mode — a phase of its own, pinned to the minor | 0.15 |
 
 T23 (`docs/SERVE-SURFACE.md`) is reference only: Auditor never calls serve.
 

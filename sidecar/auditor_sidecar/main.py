@@ -56,10 +56,20 @@ from .models import (
     SpanView,
     Timeline,
     VerificationResponse,
+    WatchEvents,
+    WatchRequest,
+    WatchSnapshot,
+    WatchStarted,
     WitnessCheckView,
     WitnessMark,
 )
-from .pala_seam import NotAChain, UnknownAnchorKind, check_segment_set, verifier_identity
+from .pala_seam import (
+    LiveWatch,
+    NotAChain,
+    UnknownAnchorKind,
+    check_segment_set,
+    verifier_identity,
+)
 from .sessions import SessionNotFound, SessionStore, SubjectChanged
 from .witness import FORMAT as WITNESS_FORMAT
 from .witness import WitnessLog, WitnessRefused
@@ -91,6 +101,9 @@ TOKEN_ENV = "AUDITOR_SIDECAR_TOKEN"
 #: Hence exact origins, no wildcard, and no credentials: the token travels in
 #: an Authorization header, never in a cookie, so allow_credentials stays off.
 #: See docs/adr/0002-the-bearer-token-is-the-boundary.md.
+#: Files watched at once (F15). Each holds its verified records in memory.
+MAX_WATCHES = 4
+
 ALLOWED_ORIGINS = (
     "tauri://localhost",       # macOS and Linux webview
     "http://tauri.localhost",  # Windows webview
@@ -151,6 +164,8 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
     # E-05. The path is read here, once, like the token: the environment's
     # override in tests, else this OS's data directory.
     app.state.witness = WitnessLog(witness_path or default_witness_path())
+    # F15. Live watches, by id; stopped with the app.
+    app.state.watches = {}
 
     @app.middleware("http")
     async def require_token(request: Request, call_next):
@@ -994,6 +1009,87 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
                 status_code=422, detail=f"not a consistency proof: {exc}"
             ) from None
         return ConsistencyCheckView(**checked)
+
+    # --- watch mode (F15) -------------------------------------------------
+
+    @app.post("/watch", response_model=WatchStarted, status_code=201)
+    def start_watch(body: WatchRequest) -> WatchStarted:
+        """Watch a file as it is written (F15), through the package's
+        `TailingReader` (channel 9, provisional in 0.15).
+
+        Not a session: a session is pinned to the bytes it opened, and a
+        watched file grows. The watch reports what happens at the tail and
+        answers the batch questions over what it has verified, on request.
+        At most `MAX_WATCHES` at once; 422 for a path that is not a file,
+        404 for an unknown profile.
+        """
+        watches: dict[str, LiveWatch] = app.state.watches
+        path = Path(body.path)
+        if not path.is_file():
+            raise HTTPException(status_code=422, detail=f"not a file: {body.path}")
+        live = [w for w in watches.values() if w.state_locked()["state"] == "watching"]
+        if len(live) >= MAX_WATCHES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{MAX_WATCHES} files are already being watched; stop one first",
+            )
+        try:
+            sources = app.state.anchors.get(body.profile)
+        except ProfileNotFound:
+            raise HTTPException(
+                status_code=404, detail=f"no anchor profile named {body.profile!r}"
+            ) from None
+        try:
+            watch = LiveWatch(path, sources, poll_interval=body.poll_interval)
+        except UnknownAnchorKind as exc:
+            raise HTTPException(
+                status_code=422, detail=f"unknown anchor source kind: {exc}"
+            ) from None
+        watch_id = secrets.token_urlsafe(12)
+        watches[watch_id] = watch
+        return WatchStarted(watch_id=watch_id, path=str(path), profile=body.profile)
+
+    def _watch_or_404(watch_id: str) -> LiveWatch:
+        watch = app.state.watches.get(watch_id)
+        if watch is None:
+            raise HTTPException(status_code=404, detail="no such watch")
+        return watch
+
+    @app.get("/watch/{watch_id}/events", response_model=WatchEvents)
+    def watch_events(
+        watch_id: str,
+        after: int = Query(default=0, ge=0, description="The cursor: events numbered from here."),
+        wait: float = Query(
+            default=0.0, ge=0.0, le=25.0, description="Seconds to wait for one when there is none."
+        ),
+    ) -> WatchEvents:
+        """What happened at the tail since `after`, and the watch's state.
+
+        Long-polled: with nothing new and the watch live, the answer waits up
+        to `wait` seconds. Only the latest events are kept; `dropped` says how
+        many a reader that fell behind did not see.
+        """
+        return WatchEvents(**_watch_or_404(watch_id).events_after(after, wait))
+
+    @app.get("/watch/{watch_id}/snapshot", response_model=WatchSnapshot)
+    def watch_snapshot(watch_id: str) -> WatchSnapshot:
+        """The batch verification over the records verified so far.
+
+        `TailingReader.snapshot()` — the package's batch path, so live and
+        after the fact agree. It re-verifies every record held on each call
+        (R17), so it is asked for, not polled. Only what that verification
+        holds is returned: no container walk and no `is_consistent()` — a
+        torn tail still being written is `pending`, not a finding. For those,
+        stop and open the file.
+        """
+        return WatchSnapshot(**_watch_or_404(watch_id).snapshot())
+
+    @app.delete("/watch/{watch_id}", status_code=204)
+    def stop_watch(watch_id: str) -> None:
+        """Stop watching and forget the watch. The file is never touched."""
+        watch = _watch_or_404(watch_id)
+        watch.stop()
+        del app.state.watches[watch_id]
 
     @app.delete("/session/{session_id}", status_code=204)
     def close_session(session_id: str) -> None:
