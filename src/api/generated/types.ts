@@ -246,6 +246,41 @@ export interface Completeness {
   anchor_reason: string | null;
 }
 
+export interface ConsistencyCheckRequest {
+  /** A `pala-consistency-proof/1` document, local. */
+  path: string;
+}
+
+/**
+ * A proof someone holds, against this chain. Three answers, apart.
+ */
+export interface ConsistencyCheckView {
+  format: string;
+  /** The proof's shorter count. */
+  first: number;
+  /** The proof's longer count. */
+  second: number;
+  /** Its path connects its own two roots — says nothing of where they came from. */
+  path_verifies: boolean;
+  /** This chain's root over its first `first` records is the proof's `first_root`: the prefix it names is intact here. Null when this chain holds fewer records. */
+  first_root_matches: boolean | null;
+  /** The same at `second`; null when this chain holds fewer records. */
+  second_root_matches: boolean | null;
+  records_here: number;
+}
+
+/**
+ * A prefix-consistency proof, as the package made it (E-07, channel 3).
+ */
+export interface ConsistencyProofView {
+  /** `pala-consistency-proof/1`, the package's `to_json()`: counts, the two derived roots, the RFC 6962 path. Derived and unsigned; it re-verifies from the spec alone. */
+  proof: Record<string, unknown>;
+  /** The path connects the two roots (`verify()`). */
+  verifies: boolean;
+  /** Records in this chain now. */
+  records_here: number;
+}
+
 /**
  * Whether each record is the bytes its own header claims.
  *

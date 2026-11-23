@@ -87,10 +87,10 @@ pub struct ExportedArtifact {
 /// How long a read may wait for the next bytes. The export's summary needs a
 /// full walk of the container first — about 14 s at 1M records — so this is
 /// generous; it bounds a sidecar that has stopped answering, not a slow one.
-const READ_TIMEOUT: Duration = Duration::from_secs(600);
+pub(crate) const READ_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Most bytes read of an error body. An error is a sentence, not a stream.
-const ERROR_BODY_LIMIT: u64 = 64 * 1024;
+pub(crate) const ERROR_BODY_LIMIT: u64 = 64 * 1024;
 
 /// A session id as the sidecar issues them: letters, digits, `-` and `_`.
 ///
@@ -195,14 +195,26 @@ fn cut_short() -> io::Error {
     )
 }
 
-/// The status and the framing of a response, read off its head.
-struct Head {
-    status: u16,
+/// The status and the framing of a response, read off its head, and every
+/// header by lowercase name — the bundle's facts travel in `x-bundle-*`.
+pub(crate) struct Head {
+    pub(crate) status: u16,
     chunked: bool,
-    length: Option<u64>,
+    pub(crate) length: Option<u64>,
+    pub(crate) headers: Vec<(String, String)>,
 }
 
-fn read_head<R: BufRead>(reader: &mut R) -> io::Result<Head> {
+impl Head {
+    /// The first header of that (lowercase) name.
+    pub(crate) fn get(&self, name: &str) -> Option<&str> {
+        self.headers
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.as_str())
+    }
+}
+
+pub(crate) fn read_head<R: BufRead>(reader: &mut R) -> io::Result<Head> {
     let mut line = String::new();
     reader.read_line(&mut line)?;
     let status = line
@@ -216,6 +228,7 @@ fn read_head<R: BufRead>(reader: &mut R) -> io::Result<Head> {
         status,
         chunked: false,
         length: None,
+        headers: Vec::new(),
     };
     loop {
         let mut header = String::new();
@@ -228,7 +241,9 @@ fn read_head<R: BufRead>(reader: &mut R) -> io::Result<Head> {
         }
         if let Some((name, value)) = header.split_once(':') {
             let value = value.trim();
-            match name.trim().to_ascii_lowercase().as_str() {
+            let name = name.trim().to_ascii_lowercase();
+            head.headers.push((name.clone(), value.to_owned()));
+            match name.as_str() {
                 "transfer-encoding" => {
                     head.chunked = value.to_ascii_lowercase().contains("chunked");
                 }
@@ -240,7 +255,7 @@ fn read_head<R: BufRead>(reader: &mut R) -> io::Result<Head> {
 }
 
 /// The body as plain bytes, whichever framing the response used.
-fn body<'a, R: BufRead + 'a>(reader: R, head: &Head) -> Box<dyn Read + 'a> {
+pub(crate) fn body<'a, R: BufRead + 'a>(reader: R, head: &Head) -> Box<dyn Read + 'a> {
     if head.chunked {
         Box::new(Chunked::new(reader))
     } else if let Some(length) = head.length {
@@ -251,7 +266,7 @@ fn body<'a, R: BufRead + 'a>(reader: R, head: &Head) -> Box<dyn Read + 'a> {
 }
 
 /// The sidecar's own sentence from an error body, or the status when it gave none.
-fn error_detail(status: u16, body: &[u8]) -> String {
+pub(crate) fn error_detail(status: u16, body: &[u8]) -> String {
     let detail = serde_json::from_slice::<serde_json::Value>(body)
         .ok()
         .and_then(|v| v.get("detail").and_then(|d| d.as_str()).map(str::to_owned));

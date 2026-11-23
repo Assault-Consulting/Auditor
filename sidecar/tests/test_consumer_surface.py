@@ -37,6 +37,8 @@ CONSUMER_MODULES = {
     "palimpsests.audit.export": "channel 2 since 0.14.1 (R9); has __all__",
     "palimpsests.audit.segment_set": "channel 1 since 0.14 (U18); has __all__",
     "palimpsests.audit.timehealth": "channel 5, public since 0.10; __all__ since 0.15 (R10)",
+    "palimpsests.audit.pala.proofs": "channel 3, public since 0.10; has __all__ (E-07)",
+    "palimpsests.audit.pala.bundle": "channel 4, public since 0.10; has __all__ (E-01)",
 }
 
 def _package_imports(path: Path) -> list[tuple[str, str]]:

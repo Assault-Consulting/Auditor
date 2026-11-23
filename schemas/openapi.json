@@ -653,6 +653,111 @@
         "title": "Completeness",
         "type": "object"
       },
+      "ConsistencyCheckRequest": {
+        "properties": {
+          "path": {
+            "description": "A `pala-consistency-proof/1` document, local.",
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "ConsistencyCheckRequest",
+        "type": "object"
+      },
+      "ConsistencyCheckView": {
+        "description": "A proof someone holds, against this chain. Three answers, apart.",
+        "properties": {
+          "first": {
+            "description": "The proof's shorter count.",
+            "title": "First",
+            "type": "integer"
+          },
+          "first_root_matches": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This chain's root over its first `first` records is the proof's `first_root`: the prefix it names is intact here. Null when this chain holds fewer records.",
+            "title": "First Root Matches"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "path_verifies": {
+            "description": "Its path connects its own two roots \u2014 says nothing of where they came from.",
+            "title": "Path Verifies",
+            "type": "boolean"
+          },
+          "records_here": {
+            "title": "Records Here",
+            "type": "integer"
+          },
+          "second": {
+            "description": "The proof's longer count.",
+            "title": "Second",
+            "type": "integer"
+          },
+          "second_root_matches": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same at `second`; null when this chain holds fewer records.",
+            "title": "Second Root Matches"
+          }
+        },
+        "required": [
+          "format",
+          "first",
+          "second",
+          "path_verifies",
+          "first_root_matches",
+          "second_root_matches",
+          "records_here"
+        ],
+        "title": "ConsistencyCheckView",
+        "type": "object"
+      },
+      "ConsistencyProofView": {
+        "description": "A prefix-consistency proof, as the package made it (E-07, channel 3).",
+        "properties": {
+          "proof": {
+            "additionalProperties": true,
+            "description": "`pala-consistency-proof/1`, the package's `to_json()`: counts, the two derived roots, the RFC 6962 path. Derived and unsigned; it re-verifies from the spec alone.",
+            "title": "Proof",
+            "type": "object"
+          },
+          "records_here": {
+            "description": "Records in this chain now.",
+            "title": "Records Here",
+            "type": "integer"
+          },
+          "verifies": {
+            "description": "The path connects the two roots (`verify()`).",
+            "title": "Verifies",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "proof",
+          "verifies",
+          "records_here"
+        ],
+        "title": "ConsistencyProofView",
+        "type": "object"
+      },
       "ContainerCheck": {
         "description": "Whether each record is the bytes its own header claims.\n\nA different question from the one `ChainResult` answers. The chain is\nabout how records link to each other; this is about whether a record's\nbody still hashes to the `body_digest` its header carries.\n\n`AuditReader.verify()` does not perform this comparison \u2014 that is by\ndesign, and it is why verification needs no keys. The walk comes from the\npackage's report builder, so the shell never decides what a body digest\nmeans.",
         "properties": {
@@ -3569,6 +3674,213 @@
           }
         },
         "summary": "Session Boots"
+      }
+    },
+    "/session/{session_id}/bundle": {
+      "get": {
+        "description": "An evidence bundle for a selection of this session's records (E-01).\n\n`assemble_bundle` (channel 4) writes the tar into a directory of the\nsidecar's own; it is sent, then removed. The desktop shell streams it\ninto the file the user chose, as it does the export \u2014 the webview\nnever holds it.\n\n**Bounded.** A bundle carries each record and its proof path, so it\noutgrows its source (R12): at most 100,000 records per bundle; 422\nfor more, for a range outside the chain or backwards, and for a file\nwith no records. 409 if the file changed, 404 for an unknown profile.",
+        "operationId": "bundle_session_session__session_id__bundle_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First seq, inclusive.",
+            "in": "query",
+            "name": "from_seq",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First seq, inclusive.",
+              "title": "From Seq"
+            }
+          },
+          {
+            "description": "Last seq, inclusive.",
+            "in": "query",
+            "name": "to_seq",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last seq, inclusive.",
+              "title": "To Seq"
+            }
+          },
+          {
+            "description": "Anchor profile whose head the bundle carries, as for /verify.",
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "description": "Anchor profile whose head the bundle carries, as for /verify.",
+              "title": "Profile",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-tar": {}
+            },
+            "description": "`pala-bundle/1`, as the package assembled it. What the package said about it travels in `X-Bundle-*` headers: Records, Proven, Head, Chain-Ok, Consistent, From-Seq, To-Seq. Content-Length is the tar's size, so a transfer cut short is detectable."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bundle Session"
+      }
+    },
+    "/session/{session_id}/consistency": {
+      "get": {
+        "description": "A prefix-consistency proof between two counts of this chain (E-07).\n\nThe package's `consistency_proof` (channel 3): the first `first`\nrecords are a prefix of the first `second`, over the derived \u00a74.3\nroot of record hashes. Derived and unsigned: it proves two roots are\nconsistent, never where a root came from. 422 for counts outside\n1 \u2264 first \u2264 second \u2264 records; 409 if the file changed.",
+        "operationId": "consistency_session_session__session_id__consistency_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Records in the prefix: a count, not a seq.",
+            "in": "query",
+            "name": "first",
+            "required": true,
+            "schema": {
+              "description": "Records in the prefix: a count, not a seq.",
+              "minimum": 1,
+              "title": "First",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Records in the longer chain; default: all present.",
+            "in": "query",
+            "name": "second",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Records in the longer chain; default: all present.",
+              "title": "Second"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsistencyProofView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consistency Session"
+      }
+    },
+    "/session/{session_id}/consistency/check": {
+      "post": {
+        "description": "A proof someone holds, checked against this chain (E-07).\n\nThe document is read from `path` \u2014 a file the desktop shell's dialog\nchose \u2014 and checked three ways, kept apart: whether its path connects\nits two roots, and whether this chain's own roots at its two counts\nare the roots it names. 422 when the file cannot be read or is not a\n`pala-consistency-proof/1`.",
+        "operationId": "consistency_check_session__session_id__consistency_check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsistencyCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsistencyCheckView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consistency Check"
       }
     },
     "/session/{session_id}/export": {

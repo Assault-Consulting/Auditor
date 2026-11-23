@@ -1584,3 +1584,43 @@ class KeychainSeedRequest(BaseModel):
         if len(cleaned) != 64 or any(c not in "0123456789abcdef" for c in cleaned):
             raise ValueError("a head is 64 hexadecimal characters")
         return cleaned
+
+
+class ConsistencyProofView(BaseModel):
+    """A prefix-consistency proof, as the package made it (E-07, channel 3)."""
+
+    proof: dict[str, Any] = Field(
+        description=(
+            "`pala-consistency-proof/1`, the package's `to_json()`: counts, the "
+            "two derived roots, the RFC 6962 path. Derived and unsigned; it "
+            "re-verifies from the spec alone."
+        )
+    )
+    verifies: bool = Field(description="The path connects the two roots (`verify()`).")
+    records_here: int = Field(description="Records in this chain now.")
+
+
+class ConsistencyCheckRequest(BaseModel):
+    path: str = Field(description="A `pala-consistency-proof/1` document, local.")
+
+
+class ConsistencyCheckView(BaseModel):
+    """A proof someone holds, against this chain. Three answers, apart."""
+
+    format: str
+    first: int = Field(description="The proof's shorter count.")
+    second: int = Field(description="The proof's longer count.")
+    path_verifies: bool = Field(
+        description="Its path connects its own two roots — says nothing of where they came from."
+    )
+    first_root_matches: bool | None = Field(
+        description=(
+            "This chain's root over its first `first` records is the proof's "
+            "`first_root`: the prefix it names is intact here. Null when this "
+            "chain holds fewer records."
+        )
+    )
+    second_root_matches: bool | None = Field(
+        description="The same at `second`; null when this chain holds fewer records."
+    )
+    records_here: int

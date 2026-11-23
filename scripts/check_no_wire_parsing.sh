@@ -135,12 +135,14 @@ fi
 # since 0.14.1 `export` (export_jsonl, R9 — it declares one too), and
 # `segment_set` (verify_segment_set, channel 1 since 0.14, with an
 # `__all__` — a set of files is not one reader, CONSUMER-SURFACE decision 6),
-# and `timehealth` (drift_series, channel 5, `__all__` since 0.15, R10). Any
+# and `timehealth` (drift_series, channel 5, `__all__` since 0.15, R10), and
+# channels 3 and 4 by their declared modules, `pala.proofs` and `pala.bundle`
+# (INTEGRATION-SURFACE.md, public since 0.10; E-01, E-07). Any
 # other path — `pala.codec`, `pala_writer`, an internal module — is internal
 # however importable it is. That each imported NAME is in its module's
 # `__all__` needs the package installed, so it is checked by
 # sidecar/tests/test_consumer_surface.py, not here.
-CONSUMER_MODULES='palimpsests\.audit\.(reader|anchors|anchors_pkcs11|report|report_html|export|segment_set|timehealth)'
+CONSUMER_MODULES='palimpsests\.audit\.(reader|anchors|anchors_pkcs11|report|report_html|export|segment_set|timehealth|pala\.proofs|pala\.bundle)'
 if hits=$(grep -n -E '^[[:space:]]*(from|import)[[:space:]]+palimpsests' "$SEAM" \
             | grep -Ev "^[0-9]+:[[:space:]]*from[[:space:]]+${CONSUMER_MODULES}[[:space:]]+import[[:space:]]"); then
   echo "FAIL: ${SEAM} imports palimpsests outside the consumer surface"

@@ -29,7 +29,7 @@ import { diagnosisCard } from "./api/diagnosis";
 import { manifestLine } from "./api/manifest";
 import { provenance, provenanceSummary } from "./api/provenance";
 import { type RecordFilters, resolveChips } from "./api/filters";
-import { getNearest, getRecords, getReport } from "./api/chain";
+import { checkConsistencyProof, getConsistencyProof, getNearest, getRecords, getReport } from "./api/chain";
 import { type NearestLine, nearestLine } from "./api/nearest";
 import { type Chip, chipLabel, nextWarning, parseSearch, SEARCH_HELP } from "./api/search";
 import { safetyGroupKey } from "./api/safety";
@@ -49,6 +49,16 @@ import { offsetLabel } from "./api/hexView";
 import { segmentState, setAnswers } from "./api/segmentSet";
 import { BASIS_LABEL, HEALTH_NOTE } from "./api/health";
 import { CONFIG_DIGEST_NOTE } from "./api/origin";
+import { BUNDLE_NOTE, bundleFileName, bundleLine, bundleRefusal, saveBundle } from "./api/bundle";
+import {
+  type CheckAnswer,
+  CONSISTENCY_NOTE,
+  checkAnswers,
+  parseCount,
+  pickConsistencyProof,
+  proofFileName,
+  proofLine,
+} from "./api/consistency";
 import { WITNESS_LIMITS, witnessLine, witnessRows, witnessStatus } from "./api/witness";
 
 // C-11's page size. Well inside the sidecar's own 1000-record ceiling, and
@@ -267,6 +277,22 @@ export default function App() {
     | { kind: "saved"; line: string; summary: SummaryLine }
     | { kind: "failed"; detail: string };
   const [exportState, setExportState] = useState<ExportState>({ kind: "idle" });
+  // E-01. The bundle takes the export's range, and the chosen profile.
+  type BundleState =
+    | { kind: "idle" }
+    | { kind: "bundling" }
+    | { kind: "saved"; line: string; facts: { consistent: boolean | null; text: string } }
+    | { kind: "failed"; detail: string };
+  const [bundleState, setBundleState] = useState<BundleState>({ kind: "idle" });
+  // E-07. A proof made here, saved; or a proof held, checked.
+  const [proofFirst, setProofFirst] = useState("");
+  type ProofState =
+    | { kind: "idle" }
+    | { kind: "working" }
+    | { kind: "made"; line: string; saved: string | null }
+    | { kind: "checked"; answers: CheckAnswer[] }
+    | { kind: "failed"; detail: string };
+  const [proofState, setProofState] = useState<ProofState>({ kind: "idle" });
   useEffect(() => {
     setReport({ kind: "idle" });
     setCopyState("idle");
@@ -276,6 +302,9 @@ export default function App() {
     setExportFrom("");
     setExportTo("");
     setExportState({ kind: "idle" });
+    setBundleState({ kind: "idle" });
+    setProofFirst("");
+    setProofState({ kind: "idle" });
   }, [openedSessionId]);
   // H5: the range is read as it is typed, and the reason it would be
   // refused is shown before the button is pressed, which stays disabled.
@@ -299,6 +328,63 @@ export default function App() {
       )
       .catch((err: unknown) =>
         setExportState({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
+      );
+  };
+  const runBundle = () => {
+    const opened = openedOf(chain);
+    if (opened === null) return;
+    const range = parseRange(exportFrom, exportTo);
+    const refused = bundleRefusal(range, opened.subject.first_seq, opened.subject.last_seq);
+    if (refused !== null || range.kind === "refused") {
+      setBundleState({ kind: "failed", detail: refused ?? "" });
+      return;
+    }
+    setBundleState({ kind: "bundling" });
+    void saveBundle(opened.session_id, range, chosenProfile, bundleFileName(opened.subject.filename, range))
+      .then((saved) =>
+        setBundleState(
+          saved === null
+            ? { kind: "idle" }
+            : { kind: "saved", line: savedLine(saved), facts: bundleLine(saved.facts) },
+        ),
+      )
+      .catch((err: unknown) =>
+        setBundleState({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
+      );
+  };
+  const typedCount = parseCount(proofFirst, openedOf(chain)?.subject.records ?? 0);
+  const makeProof = () => {
+    const s = sessionOf();
+    const opened = openedOf(chain);
+    if (s === null || opened === null || typedCount.kind !== "count") return;
+    setProofState({ kind: "working" });
+    void getConsistencyProof(s.session, s.id, typedCount.value)
+      .then(async (v) => {
+        const line = proofLine(v);
+        const p = v.proof as { first: number; second: number };
+        const saved = await saveArtifact(
+          proofFileName(opened.subject.filename, p.first, p.second),
+          JSON.stringify(v.proof, null, 2) + "\n",
+        );
+        setProofState({ kind: "made", line, saved: saved === null ? null : savedLine(saved) });
+      })
+      .catch((err: unknown) =>
+        setProofState({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
+      );
+  };
+  const checkProof = () => {
+    const s = sessionOf();
+    if (s === null) return;
+    void pickConsistencyProof()
+      .then((path) => {
+        if (path === null) return;
+        setProofState({ kind: "working" });
+        return checkConsistencyProof(s.session, s.id, path).then((c) =>
+          setProofState({ kind: "checked", answers: checkAnswers(c) }),
+        );
+      })
+      .catch((err: unknown) =>
+        setProofState({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
       );
   };
   const buildReport = () => {
@@ -2108,6 +2194,115 @@ export default function App() {
               </>
             )}
             {exportState.kind === "failed" && <p className="report-failed" role="alert">{exportState.detail}</p>}
+
+            {/* E-01 — the package's evidence bundle of the same range,
+                streamed by the shell into the file the user chooses. */}
+            <h3 className="export-sub" id="bundle-title">
+              Evidence bundle
+            </h3>
+            <p className="export-note">{BUNDLE_NOTE}</p>
+            {(() => {
+              const opened = openedOf(chain)!;
+              const refused = bundleRefusal(typedRange, opened.subject.first_seq, opened.subject.last_seq);
+              return (
+                <>
+                  <div className="export-range">
+                    <button
+                      aria-describedby={refused !== null ? "bundle-range-note" : undefined}
+                      className="choose-button"
+                      disabled={bundleState.kind === "bundling" || refused !== null}
+                      onClick={runBundle}
+                      type="button"
+                    >
+                      {bundleState.kind === "bundling" ? "Bundling…" : "Save bundle…"}
+                    </button>
+                    <span className="choose-hint">
+                      the range above, against{" "}
+                      {chosenProfile === "none" ? "no anchor" : `profile ${chosenProfile}`}
+                    </span>
+                  </div>
+                  {refused !== null && typedRange.kind !== "refused" && (
+                    <p className="export-range-note" id="bundle-range-note">
+                      Not bundled as typed: {refused}.
+                    </p>
+                  )}
+                </>
+              );
+            })()}
+            {bundleState.kind === "saved" && (
+              <>
+                <p className="report-saved">{bundleState.line}</p>
+                <p
+                  className={bundleState.facts.consistent === false ? "report-failed" : "report-saved"}
+                  data-consistent={String(bundleState.facts.consistent)}
+                >
+                  {bundleState.facts.text}
+                </p>
+              </>
+            )}
+            {bundleState.kind === "failed" && <p className="report-failed" role="alert">{bundleState.detail}</p>}
+
+            {/* E-07 — prefix consistency: a proof made here and saved, or
+                a proof held from earlier checked against this chain. */}
+            <h3 className="export-sub" id="proof-title">
+              Prefix proof
+            </h3>
+            <p className="export-note">{CONSISTENCY_NOTE}</p>
+            <div className="export-range">
+              <label>
+                <span className="choose-hint">first</span>
+                <input
+                  aria-describedby={proofFirst.trim() !== "" && typedCount.kind === "refused" ? "proof-count-note" : undefined}
+                  aria-invalid={proofFirst.trim() !== "" && typedCount.kind === "refused"}
+                  inputMode="numeric"
+                  onChange={(e) => setProofFirst(e.target.value)}
+                  placeholder="records"
+                  type="text"
+                  value={proofFirst}
+                />
+              </label>
+              <button
+                className="choose-button"
+                disabled={proofState.kind === "working" || typedCount.kind !== "count"}
+                onClick={makeProof}
+                type="button"
+              >
+                Prove and save…
+              </button>
+              <button
+                className="choose-button"
+                disabled={proofState.kind === "working"}
+                onClick={checkProof}
+                type="button"
+              >
+                Check a proof…
+              </button>
+            </div>
+            {proofFirst.trim() !== "" && typedCount.kind === "refused" && (
+              <p className="export-range-note" id="proof-count-note">
+                Not a prefix as typed: {typedCount.reason}.
+              </p>
+            )}
+            {proofState.kind === "made" && (
+              <>
+                <p className="report-saved">{proofState.line}</p>
+                {proofState.saved !== null && <p className="report-saved">{proofState.saved}</p>}
+              </>
+            )}
+            {proofState.kind === "checked" && (
+              <dl className="report-facts" aria-label="The held proof, against this chain">
+                {proofState.answers.map((a) => (
+                  <div key={a.label} data-holds={String(a.holds)}>
+                    <dt>{a.label}</dt>
+                    <dd>
+                      {a.holds === true ? "holds — " : a.holds === false ? "does not hold — " : "cannot say — "}
+                      {a.text}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {proofState.kind === "failed" && <p className="report-failed" role="alert">{proofState.detail}</p>}
           </section>
         )}
         </div>
