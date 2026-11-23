@@ -564,10 +564,10 @@ def test_origin_after_an_unload_is_its_own_state(
     """The state U11 exists for: origin_at() alone cannot tell this
     apart from "never declared" — both leave its running state at
     None — and unloaded_at() is what does."""
-    from palimpsests.audit.pala_writer import PalaWriter
+    from writers import fixed_writer
 
     path = tmp_path / "unloaded.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.model_load(b"\x11" * 32, b"\x22" * 32)
@@ -632,10 +632,10 @@ def test_safety_carries_its_detail_text(
 def test_detail_is_null_for_a_candidate_written_without_one(
     open_client: TestClient, tmp_path
 ) -> None:
-    from palimpsests.audit.pala_writer import PalaWriter
+    from writers import fixed_writer
 
     path = tmp_path / "no-detail.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.incident_candidate(category=1, severity=2)
@@ -672,10 +672,10 @@ def test_a_unique_detail_recurs_once(
 def test_a_repeated_detail_is_counted_on_every_record_that_carries_it(
     open_client: TestClient, tmp_path
 ) -> None:
-    from palimpsests.audit.pala_writer import PalaWriter
+    from writers import fixed_writer
 
     path = tmp_path / "repeated-detail.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.incident_candidate(category=1, severity=2, detail="sensor timeout")
@@ -699,10 +699,10 @@ def test_recurrence_count_is_null_without_a_detail(
     """Null, not 0 — nothing to count is a different fact from "this
     detail never recurs", and a SAFETY record with no detail at all
     has no detail to have a count of."""
-    from palimpsests.audit.pala_writer import PalaWriter
+    from writers import fixed_writer
 
     path = tmp_path / "no-detail-count.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.incident_candidate(category=1, severity=2)
@@ -722,10 +722,10 @@ def test_recurrence_count_is_null_for_a_non_safety_record_even_with_a_detail(
     outside that scope regardless — a MODEL_LOAD's detail is a
     different fact than a SAFETY record's, and counting the two
     together would answer a question nobody asked."""
-    from palimpsests.audit.pala_writer import PalaWriter
+    from writers import fixed_writer
 
     path = tmp_path / "event-detail.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.model_load(b"\x11" * 32, b"\x22" * 32, detail="engine warmed up")
@@ -829,10 +829,10 @@ def test_an_ack_whose_reference_does_not_verify_acknowledges_nothing(
     """The right seq, the wrong hash. The package does not count it, and
     neither side of the pair may look acknowledged — the advisory channel
     is where this one is named (reference_hash_mismatch)."""
-    from palimpsests.audit.pala_writer import PalaWriter
+    from writers import fixed_writer
 
     path = tmp_path / "broken-ack.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.incident_candidate(category=1, severity=2, detail="c")
@@ -869,11 +869,11 @@ def _controlled_clock(monkeypatch, start: int, step: int):
 def test_ack_latency_is_the_writers_clock_within_one_boot(
     open_client: TestClient, tmp_path, monkeypatch
 ) -> None:
-    from palimpsests.audit.pala_writer import PalaWriter
+    from writers import fixed_writer
 
     _controlled_clock(monkeypatch, 1_787_000_000_000_000_000, 60_000_000_000)
     path = tmp_path / "latency.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     candidate_hash = w.incident_candidate(category=1, severity=2, detail="c")
@@ -894,11 +894,11 @@ def test_ack_latency_is_not_computed_across_a_boot(
     """A restart sits between the two: the clock may have been set, and a
     number would span a period nobody observed. acknowledged_by stays —
     the acknowledgement is a chain fact; only the subtraction is withheld."""
-    from palimpsests.audit.pala_writer import PalaWriter
+    from writers import fixed_reopen, fixed_writer
 
     clock = _controlled_clock(monkeypatch, 1_787_000_000_000_000_000, 1_000_000_000)
     path = tmp_path / "crossboot.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     candidate_hash = w.incident_candidate(category=1, severity=2, detail="c")
@@ -906,7 +906,7 @@ def test_ack_latency_is_not_computed_across_a_boot(
     w.close()
     clock["now"] += 3_600_000_000_000
 
-    w2 = PalaWriter.open_existing(path)
+    w2 = fixed_reopen(path)
     w2.boot()
     w2.oversight_ack(candidate_seq, candidate_hash, disposition=1, operator_id=b"\x01" * 16)
     ack_seq = w2.seq - 1
@@ -933,11 +933,11 @@ def sourced_chain(tmp_path):
     from palimpsests.audit.pala_writer import (
         OUTCOME_OK,
         SOURCE_REPORTED_BY_CLIENT,
-        PalaWriter,
     )
+    from writers import fixed_writer
 
     path = tmp_path / "sourced.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     wire_hash = w.tool_call("search")  # seq 2, no tag: parsed-from-wire
@@ -1022,11 +1022,11 @@ _MINUTE = 60_000_000_000
 def evening_chain(tmp_path, monkeypatch):
     """A boot that runs across 22:41 on 6 Aug, one record a minute, with
     the SAFETY record written at exactly 22:41 by the writer's clock."""
-    from palimpsests.audit.pala_writer import PalaWriter
+    from writers import fixed_writer
 
     _controlled_clock(monkeypatch, _AUG_6_22_41 - 3 * _MINUTE, _MINUTE)
     path = tmp_path / "evening.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()  # 22:38
     w.boot()  # 22:39
     w.model_load(b"\x11" * 32, b"\x22" * 32)  # 22:40
@@ -1084,11 +1084,11 @@ def test_nearest_says_when_the_writers_clock_ran_backwards(
     """The clock jumps back an hour mid-chain. "Nearest" is still answered —
     but the answer carries wall_follows_seq false, so no UI can present it
     as a position in proved order."""
-    from palimpsests.audit.pala_writer import PalaWriter
+    from writers import fixed_writer
 
     clock = _controlled_clock(monkeypatch, _AUG_6_22_41, _MINUTE)
     path = tmp_path / "backwards.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.model_load(b"\x11" * 32, b"\x22" * 32)
@@ -1146,10 +1146,10 @@ def test_a_head_that_names_nothing_here_is_an_empty_answer(
 def test_a_shredded_record_reports_its_shredder(
     open_client: TestClient, tmp_path
 ) -> None:
-    from palimpsests.audit.pala_writer import PalaWriter
+    from writers import fixed_writer
 
     path = tmp_path / "shredded.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.kv_save(b"\x11" * 32)

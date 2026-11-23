@@ -108,6 +108,8 @@ include = ["auditor_sidecar*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--import-mode=importlib"
+# `tests/writers.py` — chains built record for record on 0.14.1 and 0.15 alike.
+pythonpath = ["tests"]
 
 [tool.coverage.run]
 source = ["auditor_sidecar"]
