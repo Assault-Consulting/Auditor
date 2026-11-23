@@ -14,15 +14,15 @@ from __future__ import annotations
 import dataclasses
 import pytest
 from auditor_sidecar.pala_seam import open_chain
-from palimpsests.audit.pala_writer import PalaWriter
 from palimpsests.audit.reader import AuditReader
 from pathlib import Path
+from writers import fixed_writer
 
 
 @pytest.fixture
 def detailed_chain(tmp_path) -> Path:
     path = tmp_path / "detail.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.incident_candidate(1, 2, detail="No frame magic at offset 4096")

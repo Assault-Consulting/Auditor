@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from palimpsests.audit.pala_writer import PalaWriter
 from palimpsests.audit.reader import AuditReader, boot_statistics, step_catalog
 from pathlib import Path
+from writers import fixed_writer
 
 
 def _health(client: TestClient, path: Path) -> dict:
@@ -41,7 +42,7 @@ def recurring_chain(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pw.time, "time_ns", _tick)
     path = tmp_path / "recurring.pala"
-    w = pw.PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.guard_state_reject(detail="no frame magic")

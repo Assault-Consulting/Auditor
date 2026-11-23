@@ -24,9 +24,9 @@ from __future__ import annotations
 
 import pytest
 from auditor_sidecar.pala_seam import open_chain
-from palimpsests.audit.pala_writer import PalaWriter
 from palimpsests.audit.reader import AuditReader
 from pathlib import Path
+from writers import fixed_writer
 
 
 class FullDecode(AssertionError):
@@ -45,7 +45,7 @@ def no_full_decode(monkeypatch):
 @pytest.fixture
 def busy_chain(tmp_path) -> Path:
     path = tmp_path / "busy.pala"
-    w = PalaWriter(path)
+    w = fixed_writer(path)
     w.genesis()
     w.boot()
     w.model_load(b"\x11" * 32, b"\x22" * 32, role="engine.native")
@@ -156,7 +156,7 @@ def test_out_of_order_records_keep_the_walk_and_stop_answer(tmp_path) -> None:
     """With seqs out of file order, `record(seq)` answers as the full walk
     did: the first record at or past the seq asked for, or nothing."""
     src = tmp_path / "src.pala"
-    w = PalaWriter(src)
+    w = fixed_writer(src)
     w.genesis()
     w.boot()
     for _ in range(4):

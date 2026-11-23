@@ -14,15 +14,15 @@ said on the card, not here.
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-from palimpsests.audit.pala_writer import PalaWriter
 from pathlib import Path
+from writers import fixed_writer
 
 OUTCOMES = ["ok", "error", "timeout", "cancelled", "unobserved"]
 
 
 def _chain(tmp_path: Path) -> Path:
     log = tmp_path / "outcomes.pala"
-    w = PalaWriter(log)
+    w = fixed_writer(log)
     w.genesis()
     w.boot()
     for value in range(len(OUTCOMES)):
