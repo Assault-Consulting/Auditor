@@ -36,6 +36,16 @@ def _until(client: TestClient, wid: str, pred, timeout: float = 5.0) -> dict:
     return body
 
 
+@pytest.fixture(autouse=True)
+def _no_watch_outlives_its_test(open_client: TestClient):
+    """A watch polls on a thread of its own; one left running would take
+    time from every test after it (test_concurrency measures time)."""
+    yield
+    for watch in list(open_client.app.state.watches.values()):
+        watch.stop()
+    open_client.app.state.watches.clear()
+
+
 @pytest.fixture
 def growing(tmp_path: Path):
     path = tmp_path / "live.pala"
