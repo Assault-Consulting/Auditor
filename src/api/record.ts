@@ -181,6 +181,8 @@ export interface RecordCard {
    * record that is not well formed — the advisory lane says so.
    */
   continuation: ContinuationCard | null;
+  /** On a REPORTS_REFUSED (r9): the route and its counts, worded; null elsewhere. */
+  reportsRefused: ReportsRefusedCard | null;
   /**
    * On the writer's own WRITER_OPEN / WRITER_CLOSE (profile r8): what the
    * record is. Null on every other record.
@@ -193,6 +195,8 @@ export interface RecordCard {
    * name any record.
    */
   shredded: number | null;
+  /** On a KEY_SHRED: its erasure note as declared (R4, 0.15); null elsewhere. */
+  shredNote: ShredNoteCard | null;
   /**
    * EVT_DETAIL, decoded for any record type that carries one — EVENT and
    * SAFETY bodies (U12). Null when the record carries no detail at all,
@@ -377,6 +381,59 @@ export function continuationOf(view: RecordView): ContinuationCard | null {
   };
 }
 
+/** Profile §8: the note is the writer's declaration, never the erasure's proof. */
+export const SHRED_NOTE =
+  "as the writer declared it when it noted the key's destruction — whether those records exist and carried that key is the chain's answer under “shredded”, not this note's";
+
+export interface ShredNoteCard {
+  /** The package's name for the reason, or its number when this build has none. */
+  reason: string;
+  targets: number[];
+  /** SHRED_DETAIL — a ticket or request reference; null when none. */
+  reference: string | null;
+  keyId: number | null;
+  note: string;
+}
+
+export function shredNoteOf(view: RecordView): ShredNoteCard | null {
+  const s = view.shred ?? null;
+  if (s === null) return null;
+  return {
+    reason: s.reason.name ?? `reason ${s.reason.value}`,
+    targets: s.target_seqs,
+    reference: s.detail,
+    keyId: s.key_id,
+    note: SHRED_NOTE,
+  };
+}
+
+/**
+ * Profile r9, §3.4: what a REPORTS_REFUSED says, and what it does not. A
+ * count of requests to a reporting route, never of tool events, and never
+ * who sent them — the serving layer did not learn that.
+ */
+export const REPORTS_REFUSED_NOTE =
+  "for this run, the absence of reported events is not evidence that nothing happened. Counts of requests since the serving layer started, as they stood when this was written — not who sent them, not what they held, and no count of tool events";
+
+export interface ReportsRefusedCard {
+  route: string;
+  /** The four counts in words, in the profile's order. */
+  counts: string;
+  note: string;
+}
+
+export function reportsRefusedOf(view: RecordView): ReportsRefusedCard | null {
+  const r = view.reports_refused ?? null;
+  if (r === null) return null;
+  return {
+    route: r.route,
+    counts:
+      `${r.refused_empty} refused with no credential, ${r.refused_wrong} refused with a wrong one, ` +
+      `${r.rejected} read and rejected, ${r.accepted} accepted`,
+    note: REPORTS_REFUSED_NOTE,
+  };
+}
+
 function spanText(ns: number): string {
   const s = Math.round(Math.abs(ns) / 1e9);
   if (s < 60) return `${s} s`;
@@ -433,8 +490,10 @@ export function recordCard(view: RecordView): RecordCard {
     source: sourceOf(view),
     outcome: outcomeOf(view),
     continuation: continuationOf(view),
+    reportsRefused: reportsRefusedOf(view),
     lifecycle: lifecycleOf(view),
     shredded: view.shredded_by,
+    shredNote: shredNoteOf(view),
     detail: view.detail,
     recurrenceCount: view.recurrence_count,
     note: view.type_name === null ? UNRECOGNISED_NOTE : null,

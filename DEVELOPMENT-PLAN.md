@@ -50,15 +50,16 @@ status and what it unblocks.
 | R8 — `HEADER_FIELDS` from `reader` | merged (#356), **0.14.1** | C-06d |
 | R9 — `export_jsonl`, `pala-jsonl/1`, channel 2 | merged (#357), **0.14.1** | D-06 ✓ |
 | U27 — `WRITER-SURFACE.md` | before 1.0 | C-15's writer-built fixtures |
-| Report format `/2` — verdict `empty` | announced, 0.15 | C-18 |
-| R10 — `__all__` on channels 3–6 | in #373, 0.15 | E-01, E-07, selftest |
-| R11 — anchor file named, not pathed, in report `/2` and bundle | in #373, 0.15 | E-01; T6 holds for what leaves |
-| R12 — `assemble_bundle(reader=…)`; a bundle is for a selection | in #373, 0.15 | E-01 (with a bound) |
-| R13 — the bundle reads time claims through `HEADER_FIELDS` | in #373, 0.15 | — |
-| **0.15 target: tagged by 24 December 2026** (R14) | announced | C-18, stage 2, Phase 4 |
-| Profile r8 — the writer's own `WRITER_OPEN` (13) / `WRITER_CLOSE` (12); advisory `boot_ended_without_close` | on `main`, 0.15 | T18 |
-| `EVT_SOURCE` 2 `derived-from-telemetry` (r7); digests over RFC 8785 | on `main`, 0.15 | T19, T20 |
-| R15 `build_report(health=True)` · R16 `SegmentCheck.declared_*` · R17 `TailingReader` (channel 9, provisional) | on `main`, 0.15 | E-04, segment panel, F15 |
+| Report format `/2` — verdict `empty` | **0.15.0** | C-18 ✓ |
+| R10 — `__all__` on channels 3–6 | **0.15.0** | E-01, E-07, selftest |
+| R11 — anchor file named, not pathed, in report `/2` and bundle | **0.15.0** | E-01; T6 holds for what leaves |
+| R12 — `assemble_bundle(reader=…)`; a bundle is for a selection | **0.15.0** | E-01 (with a bound) |
+| R13 — the bundle reads time claims through `HEADER_FIELDS` | **0.15.0** | — |
+| **0.15.0 — released 22 Nov 2026** (profile r9) | ✓ pinned `>=0.15,<0.16` | C-18, stage 2, Phase 4 |
+| Profile r8 — the writer's own `WRITER_OPEN` (13) / `WRITER_CLOSE` (12); advisory `boot_ended_without_close` | **0.15.0** | T18 ✓ |
+| `EVT_SOURCE` 2 `derived-from-telemetry` (r7); digests over RFC 8785 | **0.15.0** | T19 ✓, T20 ✓ |
+| R15 `build_report(health=True)` · R16 `SegmentCheck.declared_*` · R17 `TailingReader` (channel 9, provisional) | **0.15.0** | E-04, segment panel, F15 |
+| Profile r9 — `REPORTS_REFUSED` (14), advisory `reports_refused`; `decode_shred` (R4) | **0.15.0** | card ✓, advisory ✓ |
 
 ## Phases
 
@@ -67,7 +68,7 @@ status and what it unblocks.
 | 0 — scaffold (A-01…A-07) | ✓ closed |
 | 1 — verify (B-01…B-11, B-12) | ✓ closed |
 | 2 — browse (C-01…C-12) | ✓ closed (C-06d on 0.14.1) |
-| 0.13–0.14.1 follow-up (C-13…C-19) | ✓ except C-18 (0.15); C-16(b) closed unbuilt |
+| 0.13–0.15 follow-up (C-13…C-19) | ✓; C-16(b) closed unbuilt |
 | 3 — report (D-01…D-07) | ✓ closed (D-02 last) |
 | 4 — evidence artifacts (E-01…E-07) | started 16 Nov 2026: E-05 ✓; E-01, E-07 on 0.15 |
 | 5 — beyond MVP | not started |
@@ -83,7 +84,7 @@ interactive is the live desktop check below, not yet done.
 |---|---|---|---|
 | ✓ C-06d | Raw hex view: `GET /session/{id}/record/{seq}/bytes` gives the record's bytes as read (`record_bytes_at`) with `HEADER_FIELDS` and both TLV span lists; the record card's **bytes** lays them out sixteen to a row, every name and boundary the package's, a byte no span covers unnamed. Header and body together — the body's map came in the same release, so (a)/(b) did not need splitting. A body is cut at 4 KiB and says so | 1 | 0.14.1 (R8) |
 | ✗ C-16(b) | The canary against Palimpsests `main`. **Closed unbuilt (T7, 15 Nov 2026).** A workflow file cannot be committed through the tool this work uses, and what the canary would catch early is caught at the bump: the C-16 contract test fails on any name the package stops declaring, the pin's upper bound keeps an unread release out, and C-18's rule is to pin only after the suite runs green on the candidate. Palimpsests now runs this repository's sidecar suite against its every commit (#368), with a ledger of intended breaks — the canary exists, upstream. Reopen if a release ever lands broken past those | — | — |
-| C-18 | 0.15: report `/2` and its verdict `empty`; remove the report /1 gloss override for `empty_container` (`api/report.ts`); R4's `ShredView` for a KEY_SHRED's `detail`; pin `>=0.15,<0.16` after the suite runs green on the candidate | 1 | 0.15 |
+| ✓ C-18 | 0.15: report `/2` and its verdict `empty`; remove the report /1 gloss override for `empty_container` (`api/report.ts`); R4's `ShredView` for a KEY_SHRED's `detail`; pin `>=0.15,<0.16` after the suite runs green on the candidate | 1 | 0.15 |
 | ✓ D-02 | Print and PDF of the package's HTML. **Print…** in the Report block: the shell opens the page in a window of its own from a `data:` URL (opaque origin, the app's CSP written in, no capability names the window) and asks the OS to print it once loaded; PDF is the OS dialog's offer. A page over 1.4 MB (WebView2's 2 MB `data:` limit, base64) is refused with a sentence pointing at **Save HTML…** | 0.5 | D-01 |
 | ✓ C-19 | 0.14.1: pin `>=0.14.1,<0.15`; R7 — the package's HTML is shown for an empty container too (the withheld page is gone; the JSON block's gloss override stays until report /2) | — | 0.14.1 |
 | ✓ D-06 | **The record export, streamed.** `GET /session/{id}/export` carries `export_jsonl`'s `pala-jsonl/1` out as it is written — from a thread of its own, on a read-only mapping of the file (the package's ask: a mapping, not a copy), in blocks of ~256 KB through a queue of 16 (~4 MB in flight). The shell's `export_records` runs the save dialog, reads the response itself over loopback (no HTTP library: status, headers, chunked or close-framed body), writes it to the file as it arrives with its SHA-256 on the way, checks the last line is the summary (a cut-short stream leaves no file), and writes `.sha256` beside it. The webview names a session and a range only. **Measured at 1M records:** 767 MB in 48.6 s; the shell held 26 MB; the sidecar's peak, 674 MB, is the session's header index (C-10b) — held whole, the export alone took 1.7 GB. Byte-identical to `export_jsonl` for the same file. | 1.5 | 0.14.1 (R9) |

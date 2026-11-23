@@ -1906,10 +1906,32 @@
             "description": "How many SAFETY records in this container carry this exact detail text, this one included (F8: 'detail text and a recurrence count for identical details'). Scoped to SAFETY the way `acknowledged` is scoped to INCIDENT_CANDIDATE: null for a non-SAFETY record (not applicable) and for a SAFETY record with no detail (nothing to count) \u2014 never 0, since a detail that exists recurs at least once, itself.",
             "title": "Recurrence Count"
           },
+          "reports_refused": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportsRefusedModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On a REPORTS_REFUSED (kind 14, profile r9): the route and its four counts as the package decodes them. Null on every other record and on one that is not well formed."
+          },
           "seq": {
             "description": "Sequence number.",
             "title": "Seq",
             "type": "integer"
+          },
+          "shred": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ShredNoteModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On a KEY_SHRED: its erasure note as the package decodes it (`decode_shred`). A declaration; whether its targets exist and carried the key is `shredded_by` and the advisories. Null elsewhere."
           },
           "shredded_by": {
             "anyOf": [
@@ -2005,7 +2027,7 @@
         "description": "The package's verification report, passed through whole (D-01).\n\nAuditor does not build reports (ADR-0001): `build_report` does, and its\nverdict comes from `derive_verdict`, the package's one verdict rule. This\nresponse carries the report as the package returned it, and the exact\nJSON text the package serialised, so a copy is the package's bytes.",
         "properties": {
           "format": {
-            "description": "The report's own format id, e.g. 'pala-verification-report/1'.",
+            "description": "The report's own format id, e.g. 'pala-verification-report/2' (palimpsests 0.15).",
             "title": "Format",
             "type": "string"
           },
@@ -2036,7 +2058,7 @@
             "type": "string"
           },
           "verdict": {
-            "description": "The report's verdict as the package derived it (`derive_verdict`): 'sound', 'partial' or 'violation'. Copied from the report, never re-derived here.",
+            "description": "The report's verdict as the package derived it (`derive_verdict`): 'sound', 'partial', 'empty' (report /2) or 'violation'. Copied from the report, never re-derived here.",
             "title": "Verdict",
             "type": "string"
           }
@@ -2051,6 +2073,45 @@
           "html_text"
         ],
         "title": "ReportResponse",
+        "type": "object"
+      },
+      "ReportsRefusedModel": {
+        "description": "What a REPORTS_REFUSED counted (inference profile r9, \u00a73.4).\n\nThe counts stood as written, since the serving layer started. A count of\nrequests to a reporting route \u2014 never of tool events, and never who sent\nthem: the serving layer did not learn that.",
+        "properties": {
+          "accepted": {
+            "description": "Accepted on the same route.",
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "refused_empty": {
+            "description": "Refused for an absent or empty credential.",
+            "title": "Refused Empty",
+            "type": "integer"
+          },
+          "refused_wrong": {
+            "description": "Refused for a credential that is not the serving layer's.",
+            "title": "Refused Wrong",
+            "type": "integer"
+          },
+          "rejected": {
+            "description": "Read and rejected: answered with an error other than the credential's.",
+            "title": "Rejected",
+            "type": "integer"
+          },
+          "route": {
+            "description": "EVT_ROUTE \u2014 the reporting route.",
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "required": [
+          "route",
+          "refused_empty",
+          "refused_wrong",
+          "accepted",
+          "rejected"
+        ],
+        "title": "ReportsRefusedModel",
         "type": "object"
       },
       "SegmentCheckView": {
@@ -2255,6 +2316,55 @@
           "verifier"
         ],
         "title": "SessionResponse",
+        "type": "object"
+      },
+      "ShredNoteModel": {
+        "description": "A KEY_SHRED's erasure note as the writer declared it (profile \u00a78).",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SHRED_DETAIL \u2014 a ticket or request reference.",
+            "title": "Detail"
+          },
+          "key_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The destroyed key, from the header; null: not declared.",
+            "title": "Key Id"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/NamedValue",
+            "description": "SHRED_REASON \u2014 its value, and the package's name (null: unknown)."
+          },
+          "target_seqs": {
+            "description": "SHRED_TARGET_SEQS as written; empty when absent.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Target Seqs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key_id",
+          "reason",
+          "target_seqs",
+          "detail"
+        ],
+        "title": "ShredNoteModel",
         "type": "object"
       },
       "SpanStatsModel": {
@@ -3971,13 +4081,13 @@
             }
           },
           {
-            "description": "Anchor profile the report's check is made against, as for /verify. The default leaves completeness not checked, and the report's verdict says so ('partial').",
+            "description": "Anchor profile the report's check is made against, as for /verify. The default leaves completeness not checked, and the report's verdict says so ('partial', or 'empty' for a file with no records).",
             "in": "query",
             "name": "profile",
             "required": false,
             "schema": {
               "default": "none",
-              "description": "Anchor profile the report's check is made against, as for /verify. The default leaves completeness not checked, and the report's verdict says so ('partial').",
+              "description": "Anchor profile the report's check is made against, as for /verify. The default leaves completeness not checked, and the report's verdict says so ('partial', or 'empty' for a file with no records).",
               "title": "Profile",
               "type": "string"
             }

@@ -1596,6 +1596,16 @@ export default function App() {
                       </dd>
                     </div>
                   )}
+                  {record.value.reportsRefused !== null && (
+                    <div>
+                      <dt>Reports refused</dt>
+                      {/* r9, §3.4: counts of requests, never of tool events. */}
+                      <dd className="record-source">
+                        <code>{record.value.reportsRefused.route}</code> — {record.value.reportsRefused.counts}
+                        <span className="record-source-note">{record.value.reportsRefused.note}</span>
+                      </dd>
+                    </div>
+                  )}
                   {record.value.lifecycle !== null && (
                     <div>
                       <dt>Writer</dt>
@@ -1622,6 +1632,31 @@ export default function App() {
                           prior root <code>{record.value.continuation.priorRoot}</code>
                         </span>
                         <span className="record-source-note">{record.value.continuation.note}</span>
+                      </dd>
+                    </div>
+                  )}
+                  {record.value.shredNote !== null && (
+                    <div>
+                      <dt>Erasure note</dt>
+                      {/* KEY_SHRED, profile §8 — decode_shred (R4, 0.15). */}
+                      <dd className="record-source">
+                        {record.value.shredNote.reason}
+                        {record.value.shredNote.keyId !== null && <> · key {record.value.shredNote.keyId}</>}
+                        {record.value.shredNote.reference !== null && <> · “{record.value.shredNote.reference}”</>}
+                        {record.value.shredNote.targets.length > 0 && (
+                          <>
+                            {" · declares "}
+                            {record.value.shredNote.targets.map((t, i) => (
+                              <span key={t}>
+                                {i > 0 && ", "}
+                                <button type="button" className="record-jump-link" onClick={() => select(t)}>
+                                  #{t}
+                                </button>
+                              </span>
+                            ))}
+                          </>
+                        )}
+                        <span className="record-source-note">{record.value.shredNote.note}</span>
                       </dd>
                     </div>
                   )}

@@ -754,7 +754,8 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
             description=(
                 "Anchor profile the report's check is made against, as for "
                 "/verify. The default leaves completeness not checked, and "
-                "the report's verdict says so ('partial')."
+                "the report's verdict says so ('partial', or 'empty' for a "
+                "file with no records)."
             ),
         ),
     ) -> ReportResponse:

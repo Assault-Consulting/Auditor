@@ -1895,6 +1895,13 @@ body {
   border-left-color: var(--unchecked);
 }
 
+/* Report /2's fourth verdict: nothing was checked. Neither a pass nor a
+   failure, and not partial either — dotted, so it is not folded into it. */
+.report-body[data-verdict="empty"] {
+  border-left-style: dotted;
+  border-left-color: var(--unchecked);
+}
+
 .report-body[data-verdict="violation"] {
   border-left-color: var(--recorded);
 }

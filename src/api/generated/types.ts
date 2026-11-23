@@ -685,6 +685,10 @@ export interface RecordView {
   detail: string | null;
   /** On a SEGMENT_CONTINUATION (kind 11): what the writer declared at the cut, as the package decodes it. Null on every other record, and on a kind-11 record that is not well formed (the advisory channel reports that). A declaration, never evidence that the records it describes exist. */
   continuation?: ContinuationModel | null;
+  /** On a KEY_SHRED: its erasure note as the package decodes it (`decode_shred`). A declaration; whether its targets exist and carried the key is `shredded_by` and the advisories. Null elsewhere. */
+  shred?: ShredNoteModel | null;
+  /** On a REPORTS_REFUSED (kind 14, profile r9): the route and its four counts as the package decodes them. Null on every other record and on one that is not well formed. */
+  reports_refused?: ReportsRefusedModel | null;
   /** How many SAFETY records in this container carry this exact detail text, this one included (F8: 'detail text and a recurrence count for identical details'). Scoped to SAFETY the way `acknowledged` is scoped to INCIDENT_CANDIDATE: null for a non-SAFETY record (not applicable) and for a SAFETY record with no detail (nothing to count) — never 0, since a detail that exists recurs at least once, itself. */
   recurrence_count: number | null;
 }
@@ -702,9 +706,9 @@ export interface ReportResponse {
   session_id: string;
   /** Digest of the file as opened. Repeated beside the report so the two cannot be separated. */
   subject_sha256: string;
-  /** The report's own format id, e.g. 'pala-verification-report/1'. */
+  /** The report's own format id, e.g. 'pala-verification-report/2' (palimpsests 0.15). */
   format: string;
-  /** The report's verdict as the package derived it (`derive_verdict`): 'sound', 'partial' or 'violation'. Copied from the report, never re-derived here. */
+  /** The report's verdict as the package derived it (`derive_verdict`): 'sound', 'partial', 'empty' (report /2) or 'violation'. Copied from the report, never re-derived here. */
   verdict: string;
   /** The report object, exactly as `build_report` returned it. */
   report: Record<string, unknown>;
@@ -712,6 +716,26 @@ export interface ReportResponse {
   json_text: string;
   /** The same report as the package renders it (`render_html`, channel 2 since palimpsests 0.14): one self-contained HTML page — no script, no link, no outbound URL. Built from the same report object, never by this application. */
   html_text: string;
+}
+
+/**
+ * What a REPORTS_REFUSED counted (inference profile r9, §3.4).
+ *
+ * The counts stood as written, since the serving layer started. A count of
+ * requests to a reporting route — never of tool events, and never who sent
+ * them: the serving layer did not learn that.
+ */
+export interface ReportsRefusedModel {
+  /** EVT_ROUTE — the reporting route. */
+  route: string;
+  /** Refused for an absent or empty credential. */
+  refused_empty: number;
+  /** Refused for a credential that is not the serving layer's. */
+  refused_wrong: number;
+  /** Accepted on the same route. */
+  accepted: number;
+  /** Read and rejected: answered with an error other than the credential's. */
+  rejected: number;
 }
 
 /**
@@ -781,6 +805,20 @@ export interface SessionResponse {
   subject: ChainSubject;
   /** The verifier package and wire format behind this session. Carried on the session rather than fetched separately, because a result is only meaningful alongside the verifier that produced it. */
   verifier: Record<string, string>;
+}
+
+/**
+ * A KEY_SHRED's erasure note as the writer declared it (profile §8).
+ */
+export interface ShredNoteModel {
+  /** The destroyed key, from the header; null: not declared. */
+  key_id: number | null;
+  /** SHRED_REASON — its value, and the package's name (null: unknown). */
+  reason: NamedValue;
+  /** SHRED_TARGET_SEQS as written; empty when absent. */
+  target_seqs: Array<number>;
+  /** SHRED_DETAIL — a ticket or request reference. */
+  detail: string | null;
 }
 
 /**

@@ -32,17 +32,11 @@ CONSUMER_MODULES = {
     "palimpsests.audit.reader": "consumer module (r2 decision 1)",
     "palimpsests.audit.anchors": "consumer module (r2 decision 1)",
     "palimpsests.audit.anchors_pkcs11": "consumer module, with anchors (r2)",
-    "palimpsests.audit.names": "declared public; has __all__",
     "palimpsests.audit.report": "channel 2 (INTEGRATION-SURFACE.md)",
     "palimpsests.audit.report_html": "channel 2 since 0.14 (R5); has __all__",
     "palimpsests.audit.export": "channel 2 since 0.14.1 (R9); has __all__",
     "palimpsests.audit.segment_set": "channel 1 since 0.14 (U18); has __all__",
 }
-
-#: Channel 2 has no `__all__`; its public names are the ones the channel
-#: table in INTEGRATION-SURFACE.md lists.
-CHANNEL_2 = {"build_report", "derive_verdict"}
-
 
 def _package_imports(path: Path) -> list[tuple[str, str]]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -68,12 +62,10 @@ def test_the_seam_imports_only_from_consumer_modules() -> None:
 @pytest.mark.parametrize("module,name", sorted(set(_package_imports(SEAM))))
 def test_every_imported_name_is_declared_public(module: str, name: str) -> None:
     mod = importlib.import_module(module)
+    # Every channel module declares `__all__` since 0.15 (T22): no exception.
     declared = getattr(mod, "__all__", None)
-    if declared is None:
-        assert module == "palimpsests.audit.report", f"{module} declares no __all__"
-        assert name in CHANNEL_2, f"{name} is not a channel-2 name"
-    else:
-        assert name in declared, f"{name} is not in {module}.__all__"
+    assert declared is not None, f"{module} declares no __all__"
+    assert name in declared, f"{name} is not in {module}.__all__"
 
 
 def test_nothing_else_in_the_sidecar_imports_the_package() -> None:

@@ -22,6 +22,8 @@ import {
   PARSED_FROM_WIRE_NOTE,
   recordCard,
   REPORTED_BY_CLIENT_NOTE,
+  REPORTS_REFUSED_NOTE,
+  SHRED_NOTE,
   WRITER_CLOSE_NOTE,
   WRITER_OPEN_NOTE,
 } from "./record";
@@ -337,6 +339,34 @@ group("the evidence mark on a tool call or result", () => {
     expect(card.source?.kind).toBe("telemetry");
     expect(card.source?.note).toBe(DERIVED_FROM_TELEMETRY_NOTE);
     expect(card.source?.note).toContain("not at the call");
+  });
+
+  it("shows a KEY_SHRED's note as declared, never as the erasure's proof (R4)", () => {
+    const card = recordCard(
+      view({
+        type_name: "KEY_SHRED",
+        shred: { key_id: 7, reason: { value: 1, name: null }, target_seqs: [3], detail: "erasure request E-17" },
+      }),
+    );
+    expect(card.shredNote).toEqual({
+      reason: "reason 1", targets: [3], reference: "erasure request E-17", keyId: 7, note: SHRED_NOTE,
+    });
+    expect(recordCard(view()).shredNote).toBeNull();
+  });
+
+  it("counts a REPORTS_REFUSED's requests, never tool events (r9)", () => {
+    const card = recordCard(
+      view({
+        kind_name: "REPORTS_REFUSED",
+        reports_refused: { route: "/v1/pala/hooks/claude", refused_empty: 4, refused_wrong: 0, accepted: 22, rejected: 0 },
+      }),
+    );
+    expect(card.reportsRefused?.route).toBe("/v1/pala/hooks/claude");
+    expect(card.reportsRefused?.counts).toBe(
+      "4 refused with no credential, 0 refused with a wrong one, 0 read and rejected, 22 accepted",
+    );
+    expect(card.reportsRefused?.note).toBe(REPORTS_REFUSED_NOTE);
+    expect(recordCard(view()).reportsRefused).toBeNull();
   });
 
   it("says what the writer's own two records are (T18, r8)", () => {

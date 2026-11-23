@@ -10,7 +10,7 @@ package's advisory `boot_ended_without_close` — never a violation.
 
 Every other fixture that tests records by number builds through
 `writers.fixed_writer`; this file is where the default mode is held to the
-package. On 0.14.1 the writer writes neither record and the file skips.
+package.
 """
 
 from __future__ import annotations
@@ -22,11 +22,6 @@ from fastapi.testclient import TestClient
 from palimpsests.audit.pala_writer import PalaWriter
 from palimpsests.audit.reader import AuditReader
 from pathlib import Path
-from writers import LIFECYCLE
-
-pytestmark = pytest.mark.skipif(
-    not LIFECYCLE, reason="the writer marks its own open and close from profile r8 (0.15)"
-)
 
 
 def _records(client: TestClient, path: Path) -> list[dict]:

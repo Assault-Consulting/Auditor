@@ -191,7 +191,6 @@ NOT_RENDERED = {
     "tools_offered": "count of tools offered — not on RecordView",
     "tools_digest": "digest of the tools offered — not on RecordView",
     "names_canonicalization": "a statement about the digest, not a record field",
-    "reason": "shred reason — not on RecordView",
     "prior_root_covers": "prose on which records the prior root covers, not a record field",
 }
 
@@ -240,11 +239,10 @@ def test_the_inference_profile_semantics_are_resolved_as_published(inference) ->
                 if view["type_name"] in ("EVENT", "SAFETY"):
                     assert view["detail"] == value, (seq, field)
                 else:
-                    # The package decodes EVT_DETAIL on EVENT and SAFETY bodies
-                    # only (U12's scope); a KEY_SHRED's detail is not on its
-                    # DecodedRecord, so the card shows none. A gap upstream,
-                    # stated here rather than skipped.
+                    # EVT_DETAIL is decoded on EVENT and SAFETY bodies only
+                    # (U12); a KEY_SHRED's is its erasure note's (R4, 0.15).
                     assert view["detail"] is None, (seq, field)
+                    assert view["shred"]["detail"] == value, (seq, field)
             elif field == "ref_seq":
                 if view["kind_name"] == "OVERSIGHT_ACK":
                     assert view["acknowledges"] == value, (seq, field)
@@ -266,7 +264,12 @@ def test_the_inference_profile_semantics_are_resolved_as_published(inference) ->
                 assert view["outcome"]["name"] == value, (seq, field)
             elif field in ("segment_index", "predecessor_head", "retention_s", "prior_root"):
                 assert view["continuation"][field] == value, (seq, field)
+            elif field in ("route", "refused_empty", "refused_wrong", "accepted", "rejected"):
+                assert view["reports_refused"][field] == value, (seq, field)
+            elif field == "reason":
+                assert view["shred"]["reason"]["value"] == value, (seq, field)
             elif field == "target_seqs":
+                assert view["shred"]["target_seqs"] == value, (seq, field)
                 for target in value:
                     assert handle.record(target)["shredded_by"] == seq, (seq, field)
             else:

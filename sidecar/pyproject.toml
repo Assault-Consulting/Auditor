@@ -43,10 +43,17 @@ dependencies = [
     # HTML report that says of an empty container that nothing was checked
     # (R7), so it is no longer withheld.
     #
+    # 0.15.0 (C-18, T8, T18, T19, T22): report /2 and its verdict `empty`;
+    # profile r9 — the writer's WRITER_OPEN / WRITER_CLOSE (r8), the advisory
+    # boot_ended_without_close, REPORTS_REFUSED and decode_reports_refused
+    # (r9), EVT_SOURCE derived-from-telemetry (r7); decode_shred for a
+    # KEY_SHRED's note (R4); `__all__` on every channel module. Taken after
+    # the suite ran green against the 0.15.0 wheel.
+    #
     # 0.12.0, measured here for the record, on 1M records: opening a
     # session cost 21.6 s / 2.0 GB before the first answer
     # (scripts/bench_seam.py, C-10b(a)); 0.13 is what lets C-10b(b) fix it.
-    "palimpsests[pala]>=0.14.1,<0.15",
+    "palimpsests[pala]>=0.15,<0.16",
 ]
 
 [project.optional-dependencies]
@@ -85,7 +92,7 @@ keyring = [
 # anchor source works without them, and a pkcs11 source configured without
 # the extra reports "error" for its own link rather than failing the check.
 pkcs11 = [
-    "palimpsests[pkcs11]>=0.14.1,<0.15",
+    "palimpsests[pkcs11]>=0.15,<0.16",
     "keyring>=25.0",
 ]
 
@@ -108,7 +115,7 @@ include = ["auditor_sidecar*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--import-mode=importlib"
-# `tests/writers.py` — chains built record for record on 0.14.1 and 0.15 alike.
+# `tests/writers.py` — chains built record for record (`lifecycle=False`).
 pythonpath = ["tests"]
 
 [tool.coverage.run]

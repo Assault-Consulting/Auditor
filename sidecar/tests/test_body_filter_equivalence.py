@@ -21,9 +21,8 @@ from __future__ import annotations
 import itertools
 import pytest
 from auditor_sidecar.pala_seam import _span_or_none, open_chain
-from palimpsests.audit.names import assurance_tier_name
 from palimpsests.audit.pala import vectors
-from palimpsests.audit.reader import AuditReader
+from palimpsests.audit.reader import AuditReader, assurance_tier_name
 from pathlib import Path
 from writers import fixed_writer
 

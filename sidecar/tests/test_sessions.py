@@ -17,7 +17,6 @@ from auditor_sidecar.main import build_app
 from auditor_sidecar.pala_seam import NotAChain, open_chain
 from auditor_sidecar.sessions import SessionNotFound, SessionStore, SubjectChanged
 from fastapi.testclient import TestClient
-from palimpsests.audit import report as _report
 
 # --- the store --------------------------------------------------------------
 
@@ -107,10 +106,9 @@ def test_an_empty_file_read_against_an_anchor_is_a_deleted_log(
     report = open_client.get(f"/session/{sid}/report", params={"profile": "desk"}).json()
     assert report["verdict"] == "violation"
     # Without the anchor, the same file is the vacuous pass, said as such.
-    # Report /2 (0.15) names it `empty`; report /1 had no word but `partial`.
+    # Report /2 (0.15) names it `empty`: nothing was checked, so not `partial`.
     plain = open_client.get(f"/session/{sid}/report").json()
-    empty_word = "empty" if "empty" in getattr(_report, "VERDICTS", ()) else "partial"
-    assert plain["verdict"] == empty_word
+    assert plain["verdict"] == "empty"
     assert plain["report"]["diagnosis"]["pattern"] == "empty_container"
 
 

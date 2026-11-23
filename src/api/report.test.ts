@@ -10,14 +10,14 @@ function response(over: Partial<ReportResponse> = {}): ReportResponse {
   return {
     session_id: "s",
     subject_sha256: "ab".repeat(32),
-    format: "pala-verification-report/1",
+    format: "pala-verification-report/2",
     verdict: "partial",
     report: {
-      format: "pala-verification-report/1",
+      format: "pala-verification-report/2",
       verdict: "partial",
       checked_at: { wall_ns: 1_786_056_060_000_000_000, note: "the auditing machine's clock" },
     },
-    json_text: '{"format":"pala-verification-report/1"}',
+    json_text: '{"format":"pala-verification-report/2"}',
     html_text: "<!DOCTYPE html><title>report</title>",
     ...over,
   };
@@ -58,7 +58,7 @@ group("the package's report, shown (D-01)", () => {
   });
 
   it("copies the package's text, not a re-serialisation", () => {
-    const text = '{"format":"pala-verification-report/1",  "verdict":"partial"}';
+    const text = '{"format":"pala-verification-report/2",  "verdict":"partial"}';
     expect(reportView(response({ json_text: text })).jsonText).toBe(text);
   });
 
@@ -68,63 +68,43 @@ group("the package's report, shown (D-01)", () => {
   });
 });
 
-group("an empty container on report /1 (0.14)", () => {
-  const narrative =
-    "The container holds no records. Nothing in it contradicts the format, and nothing in it is a chain: the check passes because there was nothing to check, not because a log was found intact.";
-
-  it("keeps the package's verdict and puts the diagnosis in place of 'sound as far as checked'", () => {
-    const view = reportView(
-      response({
-        verdict: "partial",
-        report: { format: "pala-verification-report/1", verdict: "partial", diagnosis: { pattern: "empty_container", narrative } },
-      }),
-    );
-    expect(view.verdict).toBe("partial");
-    expect(view.meaning).toBe(narrative);
-    expect(view.meaning).not.toContain("sound as far as checked");
-    expect(view.meaningFromDiagnosis).toBe(true);
-  });
-
-  it("renders an empty file read against an anchor as any violation", () => {
-    const view = reportView(
-      response({
-        verdict: "violation",
-        report: {
-          format: "pala-verification-report/1",
-          verdict: "violation",
-          diagnosis: { pattern: "replaced_or_rolled_back", narrative: "a log was written and is not here" },
-        },
-      }),
-    );
-    expect(view.meaning).toBe(VERDICT_MEANING.violation);
-    expect(view.meaningFromDiagnosis).toBe(false);
-  });
-
-  it("leaves every other partial report with the general sentence", () => {
-    const view = reportView(response());
-    expect(view.meaning).toBe(VERDICT_MEANING.partial);
-    expect(view.meaningFromDiagnosis).toBe(false);
-  });
-});
-
 group("the package's HTML page (D-01b)", () => {
   it("carries the package's page as it came", () => {
     const view = reportView(response({ html_text: "<!DOCTYPE html><p>x</p>" }));
     expect(view.htmlText).toBe("<!DOCTYPE html><p>x</p>");
   });
 
-  it("offers it for an empty container too, since 0.14.1 (R7)", () => {
+  it("offers it for an empty container too (R7)", () => {
     const view = reportView(
       response({
         html_text: "<p>nothing was checked</p>",
         report: {
-          format: "pala-verification-report/1",
-          verdict: "partial",
+          format: "pala-verification-report/2",
+          verdict: "empty",
           diagnosis: { pattern: "empty_container", narrative: "nothing to check" },
         },
       }),
     );
     expect(view.htmlText).toBe("<p>nothing was checked</p>");
     expect("htmlWithheld" in view).toBe(false);
+  });
+});
+
+group("the verdict empty (report /2, 0.15)", () => {
+  it("has the package's own sentence and is not folded into partial", () => {
+    const view = reportView(response({
+      format: "pala-verification-report/2",
+      verdict: "empty",
+      report: {
+        format: "pala-verification-report/2",
+        verdict: "empty",
+        diagnosis: { pattern: "empty_container", narrative: "nothing to check" },
+      },
+    }));
+    expect(view.unrecognised).toBe(false);
+    expect(view.meaning).toBe(VERDICT_MEANING.empty);
+    expect(view.meaning).toContain("nothing was checked");
+    // The verdict says it itself: no gloss from the diagnosis over the top.
+    expect(view.meaning).not.toBe("nothing to check");
   });
 });
