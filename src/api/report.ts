@@ -203,8 +203,8 @@ export function reportHealth(report: Obj): ReportFact[] | null {
   const spans = obj(h.spans);
   if (spans !== null) {
     facts.push({
-      label: "Spans",
-      value: `${num(spans.closed) ?? 0} closed, ${num(spans.open) ?? 0} open`,
+      label: t("report.health.spans"),
+      value: t("report.health.spans.value", { closed: num(spans.closed) ?? 0, open: num(spans.open) ?? 0 }),
       basis: str(spans.basis) ?? undefined,
     });
   }
