@@ -224,6 +224,30 @@ fn pick_consistency_proof(app: tauri::AppHandle) -> Option<String> {
         .map(|chosen| chosen.to_string())
 }
 
+/// Ask for a SCITT Signed Statement someone published about a chain (E-06):
+/// COSE_Sign1 bytes. The same boundary as `pick_chain_file`.
+#[tauri::command(async)]
+fn pick_signed_statement(app: tauri::AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .add_filter("SCITT signed statement", &["cose", "cbor", "scitt"])
+        .add_filter("All files", &["*"])
+        .blocking_pick_file()
+        .map(|chosen| chosen.to_string())
+}
+
+/// Ask for the issuer's public key a statement is checked under (E-06):
+/// PEM or DER. Chosen by the user — the key is what they trust.
+#[tauri::command(async)]
+fn pick_public_key(app: tauri::AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .add_filter("Public key", &["pem", "der", "pub", "key"])
+        .add_filter("All files", &["*"])
+        .blocking_pick_file()
+        .map(|chosen| chosen.to_string())
+}
+
 /// Each print window gets a label of its own: closing one is asynchronous,
 /// and reusing the label of a window still closing fails the build.
 static PRINT_WINDOWS: AtomicU32 = AtomicU32::new(0);
@@ -280,6 +304,8 @@ pub fn run() {
             export_records,
             save_bundle,
             pick_consistency_proof,
+            pick_signed_statement,
+            pick_public_key,
             print_report
         ])
         .build(tauri::generate_context!())

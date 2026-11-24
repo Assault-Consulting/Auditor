@@ -67,6 +67,11 @@ from palimpsests.audit.pala.proofs import (
     chain_root,
     consistency_proof,
 )
+from palimpsests.audit.pala.scitt import (
+    STATEMENT_REFUSAL_CODES,
+    StatementRefused,
+    verify_statement,
+)
 from palimpsests.audit.reader import (
     ADVISORY_CODES,
     DIAGNOSIS_PATTERNS,
@@ -337,6 +342,38 @@ def _anchor_source(specs: list[dict[str, str]]):
     return ChainedAnchorSource(sources)
 
 
+def _load_public_key(raw: bytes):
+    """A public key as PEM or DER (SubjectPublicKeyInfo) — what the package's
+    verifier takes, loaded the way its API says the caller loads it."""
+    from cryptography.hazmat.primitives import serialization
+
+    try:
+        if raw.lstrip().startswith(b"-----BEGIN"):
+            return serialization.load_pem_public_key(raw)
+        return serialization.load_der_public_key(raw)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(str(exc) or "not a PEM or DER public key") from None
+
+
+def _statement_last_seq(message: bytes) -> int | None:
+    """The ``last_seq`` a statement's payload names, read before verifying.
+
+    Only to choose which head of this chain to hand the verifier; see
+    `ChainHandle.check_statement`. None when it cannot be read — the
+    verifier is then handed the last head and says what is wrong.
+    """
+    try:
+        import cbor2
+
+        item = cbor2.loads(message)
+        arr = item.value if isinstance(item, cbor2.CBORTag) else item
+        payload = cbor2.loads(arr[2])
+        value = payload.get(3)
+    except Exception:  # noqa: BLE001 — the verifier names the defect, not this
+        return None
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def _same(here: bytes | None, claimed: bytes) -> bool | None:
     """A root computed here against one a document claims; None: not here."""
     return None if here is None else here == claimed
@@ -446,6 +483,8 @@ def vocabulary() -> dict[str, object]:
         "manifest_statuses": sorted(MANIFEST_STATUSES),
         # Channel 9 (provisional, R17): what happened at a watched tail.
         "tail_event_kinds": sorted(TAIL_EVENT_KINDS),
+        # Channel 8: why a SCITT statement was not accepted (E-06).
+        "statement_refusal_codes": sorted(STATEMENT_REFUSAL_CODES),
     }
 
 
@@ -2269,6 +2308,69 @@ class ChainHandle:
             "head": result.head,
             "chain_ok": result.chain_ok,
             "consistent": result.consistent,
+        }
+
+    # --- an external witness: a SCITT Signed Statement (E-06, channel 8) -------
+
+    def check_statement(self, message: bytes, public_key_bytes: bytes) -> dict[str, object]:
+        """A SCITT Signed Statement about this chain, verified by the package.
+
+        `verify_statement` (channel 8) checks the signature under the key the
+        user trusts, the one accepted encoding, the construction, and that
+        the statement commits to the head it is handed; with this session's
+        reader it also recomputes a v3 root. It is handed this chain's own
+        head at the statement's ``last_seq`` — a statement made when the
+        chain was shorter is about that prefix, and still about this chain.
+
+        Which seq to take the head at is read from the statement's payload
+        before it is verified (key 3, ``last_seq``). That reading decides
+        nothing: the package then refuses the statement unless its signed
+        payload commits to exactly that head (``head_mismatch``), so a wrong
+        reading can only lead to a refusal, never to an acceptance. Asked
+        upstream as R18: let `verify_statement` take the head from the reader.
+
+        A refusal is an answer, not an error: ``accepted`` false with the
+        package's code and sentence. Receipts are not checked — whether a
+        transparency service registered the statement is that service's
+        protocol, not the package's (channel 8).
+        """
+        try:
+            key = _load_public_key(public_key_bytes)
+        except ValueError as exc:
+            raise ValueError(f"the key could not be read: {exc}") from None
+        with self._lock:
+            n = self._reader.record_count
+            if n == 0:
+                raise ValueError("the file holds no records for a statement to be about")
+            first_seq = self._reader.record_at(0).seq
+            claimed = _statement_last_seq(message)
+            at = claimed if claimed is not None and first_seq <= claimed < first_seq + n else None
+            seq = at if at is not None else first_seq + n - 1
+            head = self._reader.record_by_seq(seq).record_hash
+            try:
+                check = verify_statement(message, key, head, reader=self._reader)
+            except StatementRefused as exc:
+                return {
+                    "accepted": False,
+                    "code": exc.code,
+                    "detail": str(exc),
+                    "checked_at_seq": at,
+                    "records_here": n,
+                }
+        payload = check.payload
+        return {
+            "accepted": True,
+            "code": None,
+            "detail": None,
+            "version": check.version,
+            "statement_id": check.statement_id.hex(),
+            "head": head.hex(),
+            "first_seq": payload.get(2),
+            "last_seq": payload.get(3),
+            "root": None if check.root is None else check.root.hex(),
+            "root_status": check.root_status,
+            "checked_at_seq": at,
+            "records_here": n,
         }
 
     # --- prefix consistency (E-07, channel 3) ----------------------------------

@@ -46,6 +46,7 @@ import {
 import { PRINT_OPENED, printReport, reportFileName, saveArtifact, savedLine } from "./api/saveFile";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecordHealth, useRecords, useSafety, useSegmentSet, useWatch, useWitness } from "./state";
 import { WATCH_NOTE, snapshotLine, stateLine } from "./api/watch";
+import { SCITT_NOTE, type StatementAnswer, checkStatement, pickStatementAndKey, statementAnswer } from "./api/scitt";
 import { offsetLabel } from "./api/hexView";
 import { segmentState, setAnswers } from "./api/segmentSet";
 import { BASIS_LABEL, HEALTH_NOTE } from "./api/health";
@@ -295,6 +296,13 @@ export default function App() {
     | { kind: "checked"; answers: CheckAnswer[] }
     | { kind: "failed"; detail: string };
   const [proofState, setProofState] = useState<ProofState>({ kind: "idle" });
+  // E-06. A SCITT statement about this chain, checked under a chosen key.
+  type StatementState =
+    | { kind: "idle" }
+    | { kind: "checking" }
+    | { kind: "answered"; answer: StatementAnswer }
+    | { kind: "failed"; detail: string };
+  const [statementState, setStatementState] = useState<StatementState>({ kind: "idle" });
   useEffect(() => {
     setReport({ kind: "idle" });
     setCopyState("idle");
@@ -307,6 +315,7 @@ export default function App() {
     setBundleState({ kind: "idle" });
     setProofFirst("");
     setProofState({ kind: "idle" });
+    setStatementState({ kind: "idle" });
   }, [openedSessionId]);
   // H5: the range is read as it is typed, and the reason it would be
   // refused is shown before the button is pressed, which stays disabled.
@@ -387,6 +396,21 @@ export default function App() {
       })
       .catch((err: unknown) =>
         setProofState({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
+      );
+  };
+  const runStatement = () => {
+    const s = sessionOf();
+    if (s === null) return;
+    void pickStatementAndKey()
+      .then((picked) => {
+        if (picked === null) return;
+        setStatementState({ kind: "checking" });
+        return checkStatement(s.session, s.id, picked.statement, picked.key).then((c) =>
+          setStatementState({ kind: "answered", answer: statementAnswer(c) }),
+        );
+      })
+      .catch((err: unknown) =>
+        setStatementState({ kind: "failed", detail: err instanceof Error ? err.message : String(err) }),
       );
   };
   const buildReport = () => {
@@ -2392,6 +2416,35 @@ export default function App() {
               </dl>
             )}
             {proofState.kind === "failed" && <p className="report-failed" role="alert">{proofState.detail}</p>}
+
+            {/* E-06 — an external witness: a SCITT Signed Statement,
+                checked by the package under a key the user picks. */}
+            <h3 className="export-sub" id="statement-title">
+              Signed statement
+            </h3>
+            <p className="export-note">{SCITT_NOTE}</p>
+            <div className="export-range">
+              <button
+                className="choose-button"
+                disabled={statementState.kind === "checking"}
+                onClick={runStatement}
+                type="button"
+              >
+                {statementState.kind === "checking" ? "Checking the statement…" : "Check a statement…"}
+              </button>
+              <span className="choose-hint">the statement, then the issuer's public key</span>
+            </div>
+            {statementState.kind === "answered" &&
+              statementState.answer.lines.map((line, i) => (
+                <p className={statementState.answer.accepted ? "report-saved" : "report-failed"} key={i}>
+                  {line}
+                </p>
+              ))}
+            {statementState.kind === "failed" && (
+              <p className="report-failed" role="alert">
+                {statementState.detail}
+              </p>
+            )}
           </section>
         )}
         </div>

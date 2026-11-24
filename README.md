@@ -41,12 +41,14 @@ begun. Releases are not cut yet; nothing is signed.
 The `installers` workflow builds an unsigned Windows installer on every push
 to `main` (and on demand, **Actions → installers → Run workflow**). Download
 the `palimpsests-auditor-windows-x64` artifact from the run, check it against
-the `.sha256` beside it, and run the `…-setup.exe`. It installs for the
+the `.sha256` beside it (`Get-FileHash -Algorithm SHA256 <file>` in
+PowerShell prints the same digest), and run the `…-setup.exe`. It installs for the
 current user, with no administrator rights and no Python needed: the sidecar
 is bundled as a single executable.
 
 Windows SmartScreen warns about an unsigned installer: **More info → Run
-anyway**. Signing is Phase 5.
+anyway**. The installer stays unsigned until before the first outside user
+(decided 24 Nov 2026): the SHA-256 is what says it is the file CI built.
 
 | Document | Contents |
 |---|---|
