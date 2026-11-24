@@ -35,6 +35,17 @@ const SOURCES = import.meta.glob(
   { query: "?raw", import: "default", eager: true },
 ) as Record<string, string>;
 
+/**
+ * Every catalog, too (L-02): a sentence moved out of the code into
+ * `i18n/locales/<tag>.json` is still a sentence the screen says, and the two
+ * rules hold for it in every language. The word lists below are English's;
+ * a language's own lists come with its catalog (L-05).
+ */
+const CATALOG_FILES = import.meta.glob("./i18n/locales/*.json", { import: "default", eager: true }) as Record<
+  string,
+  Record<string, string | Record<string, string>>
+>;
+
 interface Shown {
   where: string;
   text: string;
@@ -42,6 +53,13 @@ interface Shown {
 
 function shownStrings(): Shown[] {
   const out: Shown[] = [];
+  for (const [file, catalog] of Object.entries(CATALOG_FILES)) {
+    for (const [key, entry] of Object.entries(catalog)) {
+      if (key.startsWith("meta.")) continue;
+      const texts = typeof entry === "string" ? [entry] : Object.values(entry);
+      for (const text of texts) out.push({ where: `${file.replace(/^\.\//, "")}:${key}`, text });
+    }
+  }
   for (const [file, source] of Object.entries(SOURCES)) {
     const sf = ts.createSourceFile(
       file,

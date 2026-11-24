@@ -2003,6 +2003,21 @@ body {
   margin: 0 0 calc(var(--step) * 1.2);
 }
 
+/* L-01: the language choice, beside the wordmark. */
+.language-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.language-pick select {
+  font: inherit;
+  min-height: 2.75rem;
+  background: var(--ink);
+  color: var(--vellum);
+  border: 1px solid var(--rule);
+}
+
 /* F15: the watch's events, latest last, in a window of their own. */
 .watch-events {
   list-style: none;

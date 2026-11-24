@@ -19,6 +19,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
+import { t } from "../i18n";
 import type { ExportRange } from "./exportFile";
 import { count } from "./plural";
 import { type SavedArtifact, saveError } from "./saveFile";
@@ -43,8 +44,7 @@ export interface BundledArtifact extends SavedArtifact {
 }
 
 /** Said beside the button: what a bundle is and what it is not. */
-export const BUNDLE_NOTE =
-  "An evidence bundle: the selected records, an inclusion proof for each one a proof window covers, the verification and the anchor, in one tar a recipient re-checks from the specification alone (check_bundle.py, in Auditor's repository, does it with Python's standard library). Derived and unsigned — the chain stays authoritative. A selection, at most 100,000 records: an excerpt around a finding, not the archive.";
+export const bundleNote = (): string => t("bundle.note", { max: BUNDLE_MAX });
 
 /**
  * Whether the range as typed can be bundled, given the records present. An
@@ -57,15 +57,15 @@ export function bundleRefusal(
   lastSeq: number | null,
 ): string | null {
   if (range.kind === "refused") return range.reason;
-  if (firstSeq === null || lastSeq === null) return "the file holds no records to bundle";
+  if (firstSeq === null || lastSeq === null) return t("bundle.refused.empty");
   const lo = range.fromSeq ?? firstSeq;
   const hi = range.toSeq ?? lastSeq;
   if (lo > lastSeq || hi < firstSeq) {
-    return `#${lo}–#${hi} lies outside this file's records, #${firstSeq}–#${lastSeq}`;
+    return t("bundle.refused.outside", { from: lo, to: hi, first: firstSeq, last: lastSeq });
   }
   const width = hi - lo + 1;
   if (width > BUNDLE_MAX) {
-    return `a bundle selects at most ${BUNDLE_MAX.toLocaleString("en")} records, and #${lo}–#${hi} is ${width.toLocaleString("en")} — narrow the range around what is to be shown, or export the records`;
+    return t("bundle.refused.wide", { max: BUNDLE_MAX, from: lo, to: hi, width });
   }
   return null;
 }
@@ -85,27 +85,25 @@ export function bundleFileName(
 
 /** The line under a saved bundle: the package's facts, a damaged chain said as such. */
 export function bundleLine(f: BundleFacts): { consistent: boolean | null; text: string } {
-  const range = f.from_seq !== null && f.to_seq !== null ? ` #${f.from_seq}–#${f.to_seq}` : "";
-  const records = f.records === null ? "" : `${count(f.records, "record")}${range}`;
+  const counted = f.records === null ? "" : count(f.records, "record");
+  const records =
+    f.records !== null && f.from_seq !== null && f.to_seq !== null
+      ? t("bundle.line.range", { records: counted, from: f.from_seq, to: f.to_seq })
+      : counted;
   const proven =
     f.proven === null || f.records === null
       ? ""
       : f.proven === f.records
-        ? ", each with an inclusion proof"
+        ? t("bundle.line.all_proven")
         : f.proven === 0
-          ? ", none with an inclusion proof — the chain carries no proof window over them; the verification inside still covers them"
-          : `, ${f.proven} of them with an inclusion proof — the others lie outside any proof window the chain carries`;
-  const head = f.head ? ` Head ${f.head.slice(0, 16)}….` : "";
+          ? t("bundle.line.none_proven")
+          : t("bundle.line.some_proven", { proofs: f.proven });
+  const head = f.head ? t("bundle.line.head", { head: f.head.slice(0, 16) }) : "";
   if (f.consistent === false) {
-    return {
-      consistent: false,
-      text: `The bundle holds ${records}${proven}. Its verification says the file is not consistent — bundled as it is, for inspection.${head}`,
-    };
+    return { consistent: false, text: t("bundle.line.inconsistent", { records, proofs: proven, head }) };
   }
-  return {
-    consistent: f.consistent,
-    text: `The bundle holds ${records}${proven}.${f.consistent === true ? " Its verification says the file is consistent." : ""}${head}`,
-  };
+  const consistent = f.consistent === true ? t("bundle.line.consistent") : "";
+  return { consistent: f.consistent, text: t("bundle.line.held", { records, proofs: proven, consistent, head }) };
 }
 
 /** Ask the shell to bundle. `null` is a cancelled dialog. */

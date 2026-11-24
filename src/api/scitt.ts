@@ -17,42 +17,42 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
+import { t } from "../i18n";
 import type { StatementCheckView } from "./generated/types";
+import { count } from "./plural";
 import { NoShellError, type Session } from "./session";
 
-export const SCITT_NOTE =
-  "A statement someone published about this chain — its head, and in a v3 statement the root over every record up to it — signed under their key. Checked against a key you choose: the key is what you trust, so it is yours to pick. A statement says the chain had this head when it was signed, by whoever holds that key. Whether a transparency service registered it is that service's receipt, not checked here.";
+export const scittNote = (): string => t("scitt.note");
 
 /**
- * Each refusal code the package has, in a few words — the check that failed.
- * The package's own sentence is shown beside it. Held to the package's
- * `STATEMENT_REFUSAL_CODES` by vocabulary.test.ts.
+ * Each refusal code the package has; its words are the catalogs'
+ * (`scitt.refusal.<code>`) — the check that failed, beside the package's
+ * own sentence. Held to the package's `STATEMENT_REFUSAL_CODES` by
+ * vocabulary.test.ts.
  */
-export const REFUSAL_WORDING: Record<string, string> = {
-  chain_too_short: "this chain is shorter than the statement's range",
-  content_type_unknown: "not a statement construction the package knows",
-  detached_payload: "the payload is not inside the statement",
-  format_id_mismatch: "not a statement about a PALA-1 chain",
-  head_mismatch: "it commits to another head than this chain has there",
-  indefinite_length_map: "written in a CBOR form the package does not accept",
-  key_type_mismatch: "the key is not of the type its algorithm needs",
-  non_deterministic_encoding: "not in the one encoding the package accepts",
-  not_cose_sign1: "not a COSE_Sign1 statement",
-  payload_keys_mismatch: "its payload does not hold what its construction says",
-  payload_malformed: "its payload cannot be read",
-  protected_header_malformed: "its signed header cannot be read",
-  protected_labels_mismatch: "its signed header holds other labels than the construction's",
-  range_invalid: "the range it reports is not a range",
-  repeated_key: "a key appears twice in one of its maps",
-  root_malformed: "its root is not 32 bytes",
-  root_mismatch: "its root is not this chain's root over the same records",
-  signature_invalid: "the signature does not verify under this key",
-  trailing_bytes: "bytes follow the statement, outside what was signed",
-  unprotected_header_malformed: "its unsigned header cannot be read",
-  unsupported_alg: "signed with an algorithm the package does not verify",
-};
-
-export const KNOWN_REFUSALS: readonly string[] = Object.keys(REFUSAL_WORDING);
+export const KNOWN_REFUSALS: readonly string[] = [
+  "chain_too_short",
+  "content_type_unknown",
+  "detached_payload",
+  "format_id_mismatch",
+  "head_mismatch",
+  "indefinite_length_map",
+  "key_type_mismatch",
+  "non_deterministic_encoding",
+  "not_cose_sign1",
+  "payload_keys_mismatch",
+  "payload_malformed",
+  "protected_header_malformed",
+  "protected_labels_mismatch",
+  "range_invalid",
+  "repeated_key",
+  "root_malformed",
+  "root_mismatch",
+  "signature_invalid",
+  "trailing_bytes",
+  "unprotected_header_malformed",
+  "unsupported_alg",
+];
 
 export interface StatementAnswer {
   accepted: boolean;
@@ -62,33 +62,33 @@ export interface StatementAnswer {
 export function statementAnswer(c: StatementCheckView): StatementAnswer {
   if (!c.accepted) {
     const code = c.code ?? "unknown";
-    const words = REFUSAL_WORDING[code] ?? code;
+    const words = KNOWN_REFUSALS.includes(code) ? t(`scitt.refusal.${code}`) : code;
     return {
       accepted: false,
       lines: [
-        `Not accepted: ${words} (${code}).`,
-        ...(c.detail ? [`The verifier: “${c.detail}”`] : []),
-        "A refusal names the check that failed, not why — a statement about another chain, a damaged file and one signed with another key are refused alike.",
+        t("scitt.refused", { words, code }),
+        // The verifier's sentence, verbatim (L-03).
+        ...(c.detail ? [t("scitt.refused.verifier", { detail: c.detail })] : []),
+        t("scitt.refused.why"),
       ],
     };
   }
   const at = c.checked_at_seq;
-  const range = c.first_seq !== null && c.last_seq !== null ? ` (it reports #${c.first_seq}–#${c.last_seq})` : "";
+  const range =
+    c.first_seq != null && c.last_seq != null ? t("scitt.accepted.range", { first: c.first_seq, last: c.last_seq }) : "";
   const root =
     c.root_status === "recomputed"
-      ? ` Its root over records #0–#${c.last_seq} was recomputed here and matches.`
+      ? t("scitt.accepted.root_recomputed", { last: c.last_seq ?? "?" })
       : c.root_status === "carried, not recomputed"
-        ? " It carries a root, not recomputed here."
+        ? t("scitt.accepted.root_carried")
         : "";
   const grown =
-    at !== null && at < c.records_here - 1
-      ? ` The chain has grown since: it now holds ${c.records_here} records.`
-      : "";
+    at !== null && at < c.records_here - 1 ? t("scitt.accepted.grown", { records: count(c.records_here, "record") }) : "";
   return {
     accepted: true,
     lines: [
-      `Accepted: signed under this key, committing to this chain's head at #${at}${range}, a ${c.version} statement.${root}${grown}`,
-      `Statement id ${String(c.statement_id).slice(0, 16)}… — what to refer to it by.`,
+      t("scitt.accepted", { seq: at ?? "?", range, version: c.version ?? "?", root, grown }),
+      t("scitt.accepted.id", { id: String(c.statement_id).slice(0, 16) }),
     ],
   };
 }
