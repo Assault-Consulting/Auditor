@@ -3,7 +3,7 @@
 
 import { describe as group, expect, it } from "vitest";
 
-import { ATTESTATION, reportFacts, reportHealth, reportHealthNote, reportView, VERDICT_MEANING } from "./report";
+import { attestation, reportFacts, reportHealth, reportHealthNote, reportView, VERDICT_MEANING } from "./report";
 import type { ReportResponse } from "./generated/types";
 
 function response(over: Partial<ReportResponse> = {}): ReportResponse {
@@ -63,8 +63,8 @@ group("the package's report, shown (D-01)", () => {
   });
 
   it("states what a report is, and that it certifies nothing", () => {
-    expect(ATTESTATION).toContain("not a certification");
-    expect(ATTESTATION.toLowerCase()).not.toMatch(/compliant|certified|valid log/);
+    expect(attestation()).toContain("not a certification");
+    expect(attestation().toLowerCase()).not.toMatch(/compliant|certified|valid log/);
   });
 });
 

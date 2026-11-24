@@ -31,19 +31,19 @@ import { provenance, provenanceSummary } from "./api/provenance";
 import { type RecordFilters, resolveChips } from "./api/filters";
 import { checkConsistencyProof, getConsistencyProof, getNearest, getRecords, getReport } from "./api/chain";
 import { type NearestLine, nearestLine } from "./api/nearest";
-import { type Chip, chipLabel, nextWarning, parseSearch, SEARCH_HELP } from "./api/search";
+import { type Chip, chipLabel, nextWarning, parseSearch, searchHelp } from "./api/search";
 import { safetyGroupKey } from "./api/safety";
 import { unsearchedLine } from "./api/records";
-import { ATTESTATION, type ReportView, reportView } from "./api/report";
+import { attestation, type ReportView, reportView } from "./api/report";
 import {
-  EXPORT_NOTE,
+  exportNote,
   exportFileName,
   exportRecords,
   parseRange,
   type SummaryLine,
   summaryLine,
 } from "./api/exportFile";
-import { PRINT_OPENED, printReport, reportFileName, saveArtifact, savedLine } from "./api/saveFile";
+import { printOpened, printReport, reportFileName, saveArtifact, savedLine } from "./api/saveFile";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecordHealth, useRecords, useSafety, useSegmentSet, useWatch, useWitness } from "./state";
 import { snapshotLine, stateLine, watchNote } from "./api/watch";
 import {
@@ -59,8 +59,8 @@ import {
 import { scittNote, type StatementAnswer, checkStatement, pickStatementAndKey, statementAnswer } from "./api/scitt";
 import { offsetLabel } from "./api/hexView";
 import { segmentState, setAnswers } from "./api/segmentSet";
-import { BASIS_LABEL, HEALTH_NOTE } from "./api/health";
-import { CONFIG_DIGEST_NOTE } from "./api/origin";
+import { BASIS_LABEL, healthNote } from "./api/health";
+import { configDigestNote } from "./api/origin";
 import { bundleFileName, bundleNote, bundleLine, bundleRefusal, saveBundle } from "./api/bundle";
 import {
   type CheckAnswer,
@@ -71,7 +71,7 @@ import {
   proofFileName,
   proofLine,
 } from "./api/consistency";
-import { WITNESS_LIMITS, witnessLine, witnessRows, witnessStatus } from "./api/witness";
+import { witnessLimits, witnessLine, witnessRows, witnessStatus } from "./api/witness";
 
 // C-11's page size. Well inside the sidecar's own 1000-record ceiling, and
 // small enough that a page reads as a page rather than a scroll.
@@ -1343,7 +1343,7 @@ export default function App() {
             <h2 className="health-title" id="health-title">
               Record health
             </h2>
-            <p className="health-note">{HEALTH_NOTE}</p>
+            <p className="health-note">{healthNote()}</p>
             {health.kind === "failed" && (
               <p className="browse-failed" role="alert">
                 {health.detail}
@@ -1587,7 +1587,7 @@ export default function App() {
             <details className="search-help">
               <summary>search syntax and keys</summary>
               <dl>
-                {SEARCH_HELP.map(([form, meaning]) => (
+                {searchHelp().map(([form, meaning]) => (
                   <div key={form}>
                     <dt>
                       <code>{form}</code>
@@ -2084,7 +2084,7 @@ export default function App() {
                         <dt>Config</dt>
                         <dd className="record-recorded">
                           {origin.value.configDigest.slice(0, 12)}…
-                          <span className="record-source-note">{CONFIG_DIGEST_NOTE}</span>
+                          <span className="record-source-note">{configDigestNote()}</span>
                         </dd>
                       </div>
                       <div>
@@ -2139,7 +2139,7 @@ export default function App() {
             <h2 className="report-title" id="report-title">
               Report
             </h2>
-            <p className="report-attestation">{ATTESTATION}</p>
+            <p className="report-attestation">{attestation()}</p>
             <div className="report-actions">
               <button
                 className="choose-button"
@@ -2256,7 +2256,7 @@ export default function App() {
                     Print…
                   </button>
                 </div>
-                {printState.kind === "opened" && <p className="report-saved" role="status">{PRINT_OPENED}</p>}
+                {printState.kind === "opened" && <p className="report-saved" role="status">{printOpened()}</p>}
                 {printState.kind === "failed" && <p className="report-failed" role="alert">{printState.detail}</p>}
                 {showHtml && (
                   <iframe
@@ -2283,7 +2283,7 @@ export default function App() {
             <h2 className="export-title" id="export-title">
               Export
             </h2>
-            <p className="export-note">{EXPORT_NOTE}</p>
+            <p className="export-note">{exportNote()}</p>
             <div className="export-range">
               <label>
                 <span className="choose-hint">from #</span>
@@ -2540,7 +2540,7 @@ export default function App() {
                 </>
               );
             })()}
-            <p className="witness-note">{WITNESS_LIMITS}</p>
+            <p className="witness-note">{witnessLimits()}</p>
           </section>
         )}
       </div>

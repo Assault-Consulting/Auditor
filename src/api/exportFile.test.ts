@@ -3,7 +3,7 @@
 
 import { describe as group, expect, it } from "vitest";
 
-import { EXPORT_NOTE, type ExportSummary, exportFileName, parseRange, summaryLine } from "./exportFile";
+import { exportNote, type ExportSummary, exportFileName, parseRange, summaryLine } from "./exportFile";
 
 group("the record export (D-06)", () => {
   it("offers the chain's own name with .jsonl appended", () => {
@@ -40,9 +40,9 @@ group("the record export (D-06)", () => {
   });
 
   it("says what an export is before one is made", () => {
-    expect(EXPORT_NOTE).toContain("derived, never authoritative");
-    expect(EXPORT_NOTE).toContain("completeness is not checked");
-    expect(EXPORT_NOTE).toContain("the whole file");
+    expect(exportNote()).toContain("derived, never authoritative");
+    expect(exportNote()).toContain("completeness is not checked");
+    expect(exportNote()).toContain("the whole file");
   });
 });
 

@@ -29,6 +29,8 @@
  * sentence is shown. No list of patterns is kept here.
  */
 
+import { t, tn } from "../i18n";
+import { count } from "./plural";
 import type {
   ChainSubject,
   VerificationResponse,
@@ -70,12 +72,13 @@ export interface Panel {
 
 /** The tier names a chain carries, deduplicated and ready to put in a sentence. */
 function tierPhrase(subject: ChainSubject): string {
-  const names = subject.assurance_tiers.map((t) => t.name ?? `tier ${t.value}`);
-  if (names.length === 0) return "an unstated tier";
-  if (names.length === 1) return `tier ${names[0]}`;
+  // Tier names are the package's, shown as it gives them (L-03).
+  const names = subject.assurance_tiers.map((x) => x.name ?? t("verdict.tier.value", { value: x.value }));
+  if (names.length === 0) return t("verdict.tier.unstated");
+  if (names.length === 1) return t("verdict.tier.one", { name: names[0]! });
   // More than one tier means the platform guarantee changed mid-chain, and
   // the sentence has to say so rather than pick a winner.
-  return `mixed tiers ${names.join(", ")}`;
+  return t("verdict.tier.mixed", { names: names.join(", ") });
 }
 
 /**
@@ -113,8 +116,8 @@ function isTierAOnly(subject: ChainSubject): boolean {
  * not match its digest is a record that is not what its own header says.
  */
 function consistency(v: VerificationResponse): Panel {
-  const question = "Is what I hold internally consistent?";
-  const basis = "Proved — hash chain and body digests, no key required";
+  const question = t("verdict.q1.question");
+  const basis = t("verdict.q1.basis");
   const mismatches = v.container.body_digest_mismatches;
 
   if (mismatches.length > 0) {
@@ -123,13 +126,16 @@ function consistency(v: VerificationResponse): Panel {
     // here says who or why.
     const where =
       mismatches.length === 1
-        ? `record #${mismatches[0]}`
-        : `${mismatches.length} records (${mismatches.map((s) => `#${s}`).join(", ")})`;
+        ? t("verdict.q1.mismatch.one", { seq: mismatches[0]! })
+        : t("verdict.q1.mismatch.many", {
+            records: count(mismatches.length, "record"),
+            seqs: mismatches.map((s) => `#${s}`).join(", "),
+          });
     return {
       index: "01",
       question,
       standing: "answered-no",
-      answer: `The headers link, but ${where} no longer match the body digest their own header carries.`,
+      answer: t("verdict.q1.mismatch", { where }),
       basis,
       narrative: v.diagnosis?.narrative,
     };
@@ -147,8 +153,8 @@ function consistency(v: VerificationResponse): Panel {
       standing: "answered-no",
       answer:
         v.diagnosis?.pattern === "not_a_container"
-          ? "This file does not begin with a PALA-1 record. It is not a chain, so nothing in it was linked or checked."
-          : "This file holds no records, so nothing in it was linked or checked.",
+          ? t("verdict.q1.not_a_container")
+          : t("verdict.q1.empty"),
       basis,
       narrative: v.diagnosis?.narrative,
     };
@@ -162,7 +168,8 @@ function consistency(v: VerificationResponse): Panel {
   // two. A pattern it does not place is shown here, said to be unguided.
   const own = d !== null && about !== "completeness" ? d.narrative : undefined;
   if (v.consistent) {
-    const linked = `${v.chain.count} records, each linked to the one before it and matching its own body digest.`;
+    const records = count(v.chain.count, "record");
+    const linked = t("verdict.q1.linked", { records });
     if (d === null || about === "completeness") {
       return { index: "01", question, standing: "answered-yes", answer: linked, basis };
     }
@@ -173,7 +180,7 @@ function consistency(v: VerificationResponse): Panel {
         index: "01",
         question,
         standing: "answered-no",
-        answer: `${v.chain.count} records read and linked, but the file is not whole.`,
+        answer: t("verdict.q1.not_whole", { records }),
         basis,
         narrative: own,
       };
@@ -184,7 +191,7 @@ function consistency(v: VerificationResponse): Panel {
       index: "01",
       question,
       standing: "answered-yes",
-      answer: `${linked} The verifier also reported a finding this build has no guidance for.`,
+      answer: t("verdict.q1.unguided", { linked }),
       basis,
       narrative: own,
     };
@@ -196,8 +203,8 @@ function consistency(v: VerificationResponse): Panel {
     question,
     standing: "answered-no",
     answer: failed
-      ? `${v.chain.count} records read; the chain does not hold.`
-      : `${v.chain.count} records read and linked, but the file is not whole.`,
+      ? t("verdict.q1.no_hold", { records: count(v.chain.count, "record") })
+      : t("verdict.q1.not_whole", { records: count(v.chain.count, "record") }),
     basis,
     narrative: own,
   };
@@ -210,7 +217,7 @@ function consistency(v: VerificationResponse): Panel {
  * "not checked", never a pass — and the wording never lets it read as one.
  */
 function completeness(v: VerificationResponse, subject: ChainSubject): Panel {
-  const question = "Is what I hold all of it?";
+  const question = t("verdict.q2.question");
   const complete = v.completeness.complete_to_anchor;
 
   if (complete === null) {
@@ -226,15 +233,15 @@ function completeness(v: VerificationResponse, subject: ChainSubject): Panel {
       standing: "not-checked",
       answer:
         tried === 0
-          ? "Not checked — no anchor was supplied."
-          : `Not checked — ${tried} anchor ${tried === 1 ? "source" : "sources"} were consulted and none answered.`,
-      basis: "No answer without an anchor from outside this file",
+          ? t("verdict.q2.no_anchor")
+          : tn("verdict.q2.none_answered", tried),
+      basis: t("verdict.q2.basis.none"),
     };
   }
 
   const from = v.anchor
-    ? `${v.anchor.source_kind} — ${v.anchor.source_detail}`
-    : "an anchor";
+    ? t("verdict.q2.from", { kind: v.anchor.source_kind, detail: v.anchor.source_detail })
+    : t("verdict.q2.an_anchor");
 
   // A file with no records proves nothing complete. Its head is the empty
   // chain's — thirty-two zero bytes — and an anchor holding that head
@@ -246,8 +253,8 @@ function completeness(v: VerificationResponse, subject: ChainSubject): Panel {
       index: "02",
       question,
       standing: "not-checked",
-      answer: `This file holds no records, so nothing was checked against the head held by ${from}.`,
-      basis: `Read against ${from}`,
+      answer: t("verdict.q2.empty", { from }),
+      basis: t("verdict.q2.basis.read", { from }),
     };
   }
 
@@ -264,9 +271,9 @@ function completeness(v: VerificationResponse, subject: ChainSubject): Panel {
       // tier-A log (a file, the OS keychain) can be rewritten with it.
       answer:
         isTierAOnly(subject) && v.anchor !== null && HOST_LOCAL_SOURCES.has(v.anchor.source_kind)
-          ? `Complete to the head held by ${from}. At tier A a head kept on the same host as the log can be rewritten with it — this is complete against that store, nothing more.`
-          : `Complete to the head held by ${from}.`,
-      basis: `Proved against ${from}`,
+          ? t("verdict.q2.complete.host_local", { from })
+          : t("verdict.q2.complete", { from }),
+      basis: t("verdict.q2.basis.proved", { from }),
     };
   }
 
@@ -277,9 +284,9 @@ function completeness(v: VerificationResponse, subject: ChainSubject): Panel {
     standing: "answered-no",
     answer:
       lag !== null && lag > 0
-        ? `${lag} ${lag === 1 ? "record sits" : "records sit"} beyond the head held by ${from}.`
-        : `The head held by ${from} does not name a record in this chain.`,
-    basis: `Checked against ${from}`,
+        ? tn("verdict.q2.lag", lag, { from })
+        : t("verdict.q2.not_in_chain", { from }),
+    basis: t("verdict.q2.basis.checked", { from }),
     narrative: v.completeness.anchor_reason ?? undefined,
   };
 }
@@ -294,19 +301,19 @@ function completeness(v: VerificationResponse, subject: ChainSubject): Panel {
  * The panel reports an absence; it never asserts an impossibility.
  */
 function existence(subject: ChainSubject): Panel {
-  const question = "Did this history exist at time T?";
-  const clocks = subject.time_trust_values.map((t) => t.name ?? `value ${t.value}`);
+  const question = t("verdict.q3.question");
+  const clocks = subject.time_trust_values.map((x) => x.name ?? t("verdict.q3.clock.value", { value: x.value }));
   const clock =
     clocks.length === 1
-      ? `the writer's clock (${clocks[0]})`
-      : `the writer's clock, which changed status mid-chain (${clocks.join(", ")})`;
+      ? t("verdict.q3.clock.one", { clock: clocks[0]! })
+      : t("verdict.q3.clock.changed", { clocks: clocks.join(", ") });
 
   return {
     index: "03",
     question,
     standing: "unavailable",
-    answer: `No external evidence in this file. Order is proved; the times are what ${clock} recorded.`,
-    basis: `Recorded — ${tierPhrase(subject)}, no witness present`,
+    answer: t("verdict.q3.answer", { clock }),
+    basis: t("verdict.q3.basis", { tier: tierPhrase(subject) }),
   };
 }
 

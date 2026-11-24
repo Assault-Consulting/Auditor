@@ -12,6 +12,7 @@
  * unnamed rather than guessed at (L1, ADR-0001).
  */
 
+import { t } from "../i18n";
 import type { RecordBytesView } from "./generated/types";
 
 /** Which part of the record a span names. */
@@ -132,21 +133,21 @@ export function hexView(v: RecordBytesView): HexView {
   const notes: string[] = [];
   if (v.header_fields === null) {
     notes.push(
-      "The package does not interpret this header, so no field is named: the bytes are shown as the file holds them.",
+      t("hex.no_header"),
     );
   }
   if (v.body_len > 0 && v.body_tlvs === null) {
     notes.push(
-      "The package gives no TLV layout for this body; its bytes are shown as stored, unnamed.",
+      t("hex.no_tlvs"),
     );
   }
   if (v.body_shown < v.body_len) {
     notes.push(
-      `The first ${v.body_shown} of the body's ${v.body_len} bytes are shown; the rest are in the file, not drawn here.`,
+      t("hex.truncated", { shown: v.body_shown, total: v.body_len }),
     );
   }
   if (segments.length > 0) {
-    notes.push("A byte no span covers is shown unnamed: the package names TLV values, not the bytes that introduce them.");
+    notes.push(t("hex.uncovered"));
   }
 
   return { rows, segments, fileOffset: v.offset, headerLen, notes };

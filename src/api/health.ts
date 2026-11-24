@@ -20,19 +20,25 @@
  */
 
 import type { RecordHealthView } from "./generated/types";
+import { num, t, tn } from "../i18n";
 import { count } from "./plural";
 
 /** Said over the panel, always. */
-export const HEALTH_NOTE =
-  "About the record itself — its clock, its boots, its anchors, its warnings — never about " +
-  "what the model did. It describes and draws no line: advisory, and it does not affect the verdict.";
+export const healthNote = (): string => t("health.note");
 
 export type Basis = "proved" | "monotonic" | "recorded";
 
-export const BASIS_LABEL: Record<Basis, string> = {
-  proved: "proved — counted in chain order",
-  monotonic: "the writer's monotonic clock — within one boot only",
-  recorded: "recorded — the writer's wall clock, a claim",
+/** Each basis, worded in the chosen language when read. */
+export const BASIS_LABEL: Readonly<Record<Basis, string>> = {
+  get proved() {
+    return t("health.basis.proved");
+  },
+  get monotonic() {
+    return t("health.basis.monotonic");
+  },
+  get recorded() {
+    return t("health.basis.recorded");
+  },
 };
 
 /** A duration in the largest unit that keeps it readable. Sign kept. */
@@ -40,9 +46,9 @@ export function span(ns: number): string {
   const sign = ns < 0 ? "−" : "";
   const a = Math.abs(ns);
   const fmt = (v: number, unit: string) =>
-    `${sign}${v >= 10 ? Math.round(v) : Math.round(v * 10) / 10} ${unit}`;
-  if (a < 1e3) return `${sign}${a} ns`;
-  if (a < 1e6) return fmt(a / 1e3, "µs");
+    t("unit.duration", { value: `${sign}${num(v >= 10 ? Math.round(v) : Math.round(v * 10) / 10)}`, unit: t(`unit.${unit}`) });
+  if (a < 1e3) return t("unit.duration", { value: `${sign}${num(a)}`, unit: t("unit.ns") });
+  if (a < 1e6) return fmt(a / 1e3, "us");
   if (a < 1e9) return fmt(a / 1e6, "ms");
   if (a < 60e9) return fmt(a / 1e9, "s");
   if (a < 3600e9) return fmt(a / 60e9, "min");
@@ -97,14 +103,14 @@ function median(xs: number[]): number {
 function stepText(kind: string, delta: number): string {
   switch (kind) {
     case "step":
-      return `the wall clock moved ${span(delta)} against the monotonic clock in one record`;
+      return t("health.step.step", { delta: span(delta) });
     case "regression":
-      return `the wall clock read ${span(Math.abs(delta))} earlier than on the record before`;
+      return t("health.step.regression", { delta: span(Math.abs(delta)) });
     case "slew":
-      return `the wall clock drifted ${span(delta)} against the monotonic clock over several records`;
+      return t("health.step.slew", { delta: span(delta) });
     default:
       // A class this build cannot name: shown as the package gave it.
-      return `${kind}, ${span(delta)}`;
+      return t("health.step.unknown", { kind, delta: span(delta) });
   }
 }
 
@@ -115,14 +121,16 @@ type Lifecycle = RecordHealthView["boots"][number]["lifecycle"];
  * one the chain cannot settle: still being written, or stopped for good.
  */
 export function lifecycleText(l: Lifecycle): string | null {
-  const by = l.writer ? ` by ${l.writer}` : "";
+  // The writer's name and version are the package's detail, verbatim (L-03).
+  const by = l.writer ? t("health.life.by", { writer: l.writer }) : "";
+  const params = { by, open: l.open_seq ?? "?", close: l.close_seq ?? "?" };
   switch (l.state) {
     case "closed":
-      return `opened${by} at #${l.open_seq} and closed at #${l.close_seq}`;
+      return t("health.life.closed", params);
     case "stopped":
-      return `opened${by} at #${l.open_seq}, never closed — the process was stopped before the next boot (a crash, a kill, a power cut); advisory, the chain is whole`;
+      return t("health.life.stopped", params);
     case "last_unclosed":
-      return `opened${by} at #${l.open_seq}, not closed yet — still being written, or stopped for good; the chain cannot tell which`;
+      return t("health.life.last", params);
     default:
       return null;
   }
@@ -141,33 +149,45 @@ function driftLines(h: RecordHealthView): string[] {
       const sign = ppm < 0 ? "−" : "+";
       const v = Math.abs(ppm);
       const shown = v >= 10 ? Math.round(v) : Math.round(v * 10) / 10;
-      return `Boot ${short(d.boot_id)}: ${sign}${shown} ppm over ${count(d.points, "record")}` +
-        (d.time_trusts.length > 0 ? ` (${d.time_trusts.join(" → ")})` : "");
+      return t("health.drift.line", {
+        boot: short(d.boot_id),
+        slope: `${sign}${num(shown)}`,
+        records: count(d.points, "record"),
+        trust: d.time_trusts.length > 0 ? t("health.drift.trust", { trusts: d.time_trusts.join(" → ") }) : "",
+      });
     });
-  const head = `Clock drift per boot, ${h.drift_note}.`;
-  return lines.length === 0 ? [`${head} No boot has two records to take a slope over.`] : [head, ...lines];
+  // The note is the sidecar's, carried as it is (L-03).
+  const head = t("health.drift.head", { note: h.drift_note });
+  return lines.length === 0 ? [t("health.drift.none", { head })] : [head, ...lines];
 }
 
 export function recordHealth(h: RecordHealthView): RecordHealth {
   const boots = h.boots.map((b) => {
-    const names = b.time_trust.map((t) => t.name ?? `value ${t.value}`);
+    const names = b.time_trust.map((x) => x.name ?? t("health.clock.value", { value: x.value }));
     const anchorPart =
       b.anchors === 0
-        ? "no anchor in this boot"
+        ? t("health.anchors.none")
         : b.widest_anchor_gap_ns === null || b.anchors < 2
           ? count(b.anchors, "anchor")
-          : `${count(b.anchors, "anchor")}, at most ${span(b.widest_anchor_gap_ns)} apart — an external witness of each would date any record here to within that`;
+          : t("health.anchors.gap", { anchors: count(b.anchors, "anchor"), gap: span(b.widest_anchor_gap_ns) });
     const spanPart =
       b.spans_closed + b.spans_open === 0
-        ? "no spans"
-        : `${count(b.spans_closed, "span")} closed, ${b.spans_open} left open` +
-          (b.span_median_ns !== null ? `, median ${span(b.span_median_ns)}` : "");
+        ? t("health.spans.none")
+        : t("health.spans.some", {
+            closed: count(b.spans_closed, "span"),
+            open: b.spans_open,
+            median: b.span_median_ns !== null ? t("health.spans.median", { median: span(b.span_median_ns) }) : "",
+          });
     return {
       boot: short(b.boot_id),
-      records: `${count(b.records, "record")}, #${b.first_seq}–#${b.last_seq}` +
-        (b.recovery_seq !== null ? `, recovered a cut tail at #${b.recovery_seq}` : ""),
-      uptime: b.uptime_ns === null ? "uptime not stated" : `up ${span(b.uptime_ns)}`,
-      clock: names.join(" → ") || "no trust level stated",
+      records: t("health.records", {
+        records: count(b.records, "record"),
+        first: b.first_seq,
+        last: b.last_seq,
+        recovered: b.recovery_seq !== null ? t("health.records.recovered", { seq: b.recovery_seq }) : "",
+      }),
+      uptime: b.uptime_ns === null ? t("health.uptime.none") : t("health.uptime", { uptime: span(b.uptime_ns) }),
+      clock: names.join(" → ") || t("health.trust.none"),
       clockChanged: names.length > 1,
       anchors: anchorPart,
       spans: spanPart,
@@ -178,13 +198,18 @@ export function recordHealth(h: RecordHealthView): RecordHealth {
   const uptimes = h.boots.map((b) => b.uptime_ns).filter((u): u is number => u !== null);
   const cadence =
     uptimes.length > 1
-      ? `${count(h.boots.length, "boot")}: shortest up ${span(Math.min(...uptimes))}, median ${span(median(uptimes))}, longest ${span(Math.max(...uptimes))}.`
+      ? t("health.cadence", {
+          boots: count(h.boots.length, "boot"),
+          min: span(Math.min(...uptimes)),
+          median: span(median(uptimes)),
+          max: span(Math.max(...uptimes)),
+        })
       : null;
   const steps = h.steps.map((s) => ({ seq: s.seq, boot: short(s.boot_id), text: stepText(s.kind, s.delta_ns) }));
   const gaps = h.wall_gaps.map((g) =>
     g.duration_ns < 0
-      ? `Boot ${short(g.before_boot_id)} begins ${span(-g.duration_ns)} earlier, by the writer's clock, than boot ${short(g.after_boot_id)} ended.`
-      : `${span(g.duration_ns)} between boot ${short(g.after_boot_id)} and boot ${short(g.before_boot_id)}, by the writer's clock.`,
+      ? t("health.gap.negative", { before: short(g.before_boot_id), span: span(-g.duration_ns), after: short(g.after_boot_id) })
+      : t("health.gap", { span: span(g.duration_ns), after: short(g.after_boot_id), before: short(g.before_boot_id) }),
   );
   const kinds = h.safety_by_kind.map((k) => ({
     kind: k.kind,
@@ -192,7 +217,7 @@ export function recordHealth(h: RecordHealthView): RecordHealth {
     perBoot: k.per_boot.map((b) => `${short(b.boot_id)}: ${b.count}`).join(" · "),
   }));
   const recurring = h.recurring_details.map(
-    (d) => `“${d.detail}” — ${d.count} times (${d.kind}), first at #${d.first_seq}`,
+    (d) => tn("health.recurring", d.count, { detail: d.detail, kind: d.kind, seq: d.first_seq }),
   );
   return {
     boots,

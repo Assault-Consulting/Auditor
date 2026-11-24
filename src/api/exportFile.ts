@@ -13,6 +13,7 @@
  * names a path.
  */
 
+import { t, tn } from "../i18n";
 import { invoke } from "@tauri-apps/api/core";
 
 import { type SavedArtifact, saveError } from "./saveFile";
@@ -60,34 +61,34 @@ export function summaryLine(summary: ExportSummary): SummaryLine {
   const records =
     summary.records === null
       ? ""
-      : ` ${summary.records} ${summary.records === 1 ? "record" : "records"} in the file.`;
+      : tn("export.records", summary.records);
   if (summary.consistent === true) {
     return {
       consistent: true,
-      text: `The export's summary: consistent — the headers link, the container parses to its end, and every body matches its digest.${records} Completeness was not checked.`,
+      text: t("export.summary.consistent", { records }),
     };
   }
   if (summary.consistent === null) {
     return {
       consistent: null,
-      text: `The export's summary does not say whether the file is consistent.${records}`,
+      text: t("export.summary.unknown", { records }),
     };
   }
   const reasons: string[] = [];
-  if (summary.well_formed === false) reasons.push("the container does not parse to its end");
+  if (summary.well_formed === false) reasons.push(t("export.reason.not_parsed"));
   const mismatches = summary.body_digest_mismatches;
   if (mismatches.length > 0) {
     reasons.push(
       mismatches.length === 1
-        ? `the body of record ${seqList(mismatches)} does not match the digest its header carries`
-        : `${mismatches.length} record bodies (${seqList(mismatches)}) do not match the digest their header carries`,
+        ? t("export.reason.body.one", { seqs: seqList(mismatches) })
+        : t("export.reason.body.many", { n: mismatches.length, seqs: seqList(mismatches) }),
     );
   }
-  if (summary.chain_ok === false) reasons.push("the header chain does not link");
-  const why = reasons.length > 0 ? reasons.join("; ") : "for a reason the summary does not name";
+  if (summary.chain_ok === false) reasons.push(t("export.reason.no_link"));
+  const why = reasons.length > 0 ? reasons.join("; ") : t("export.reason.unnamed");
   return {
     consistent: false,
-    text: `The export's summary says the file is not consistent: ${why}.${records} The export was saved as it is — it is a view of that file, for examining it.`,
+    text: t("export.summary.inconsistent", { why, records }),
   };
 }
 
@@ -95,8 +96,7 @@ export function summaryLine(summary: ExportSummary): SummaryLine {
  * Said beside the export, before it is made. The format's own statement of
  * what an export is (docs/specs/export/pala-jsonl-1.md), in a sentence.
  */
-export const EXPORT_NOTE =
-  "A readable view of the binary log — derived, never authoritative: it carries no signature and enters no hash. Its summary line describes the whole file, a range included, and reads no anchor, so completeness is not checked. Whatever is concluded from it is concluded about the record each line names, and checked there.";
+export const exportNote = (): string => t("export.note");
 
 /** `chain.pala` → `chain.pala.jsonl`; no name → `export.jsonl`. */
 export function exportFileName(filename: string | null | undefined): string {
@@ -115,19 +115,20 @@ export type ExportRange =
  * meant to ask.
  */
 export function parseRange(fromText: string, toText: string): ExportRange {
-  const read = (text: string, which: string): number | null | string => {
-    const t = text.trim();
-    if (t === "") return null;
-    if (!/^\d+$/.test(t)) return `the ${which} bound is not a record number: ${t}`;
-    const n = Number(t);
-    return Number.isSafeInteger(n) ? n : `the ${which} bound is too large: ${t}`;
+  const read = (text: string, which: "first" | "last"): number | null | string => {
+    const typed = text.trim();
+    if (typed === "") return null;
+    const bound = t(`range.${which}`);
+    if (!/^\d+$/.test(typed)) return t("range.not_number", { which: bound, text: typed });
+    const n = Number(typed);
+    return Number.isSafeInteger(n) ? n : t("range.too_large", { which: bound, text: typed });
   };
   const fromSeq = read(fromText, "first");
   if (typeof fromSeq === "string") return { kind: "refused", reason: fromSeq };
   const toSeq = read(toText, "last");
   if (typeof toSeq === "string") return { kind: "refused", reason: toSeq };
   if (fromSeq !== null && toSeq !== null && fromSeq > toSeq) {
-    return { kind: "refused", reason: `the range starts at #${fromSeq}, after its end at #${toSeq}` };
+    return { kind: "refused", reason: t("range.backwards", { from: fromSeq, to: toSeq }) };
   }
   return { kind: "range", fromSeq, toSeq };
 }

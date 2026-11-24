@@ -46,6 +46,7 @@
  * both released 0.11.0, both wired through now.
  */
 
+import { t, tn, verbatim } from "../i18n";
 import { ownEntry } from "./own";
 import type { NamedValue, RecordView } from "./generated/types";
 
@@ -218,7 +219,8 @@ export interface RecordCard {
   note: string | null;
 }
 
-const UNRECOGNISED_NOTE = "chain-checked, not interpretable by this verifier version";
+// F7's fixed wording (FUNCTIONALITY.md) — fixed per language, in the catalogs.
+const unrecognisedNote = (): string => t("f7.unrecognised");
 
 /**
  * The time between a candidate and its ack, as far as it can honestly be
@@ -243,17 +245,16 @@ export type AckLatency =
  * is the point: the profile defines what a reader may claim from each,
  * and a shell that reworded it would be making a second, weaker claim.
  */
-export const REPORTED_BY_CLIENT_NOTE =
-  "the client's assertion, faithfully recorded — the chain proves the report happened, what it digested, and when, never that the tool actually ran";
-export const PARSED_FROM_WIRE_NOTE =
-  "the serving layer's own observation of a loop it mediated";
+export const REPORTED_BY_CLIENT_NOTE = verbatim(
+  "the client's assertion, faithfully recorded — the chain proves the report happened, what it digested, and when, never that the tool actually ran",
+);
+export const PARSED_FROM_WIRE_NOTE = verbatim("the serving layer's own observation of a loop it mediated");
 /**
  * T19, profile r7: the pair was written from an exported telemetry span.
  * What matters to a reader is the time: written when the export arrived,
  * not when the call was made.
  */
-export const DERIVED_FROM_TELEMETRY_NOTE =
-  "written from an exported telemetry span when the export arrived, not at the call — its place in the chain and its time are the export's, not the call's";
+export const derivedFromTelemetryNote = (): string => t("record.source.telemetry.note");
 
 /**
  * How the serving layer learned of a tool call or result.
@@ -274,29 +275,27 @@ function sourceOf(view: RecordView): SourceMark | null {
   const s = view.source;
   if (s === null) return null;
   if (s.name === "reported-by-client") {
-    return { kind: "reported", value: s.value, label: "reported by client", note: REPORTED_BY_CLIENT_NOTE };
+    return { kind: "reported", value: s.value, label: t("record.source.reported"), note: REPORTED_BY_CLIENT_NOTE };
   }
   if (s.name === "parsed-from-wire") {
-    return { kind: "wire", value: s.value, label: "parsed from the wire", note: PARSED_FROM_WIRE_NOTE };
+    return { kind: "wire", value: s.value, label: t("record.source.wire"), note: PARSED_FROM_WIRE_NOTE };
   }
   if (s.name === "derived-from-telemetry") {
-    return { kind: "telemetry", value: s.value, label: "derived from telemetry", note: DERIVED_FROM_TELEMETRY_NOTE };
+    return { kind: "telemetry", value: s.value, label: t("record.source.telemetry"), note: derivedFromTelemetryNote() };
   }
-  return { kind: "unknown", value: s.value, label: `source ${s.value}, unknown`, note: UNRECOGNISED_NOTE };
+  return { kind: "unknown", value: s.value, label: t("record.source.unknown", { value: s.value }), note: unrecognisedNote() };
 }
 
 /**
  * T18. The writer's own two records, said for what they are. Its detail
  * (name and version) is shown as the record's detail, so not repeated here.
  */
-export const WRITER_OPEN_NOTE =
-  "the writer's own record: it started writing this boot and will mark its close. Its detail names the writer and its version";
-export const WRITER_CLOSE_NOTE =
-  "the writer's own last record: it closed this boot. A head taken before it is the head of a chain one record shorter — anchor after the writer stops";
+export const writerOpenNote = (): string => t("record.writer_open");
+export const writerCloseNote = (): string => t("record.writer_close");
 
 function lifecycleOf(view: RecordView): string | null {
-  if (view.kind_name === "WRITER_OPEN") return WRITER_OPEN_NOTE;
-  if (view.kind_name === "WRITER_CLOSE") return WRITER_CLOSE_NOTE;
+  if (view.kind_name === "WRITER_OPEN") return writerOpenNote();
+  if (view.kind_name === "WRITER_CLOSE") return writerCloseNote();
   return null;
 }
 
@@ -308,12 +307,15 @@ function lifecycleOf(view: RecordView): string | null {
  * `error` and `timeout` get no gloss because the profile gives none — a
  * sentence of ours there would be a second, unauthorised definition.
  */
-export const OUTCOME_OK_NOTE =
-  "a result payload came back and re-entered generation — a return, not a confirmed effect; a reader cannot treat it as \"the tool did not fail\"";
-export const OUTCOME_UNOBSERVED_NOTE =
-  "the result returned and re-entered generation; whether it was a success is not stated — the recording vantage could not observe failure";
-export const OUTCOME_CANCELLED_NOTE =
-  "abandonment: session closed, loop preempted, or a guard refusing further dispatches";
+export const OUTCOME_OK_NOTE = verbatim(
+  "a result payload came back and re-entered generation — a return, not a confirmed effect; a reader cannot treat it as \"the tool did not fail\"",
+);
+export const OUTCOME_UNOBSERVED_NOTE = verbatim(
+  "the result returned and re-entered generation; whether it was a success is not stated — the recording vantage could not observe failure",
+);
+export const OUTCOME_CANCELLED_NOTE = verbatim(
+  "abandonment: session closed, loop preempted, or a guard refusing further dispatches",
+);
 
 export interface OutcomeMark {
   /** The package's name, or null for a value this build cannot interpret. */
@@ -343,15 +345,16 @@ export function outcomeOf(view: RecordView): OutcomeMark | null {
   }
   // A value this build cannot name keeps its number, says so, and is
   // flagged — guessing it into "ok" would turn an unknown into a return.
-  return { name: null, value: o.value, label: `outcome ${o.value}, unknown`, note: UNRECOGNISED_NOTE, flagged: true };
+  return { name: null, value: o.value, label: t("record.outcome.unknown", { value: o.value }), note: unrecognisedNote(), flagged: true };
 }
 
 /**
  * The inference profile's own framing of a continuation (§3.2, r6), kept
  * with the fields so the card can never show them as findings.
  */
-export const CONTINUATION_NOTE =
-  "declared by the writer at the cut — not evidence that the earlier records exist, or that they were the ones it names";
+export const CONTINUATION_NOTE = verbatim(
+  "declared by the writer at the cut — not evidence that the earlier records exist, or that they were the ones it names",
+);
 
 export interface ContinuationCard {
   segmentIndex: number;
@@ -363,10 +366,10 @@ export interface ContinuationCard {
 }
 
 function retentionText(seconds: number): string {
-  if (seconds === 0) return "none declared";
+  if (seconds === 0) return t("record.retention.none");
   const days = seconds / 86_400;
-  if (Number.isInteger(days)) return `${days} ${days === 1 ? "day" : "days"} (${seconds} s)`;
-  return `${seconds} s`;
+  if (Number.isInteger(days)) return tn("record.retention.days", days, { seconds });
+  return t("record.retention.seconds", { seconds });
 }
 
 export function continuationOf(view: RecordView): ContinuationCard | null {
@@ -382,8 +385,7 @@ export function continuationOf(view: RecordView): ContinuationCard | null {
 }
 
 /** Profile §8: the note is the writer's declaration, never the erasure's proof. */
-export const SHRED_NOTE =
-  "as the writer declared it when it noted the key's destruction — whether those records exist and carried that key is the chain's answer under “shredded”, not this note's";
+export const shredNote = (): string => t("record.shred.note");
 
 export interface ShredNoteCard {
   /** The package's name for the reason, or its number when this build has none. */
@@ -403,7 +405,7 @@ export function shredNoteOf(view: RecordView): ShredNoteCard | null {
     targets: s.target_seqs,
     reference: s.detail,
     keyId: s.key_id,
-    note: SHRED_NOTE,
+    note: shredNote(),
   };
 }
 
@@ -412,8 +414,7 @@ export function shredNoteOf(view: RecordView): ShredNoteCard | null {
  * count of requests to a reporting route, never of tool events, and never
  * who sent them — the serving layer did not learn that.
  */
-export const REPORTS_REFUSED_NOTE =
-  "for this run, the absence of reported events is not evidence that nothing happened. Counts of requests since the serving layer started, as they stood when this was written — not who sent them, not what they held, and no count of tool events";
+export const reportsRefusedNote = (): string => t("record.refused.note");
 
 export interface ReportsRefusedCard {
   route: string;
@@ -427,21 +428,24 @@ export function reportsRefusedOf(view: RecordView): ReportsRefusedCard | null {
   if (r === null) return null;
   return {
     route: r.route,
-    counts:
-      `${r.refused_empty} refused with no credential, ${r.refused_wrong} refused with a wrong one, ` +
-      `${r.rejected} read and rejected, ${r.accepted} accepted`,
-    note: REPORTS_REFUSED_NOTE,
+    counts: t("record.refused.counts", {
+      empty: r.refused_empty,
+      wrong: r.refused_wrong,
+      rejected: r.rejected,
+      accepted: r.accepted,
+    }),
+    note: reportsRefusedNote(),
   };
 }
 
 function spanText(ns: number): string {
   const s = Math.round(Math.abs(ns) / 1e9);
-  if (s < 60) return `${s} s`;
+  if (s < 60) return t("record.span.s", { s });
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m} min ${s % 60} s`;
+  if (m < 60) return t("record.span.min", { m, s: s % 60 });
   const h = Math.floor(m / 60);
-  if (h < 48) return `${h} h ${m % 60} min`;
-  return `${Math.floor(h / 24)} d ${h % 24} h`;
+  if (h < 48) return t("record.span.h", { h, m: m % 60 });
+  return t("record.span.d", { d: Math.floor(h / 24), h: h % 24 });
 }
 
 export function ackLatencyOf(view: RecordView): AckLatency | null {
@@ -450,7 +454,7 @@ export function ackLatencyOf(view: RecordView): AckLatency | null {
   if (ns === null) {
     return {
       kind: "cross-boot",
-      text: "acknowledged in a later boot — no latency is computed across a restart",
+      text: t("record.ack.cross_boot"),
     };
   }
   return {
@@ -458,8 +462,8 @@ export function ackLatencyOf(view: RecordView): AckLatency | null {
     ns,
     text:
       ns >= 0
-        ? `${spanText(ns)} later, by the writer's clock`
-        : `the writer's clock puts the ack ${spanText(ns)} before the candidate`,
+        ? t("record.ack.later", { span: spanText(ns) })
+        : t("record.ack.before", { span: spanText(ns) }),
   };
 }
 
@@ -496,6 +500,6 @@ export function recordCard(view: RecordView): RecordCard {
     shredNote: shredNoteOf(view),
     detail: view.detail,
     recurrenceCount: view.recurrence_count,
-    note: view.type_name === null ? UNRECOGNISED_NOTE : null,
+    note: view.type_name === null ? unrecognisedNote() : null,
   };
 }

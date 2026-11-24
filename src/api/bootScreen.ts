@@ -15,6 +15,7 @@
  * and a type does not — the value was always a valid string.
  */
 
+import { t, tn } from "../i18n";
 import { type CountNoun, count } from "./plural";
 import type { Choice, Listing, Probe } from "../state";
 import type { BootRow, SpanRow } from "./browse";
@@ -37,23 +38,13 @@ export interface Question {
  * replaced by real panels; until then nothing here is a result, and the
  * basis line on each says which kind of claim an answer would be.
  */
-export const QUESTIONS: Question[] = [
-  {
-    index: "01",
-    text: "Is what I hold internally consistent?",
-    basisLabel: "Proved — hash chain, no key required",
-  },
-  {
-    index: "02",
-    text: "Is what I hold all of it?",
-    basisLabel: "Not checked without an anchor",
-  },
-  {
-    index: "03",
-    text: "Did this history exist at time T?",
-    basisLabel: "Recorded — the writer's clock, until a witness says otherwise",
-  },
-];
+export function questions(): Question[] {
+  return [
+    { index: "01", text: t("verdict.q1.question"), basisLabel: t("boot.q1.basis") },
+    { index: "02", text: t("verdict.q2.question"), basisLabel: t("boot.q2.basis") },
+    { index: "03", text: t("verdict.q3.question"), basisLabel: t("boot.q3.basis") },
+  ];
+}
 
 export interface Row {
   name: string;
@@ -70,7 +61,7 @@ function listingState(listing: Listing<BootRow | SpanRow>, unit: CountNoun): str
       // "wired" would be a lie and "0" would be worse — a count of zero
       // reads as an answer about the container rather than as a request
       // that never returned one.
-      return "did not load";
+      return t("boot.state.did_not_load");
     case "loaded":
       return count(listing.rows.length, unit);
   }
@@ -100,68 +91,68 @@ export function rowsFor(
   // here, where someone adding a feature is already reading.
   const pending: Row[] = [
     {
-      name: "open a chain",
-      state: openedOf(chain) !== null ? "open" : "wired",
+      name: t("boot.row.open"),
+      state: openedOf(chain) !== null ? t("boot.state.open") : t("boot.state.wired"),
       live: openedOf(chain) !== null,
     },
     {
-      name: "verdict triptych",
-      state: chain.kind === "verified" ? "answered" : "wired",
+      name: t("boot.row.triptych"),
+      state: chain.kind === "verified" ? t("boot.state.answered") : t("boot.state.wired"),
       live: chain.kind === "verified",
     },
     {
-      name: "anchor provenance",
-      state: chain.kind === "verified" ? count(chain.sources.length, "anchor source") : "wired",
+      name: t("boot.row.provenance"),
+      state: chain.kind === "verified" ? count(chain.sources.length, "anchor_source") : t("boot.state.wired"),
       live: chain.kind === "verified",
     },
     {
-      name: "diagnosis card",
+      name: t("boot.row.diagnosis"),
       state:
         chain.kind === "verified" && chain.result.diagnosis !== null
           ? chain.result.diagnosis.pattern
-          : "wired",
+          : t("boot.state.wired"),
       live: chain.kind === "verified" && chain.result.diagnosis !== null,
     },
     {
-      name: "advisory lane",
+      name: t("boot.row.advisory"),
       state:
-        chain.kind === "verified" ? count(chain.result.advisory.count, "item") : "wired",
+        chain.kind === "verified" ? count(chain.result.advisory.count, "item") : t("boot.state.wired"),
       live: chain.kind === "verified",
     },
     {
-      name: "chronoscope",
-      state: rail === null ? "wired" : count(rail.days.length, "day"),
+      name: t("boot.row.chronoscope"),
+      state: rail === null ? t("boot.state.wired") : count(rail.days.length, "day"),
       live: rail !== null,
     },
     {
-      name: "boots and spans",
+      name: t("boot.row.browse"),
       state: `${listingState(browse.boots, "boot")}, ${listingState(browse.spans, "span")}`,
       live: browse.boots.kind === "loaded" && browse.spans.kind === "loaded",
     },
-    { name: "record inspector", state: "C-06", live: false },
+    { name: t("boot.row.inspector"), state: "C-06", live: false },
   ];
 
   switch (probe.kind) {
     case "starting":
-      return [{ name: "sidecar", state: "starting", live: false }, ...pending];
+      return [{ name: t("boot.row.sidecar"), state: t("boot.state.starting"), live: false }, ...pending];
     case "no-shell":
       return [
-        { name: "desktop shell", state: "not attached", live: false },
+        { name: t("boot.row.shell"), state: t("boot.state.not_attached"), live: false },
         ...pending,
       ];
     case "failed":
       return [
-        { name: "sidecar", state: "did not start", live: false },
+        { name: t("boot.row.sidecar"), state: t("boot.state.did_not_start"), live: false },
         ...pending,
       ];
     case "ready":
       return [
-        { name: "sidecar", state: `v${probe.health.version}`, live: true },
-        { name: "verifier", state: probe.health.package, live: true },
-        { name: "format", state: probe.health.spec, live: true },
+        { name: t("boot.row.sidecar"), state: `v${probe.health.version}`, live: true },
+        { name: t("boot.row.verifier"), state: probe.health.package, live: true },
+        { name: t("boot.row.format"), state: probe.health.spec, live: true },
         {
-          name: "session token",
-          state: probe.health.authenticated ? "enforced" : "DISABLED",
+          name: t("boot.row.token"),
+          state: probe.health.authenticated ? t("boot.state.enforced") : t("boot.state.disabled"),
           live: probe.health.authenticated,
         },
         ...pending,
@@ -172,9 +163,9 @@ export function rowsFor(
 export function footnoteFor(probe: Probe, chain: ChainState): string {
   switch (probe.kind) {
     case "no-shell":
-      return "Running in a browser without the desktop shell, so there is no session token and no sidecar. Use `pnpm tauri dev` to run the whole application.";
+      return t("boot.footnote.no_shell");
     case "failed":
-      return `The sidecar did not answer: ${probe.detail}. Check that Python is on PATH and that the sidecar package is installed.`;
+      return t("boot.footnote.failed", { detail: probe.detail });
     default:
       // This line has now been wrong twice by going stale — it claimed no
       // chain could be opened after opening worked, and it would claim
@@ -185,8 +176,8 @@ export function footnoteFor(probe: Probe, chain: ChainState): string {
       // verdict is on screen the risk is not that someone misses it; it is
       // that they read it as certification.
       return chain.kind === "verified"
-        ? "The panels above attest that this check was run against this file, with this anchor profile, at this time. They certify nothing."
-        : "Opening a chain reports what it is. Nothing on this screen is a verification result.";
+        ? t("boot.footnote.verified")
+        : t("boot.footnote.idle");
   }
 }
 
@@ -197,7 +188,7 @@ export function panelsFor(chain: ChainState): { panels: Panel[]; live: boolean }
     return { panels: triptych(chain.result, chain.opened.subject), live: true };
   }
   return {
-    panels: QUESTIONS.map((q) => ({
+    panels: questions().map((q) => ({
       index: q.index as Panel["index"],
       question: q.text,
       // Not "not-checked": nothing was asked at all, and borrowing the
@@ -216,10 +207,10 @@ export function choiceLine(choice: Choice): string | null {
     case "idle":
       return null;
     case "cancelled":
-      return "Dialog cancelled — nothing was opened.";
+      return t("boot.choice.cancelled");
     case "no-shell":
-      return "Choosing a file needs the desktop shell. Run `pnpm tauri dev`.";
+      return t("boot.choice.no_shell");
     case "extra-dropped":
-      return `${choice.total} files were dropped; only the first was opened. Several files as one chain is not supported yet.`;
+      return tn("boot.choice.extra", choice.total);
   }
 }

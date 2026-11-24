@@ -4,7 +4,7 @@
 import { describe as group, expect, it } from "vitest";
 
 import type { RecordHealthView } from "./generated/types";
-import { BASIS_LABEL, HEALTH_NOTE, lifecycleText, recordHealth, span } from "./health";
+import { BASIS_LABEL, healthNote, lifecycleText, recordHealth, span } from "./health";
 
 const BOOT_A = "aaaaaaaa" + "0".repeat(24);
 const BOOT_B = "bbbbbbbb" + "0".repeat(24);
@@ -109,9 +109,9 @@ group("record health, in words (E-03, F12)", () => {
 
   it("names a basis for every block and judges nothing", () => {
     expect(Object.keys(BASIS_LABEL).sort()).toEqual(["monotonic", "proved", "recorded"]);
-    const all = [HEALTH_NOTE, ...Object.values(BASIS_LABEL), JSON.stringify(recordHealth(view()))].join(" ");
+    const all = [healthNote(), ...Object.values(BASIS_LABEL), JSON.stringify(recordHealth(view()))].join(" ");
     expect(all).not.toMatch(/anomal|suspicious|tamper|attack|healthy|unhealthy|threshold|bad clock/i);
-    expect(HEALTH_NOTE).toMatch(/does not affect the verdict/);
+    expect(healthNote()).toMatch(/does not affect the verdict/);
   });
 
   it("says which boots their writer closed, and leaves the last one open as it is (T18)", () => {

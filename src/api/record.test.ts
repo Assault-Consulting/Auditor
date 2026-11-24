@@ -15,17 +15,17 @@ import { describe as group, expect, it } from "vitest";
 
 import {
   CONTINUATION_NOTE,
-  DERIVED_FROM_TELEMETRY_NOTE,
+  derivedFromTelemetryNote,
   OUTCOME_CANCELLED_NOTE,
   OUTCOME_OK_NOTE,
   OUTCOME_UNOBSERVED_NOTE,
   PARSED_FROM_WIRE_NOTE,
   recordCard,
   REPORTED_BY_CLIENT_NOTE,
-  REPORTS_REFUSED_NOTE,
-  SHRED_NOTE,
-  WRITER_CLOSE_NOTE,
-  WRITER_OPEN_NOTE,
+  reportsRefusedNote,
+  shredNote,
+  writerCloseNote,
+  writerOpenNote,
 } from "./record";
 import type { RecordView } from "./generated/types";
 
@@ -337,7 +337,7 @@ group("the evidence mark on a tool call or result", () => {
   it("says a telemetry-derived pair was written when the export arrived (T19, r7)", () => {
     const card = recordCard(view({ source: { value: 2, name: "derived-from-telemetry" } }));
     expect(card.source?.kind).toBe("telemetry");
-    expect(card.source?.note).toBe(DERIVED_FROM_TELEMETRY_NOTE);
+    expect(card.source?.note).toBe(derivedFromTelemetryNote());
     expect(card.source?.note).toContain("not at the call");
   });
 
@@ -349,7 +349,7 @@ group("the evidence mark on a tool call or result", () => {
       }),
     );
     expect(card.shredNote).toEqual({
-      reason: "reason 1", targets: [3], reference: "erasure request E-17", keyId: 7, note: SHRED_NOTE,
+      reason: "reason 1", targets: [3], reference: "erasure request E-17", keyId: 7, note: shredNote(),
     });
     expect(recordCard(view()).shredNote).toBeNull();
   });
@@ -365,14 +365,14 @@ group("the evidence mark on a tool call or result", () => {
     expect(card.reportsRefused?.counts).toBe(
       "4 refused with no credential, 0 refused with a wrong one, 0 read and rejected, 22 accepted",
     );
-    expect(card.reportsRefused?.note).toBe(REPORTS_REFUSED_NOTE);
+    expect(card.reportsRefused?.note).toBe(reportsRefusedNote());
     expect(recordCard(view()).reportsRefused).toBeNull();
   });
 
   it("says what the writer's own two records are (T18, r8)", () => {
-    expect(recordCard(view({ kind_name: "WRITER_OPEN" })).lifecycle).toBe(WRITER_OPEN_NOTE);
+    expect(recordCard(view({ kind_name: "WRITER_OPEN" })).lifecycle).toBe(writerOpenNote());
     const close = recordCard(view({ kind_name: "WRITER_CLOSE" })).lifecycle;
-    expect(close).toBe(WRITER_CLOSE_NOTE);
+    expect(close).toBe(writerCloseNote());
     expect(close).toContain("anchor after the writer stops");
     expect(recordCard(view({ kind_name: "INCIDENT_CANDIDATE" })).lifecycle).toBeNull();
   });

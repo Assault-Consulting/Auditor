@@ -19,7 +19,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
-import { t } from "../i18n";
+import { num, t } from "../i18n";
 import type { ExportRange } from "./exportFile";
 import { count } from "./plural";
 import { type SavedArtifact, saveError } from "./saveFile";
@@ -44,7 +44,7 @@ export interface BundledArtifact extends SavedArtifact {
 }
 
 /** Said beside the button: what a bundle is and what it is not. */
-export const bundleNote = (): string => t("bundle.note", { max: BUNDLE_MAX });
+export const bundleNote = (): string => t("bundle.note", { max: num(BUNDLE_MAX) });
 
 /**
  * Whether the range as typed can be bundled, given the records present. An
@@ -65,7 +65,7 @@ export function bundleRefusal(
   }
   const width = hi - lo + 1;
   if (width > BUNDLE_MAX) {
-    return t("bundle.refused.wide", { max: BUNDLE_MAX, from: lo, to: hi, width });
+    return t("bundle.refused.wide", { max: num(BUNDLE_MAX), from: lo, to: hi, width: num(width) });
   }
   return null;
 }

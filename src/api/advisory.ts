@@ -21,6 +21,7 @@
  * one thing to look at, and a flat list of five makes it look like five.
  */
 
+import { t, tn } from "../i18n";
 import { ownEntry } from "./own";
 import type { AdvisoryItemModel, AdvisoryModel } from "./generated/types";
 
@@ -46,12 +47,6 @@ export interface AdvisoryGroup {
   weight: "notable" | "ordinary";
 }
 
-interface Wording {
-  title: string;
-  note: string;
-  weight?: "notable";
-}
-
 /**
  * Wording per code.
  *
@@ -61,101 +56,30 @@ interface Wording {
  * against 0.9.0 rather than taken from the document. A lane built on the
  * document's list would have rendered those two as blank rows.
  */
-const WORDING: Record<string, Wording> = {
-  // Header-only conditions.
-  mono_regression_in_boot: {
-    title: "The monotonic clock moved backwards within a boot",
-    note: "Monotonic time is not supposed to go back inside one boot. Worth knowing before reading any duration from this stretch.",
-  },
-  wall_regression_in_boot: {
-    title: "The wall clock moved backwards within a boot",
-    note: "A correction, a manual change and a synchronisation step all look like this. Chain order is unaffected — it was never based on the wall clock.",
-  },
-  mid_boot_time_trust_change: {
-    title: "The clock's trust level changed mid-boot",
-    note: "Records before and after the change carry different qualifications on their wall-clock times, so a single sentence about this boot's timing would not be true of all of it.",
-  },
-  anchor_never_written: {
-    title: "No anchor record was ever written",
-    note: "Nothing in this chain records a head having been anchored. Question two can still be answered from an anchor kept outside the file.",
-  },
-  // Span conditions the package emits and §9 does not list.
-  span_unclosed: {
-    title: "A span was opened and never closed",
-    note: "First-class evidence rather than a fault: a span left open is what an interrupted operation looks like, and the records it opened are still in the file.",
-  },
-  span_unopened: {
-    title: "A span was closed without an opening record",
-    note: "The opening record is not in this file. An earlier segment of the same chain is the usual explanation.",
-  },
-  // Referential conditions, r2 oversight semantics.
-  reference_unresolved: {
-    title: "A record points at a record that is not here",
-    note: "The target may be in another segment of the same chain. Unresolved is not the same as missing.",
-  },
-  reference_hash_mismatch: {
-    title: "A reference names a record whose hash does not match",
-    note: "Two things that should agree do not: the reference carries a hash, and the record it names hashes to something else.",
-    weight: "notable",
-  },
-  ack_target_not_a_candidate: {
-    title: "An acknowledgement points at something that is not an incident candidate",
-    note: "The oversight loop expects an acknowledgement to name a candidate. This one names a different kind of record.",
-  },
-  shred_target_unresolved: {
-    title: "A key-shred record names a record that is not here",
-    note: "The target may be in another segment. The shred itself is recorded either way.",
-  },
-  shred_target_key_mismatch: {
-    title: "A key-shred record names a record encrypted under a different key",
-    note: "The shred claims a key that the named record does not use.",
-    weight: "notable",
-  },
-  // r3: a tool result must bind to its call. Emitted since 0.12; this build
-  // had no words for it until 0.13 was read against the list in full.
-  tool_target_not_a_call: {
-    title: "A tool result or loop guard names a record that is not a tool call",
-    note: "The reference resolves, and its hash matches, but the record it names is of another kind than the result or guard expects.",
-  },
-  // Segment continuation, inference profile r6 (palimpsests 0.13). The two
-  // mismatches are notable for the reason reference_hash_mismatch is: each
-  // is two things that should agree and do not — a declared predecessor
-  // against the record's own prev_hash, a declared root against the root
-  // recomputed from the records themselves.
-  continuation_malformed: {
-    title: "A segment continuation record is missing a declared field",
-    note: "A SEGMENT_CONTINUATION should carry four declarations at fixed widths. This one does not, so nothing it declares is shown.",
-  },
-  continuation_predecessor_mismatch: {
-    title: "A continuation declares a predecessor its own header does not name",
-    note: "The declared previous head and the record's own prev_hash should be the same value. They are not.",
-    weight: "notable",
-  },
-  continuation_index_not_increasing: {
-    title: "Segment indices do not increase",
-    note: "Each continuation declares its segment's place in the chain; a later one declares the same place or an earlier one.",
-  },
-  continuation_index_gap: {
-    title: "Segment indices skip a number",
-    note: "With the whole chain present from its beginning, consecutive continuations should declare consecutive segment numbers. These do not.",
-  },
-  continuation_prior_root_mismatch: {
-    title: "A continuation declares a root the records before it do not produce",
-    note: "The reader recomputed the root of every record before the continuation, and it differs from the root the writer declared at the cut.",
-    weight: "notable",
-  },
-  // Inference profile r8 (palimpsests 0.15): the writer marks its own open
-  // and close. Not a violation — the chain is whole and the verdict the same.
-  boot_ended_without_close: {
-    title: "A boot ended without its writer closing it",
-    note: "The writer marked this boot's start (WRITER_OPEN) and the next boot begins with no WRITER_CLOSE before it: the process was stopped without closing — a crash, a kill, a power cut. The chain itself is whole.",
-  },
-  // Inference profile r9 (0.15): the serve records reports it refused or
-  // rejected. The reader reports each such record with its route and counts.
-  reports_refused: {
-    title: "Reports to a reporting route did not get in",
-    note: "The serving layer refused or rejected reports on this route and wrote down how many. For this run, the absence of reported events is not evidence that nothing happened. Not who tried, and not what the reports held — the serving layer did not learn that.",
-  },
+/**
+ * Each advisory code this build has words for, and its weight. The title
+ * and note are the catalogs' (`advisory.<code>.title`, `advisory.<code>.note`).
+ */
+const WORDING: Record<string, "notable" | "ordinary"> = {
+  mono_regression_in_boot: "ordinary",
+  wall_regression_in_boot: "ordinary",
+  mid_boot_time_trust_change: "ordinary",
+  anchor_never_written: "ordinary",
+  span_unclosed: "ordinary",
+  span_unopened: "ordinary",
+  reference_unresolved: "ordinary",
+  reference_hash_mismatch: "notable",
+  ack_target_not_a_candidate: "ordinary",
+  shred_target_unresolved: "ordinary",
+  shred_target_key_mismatch: "notable",
+  tool_target_not_a_call: "ordinary",
+  continuation_malformed: "ordinary",
+  continuation_predecessor_mismatch: "notable",
+  continuation_index_not_increasing: "ordinary",
+  continuation_index_gap: "ordinary",
+  continuation_prior_root_mismatch: "notable",
+  boot_ended_without_close: "ordinary",
+  reports_refused: "ordinary",
 };
 
 /**
@@ -177,14 +101,12 @@ export function advisoryGroups(advisory: AdvisoryModel): AdvisoryGroup[] {
     const known = ownEntry(WORDING, code);
     return {
       code,
-      title: known?.title ?? code,
-      note:
-        known?.note ??
-        "This build has no description for this advisory code. The items below are the package's own.",
+      title: known !== undefined ? t(`advisory.${code}.title`) : code,
+      note: known !== undefined ? t(`advisory.${code}.note`) : t("advisory.unknown.note"),
       count: items.length,
       items,
       unrecognised: known === undefined,
-      weight: known?.weight ?? "ordinary",
+      weight: known ?? "ordinary",
     };
   });
 
@@ -206,10 +128,10 @@ export function advisoryLine(advisory: AdvisoryModel): string {
     // Said plainly rather than by hiding the lane. "No advisory items" is
     // information; an absent section is ambiguous between that and a lane
     // nobody implemented.
-    return `No advisory items — ${advisory.note}.`;
+    return t("advisory.line.none", { note: advisory.note ?? "" });
   }
-  const n = advisory.count;
-  return `${n} advisory ${n === 1 ? "item" : "items"} — ${advisory.note}.`;
+  // The note is the sidecar's, carried as it is (L-03).
+  return tn("advisory.line.some", advisory.count, { note: advisory.note ?? "" });
 }
 
 /** Every code this build has wording for. Exported for the tests. */

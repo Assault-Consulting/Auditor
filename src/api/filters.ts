@@ -25,6 +25,7 @@
  *   by a boot the reader did not mean, under a heading that says they did.
  */
 
+import { t, tn } from "../i18n";
 import { dayStartNs, type Chip } from "./search";
 
 /** The query `getRecords` sends, from chips. */
@@ -59,15 +60,15 @@ function resolvePrefix(
   known: string[] | null,
 ): { id: string } | { reason: string } {
   if (known === null) {
-    return { reason: `the ${noun} list has not loaded, so "${noun}:${prefix}" cannot be resolved` };
+    return { reason: t("filter.not_loaded", { noun: t(`filter.noun.${noun}`), chip: `${noun}:${prefix}` }) };
   }
   const matches = known.filter((id) => id.startsWith(prefix));
   if (matches.length === 0) {
-    return { reason: `no ${noun} in this file starts with ${prefix}` };
+    return { reason: t("filter.no_match", { noun: t(`filter.noun.${noun}`), prefix }) };
   }
   if (matches.length > 1) {
     return {
-      reason: `${prefix} matches ${matches.length} ${noun}s in this file — type more of it`,
+      reason: t("filter.ambiguous", { prefix, n: tn(`filter.ambiguous.${noun}`, matches.length) }),
     };
   }
   return { id: matches[0]! };
@@ -119,7 +120,7 @@ export function resolveChips(chips: Chip[], known: KnownIds): Resolution {
     BigInt(filters.wallFromNs) >= BigInt(filters.wallToNs)
   ) {
     // An empty range is a mistyped question, not an answer about the file.
-    return { kind: "refused", reason: "from: is after to: — the range holds no day" };
+    return { kind: "refused", reason: t("filter.empty_range") };
   }
   return { kind: "resolved", filters };
 }

@@ -8,6 +8,7 @@
  * could have meant anything until it existed.
  */
 
+import { tn } from "../i18n";
 import { recordCard, type RecordCard } from "./record";
 import type { RecordPage } from "./generated/types";
 
@@ -30,9 +31,7 @@ export interface RecordsPage {
 export function unsearchedLine(page: RecordsPage): string | null {
   const n = page.unsearched;
   if (n === null || n === 0) return null;
-  return n === 1
-    ? "1 record matching the other filters has an encrypted body and was not searched for this text."
-    : `${n} records matching the other filters have encrypted bodies and were not searched for this text.`;
+  return tn("records.unsearched", n);
 }
 
 export function recordsPage(page: RecordPage): RecordsPage {

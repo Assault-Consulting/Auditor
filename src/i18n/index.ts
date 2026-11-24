@@ -35,6 +35,8 @@ import { useSyncExternalStore } from "react";
 export type Plural = Partial<Record<Intl.LDMLPluralRule, string>>;
 export type Entry = string | Plural;
 export type Catalog = Record<string, Entry>;
+/** A placeholder's value; null and undefined are written as nothing. */
+export type Params = Record<string, string | number | null | undefined>;
 
 const SOURCE = "en";
 const STORAGE_KEY = "auditor.locale";
@@ -153,18 +155,22 @@ function lookup(key: string): Entry | undefined {
   return CATALOGS[current]?.[key] ?? CATALOGS[SOURCE]?.[key];
 }
 
-function fill(text: string, params: Record<string, string | number>): string {
-  return text.replace(/\{(\w+)\}/g, (whole, name: string) =>
-    name in params ? format(params[name]!) : whole,
-  );
+/**
+ * Placeholders filled as given: a number is written as it is, because most
+ * numbers here are identifiers — `#12345` is a seq, never `#12,345`. A
+ * quantity to be read is formatted by the caller with `num()`, and a plural's
+ * own `{n}` is formatted by `tn`.
+ */
+function fill(text: string, params: Params): string {
+  return text.replace(/\{(\w+)\}/g, (whole, name: string) => (name in params ? String(params[name] ?? "") : whole));
 }
 
-function format(v: string | number): string {
-  return typeof v === "number" ? new Intl.NumberFormat(current).format(v) : v;
+function format(v: number): string {
+  return new Intl.NumberFormat(current).format(v);
 }
 
 /** A sentence, its placeholders filled. */
-export function t(key: string, params: Record<string, string | number> = {}): string {
+export function t(key: string, params: Params = {}): string {
   const entry = lookup(key);
   if (entry === undefined) {
     misses.add(key);
@@ -178,18 +184,28 @@ export function t(key: string, params: Record<string, string | number> = {}): st
 }
 
 /** A sentence chosen by a count's plural category; `{n}` is the count, formatted. */
-export function tn(key: string, n: number, params: Record<string, string | number> = {}): string {
+export function tn(key: string, n: number, params: Params = {}): string {
   const entry = lookup(key);
   if (entry === undefined) {
     misses.add(key);
     return `${n} ${key}`;
   }
-  if (typeof entry === "string") return fill(entry, { n, ...params });
+  if (typeof entry === "string") return fill(entry, { n: format(n), ...params });
   const form = entry[plurals.select(n)] ?? entry.other ?? Object.values(entry)[0] ?? key;
-  return fill(form, { n, ...params });
+  return fill(form, { n: format(n), ...params });
 }
 
 /** A number in the chosen language's digits and grouping. */
 export function num(n: number): string {
   return format(n);
+}
+
+/**
+ * The package's or the profile's own words, shown as they wrote them in
+ * every language (L-03): a translation of a definition would be a second,
+ * different claim. The identity — it marks the text for readers and for
+ * the L-02 ratchet, which leaves its argument alone.
+ */
+export function verbatim(text: string): string {
+  return text;
 }

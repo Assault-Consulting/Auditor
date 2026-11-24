@@ -11,13 +11,14 @@
 import ts from "typescript";
 import { describe as group, expect, it } from "vitest";
 
-const EXTRACTED = ["../api/bundle.ts", "../api/consistency.ts", "../api/plural.ts", "../api/scitt.ts", "../api/watch.ts"];
-
-const SOURCES = import.meta.glob(["../api/*.ts", "!../api/*.test.ts"], {
+const SOURCES = import.meta.glob(["../api/*.ts", "../state.ts", "!../api/*.test.ts"], {
   query: "?raw",
   import: "default",
   eager: true,
 }) as Record<string, string>;
+
+/** Every module under src/api, and state.ts: all extracted (L-02). App.tsx follows. */
+const EXTRACTED = Object.keys(SOURCES).sort();
 
 function sentences(file: string, source: string): string[] {
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -29,11 +30,14 @@ function sentences(file: string, source: string): string[] {
     [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(
       n.parent.operatorToken.kind,
     );
+  // The package's own words, marked `verbatim("…")` — never translated (L-03).
+  const quoted = (n: ts.Node): boolean =>
+    ts.isCallExpression(n.parent) && ts.isIdentifier(n.parent.expression) && n.parent.expression.text === "verbatim";
   const visit = (node: ts.Node): void => {
     let text: string | null = null;
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) text = node.text;
     else if (ts.isTemplateExpression(node)) text = node.head.text + node.templateSpans.map((s) => ` ${s.literal.text}`).join("");
-    if (text !== null && /[a-z]{3,} [a-z]{2,}/i.test(text) && !ts.isImportDeclaration(node.parent) && !ts.isLiteralTypeNode(node.parent) && !compared(node)) {
+    if (text !== null && /[a-z]{3,} [a-z]{2,}/i.test(text) && !ts.isImportDeclaration(node.parent) && !ts.isLiteralTypeNode(node.parent) && !compared(node) && !quoted(node)) {
       out.push(`${file}:${sf.getLineAndCharacterOfPosition(node.getStart()).line + 1}: ${text}`);
     }
     ts.forEachChild(node, visit);
