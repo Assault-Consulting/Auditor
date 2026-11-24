@@ -2686,6 +2686,169 @@
         "title": "SpanView",
         "type": "object"
       },
+      "StatementCheckRequest": {
+        "properties": {
+          "key_path": {
+            "description": "The issuer's public key, PEM or DER, local.",
+            "title": "Key Path",
+            "type": "string"
+          },
+          "statement_path": {
+            "description": "A COSE_Sign1 Signed Statement, local.",
+            "title": "Statement Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "statement_path",
+          "key_path"
+        ],
+        "title": "StatementCheckRequest",
+        "type": "object"
+      },
+      "StatementCheckView": {
+        "description": "What the package's `verify_statement` said about a statement (E-06).",
+        "properties": {
+          "accepted": {
+            "description": "The package accepted it: signed under this key, in the one accepted encoding, committing to this chain's head at its last_seq.",
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "checked_at_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where in this chain its head was taken; null when its last_seq is not here.",
+            "title": "Checked At Seq"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When refused: the package's code (`STATEMENT_REFUSAL_CODES`) \u2014 the check that failed, never a cause.",
+            "title": "Code"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When refused: the package's sentence.",
+            "title": "Detail"
+          },
+          "first_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The range it reports, from.",
+            "title": "First Seq"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The head it commits to, this chain's.",
+            "title": "Head"
+          },
+          "last_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The range it reports, to.",
+            "title": "Last Seq"
+          },
+          "records_here": {
+            "title": "Records Here",
+            "type": "integer"
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "v3: the derived root it carries.",
+            "title": "Root"
+          },
+          "root_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "absent (v2), recomputed (v3, matched this chain), or carried, not recomputed.",
+            "title": "Root Status"
+          },
+          "statement_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SHA-256 of the statement as signed \u2014 what to refer to it by.",
+            "title": "Statement Id"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "v2 or v3, by its signed content type.",
+            "title": "Version"
+          }
+        },
+        "required": [
+          "accepted",
+          "code",
+          "detail",
+          "checked_at_seq",
+          "records_here"
+        ],
+        "title": "StatementCheckView",
+        "type": "object"
+      },
       "TimeStepModel": {
         "description": "A step in the writer's clock, as the package detected it.",
         "properties": {
@@ -4855,6 +5018,56 @@
           }
         },
         "summary": "Session Safety"
+      }
+    },
+    "/session/{session_id}/scitt/check": {
+      "post": {
+        "description": "A SCITT Signed Statement about this chain, checked (E-06).\n\nThe statement and the issuer's public key are read from the two\nfiles the desktop shell's dialogs chose, and handed to the package's\n`verify_statement` (channel 8) with this chain's head at the\nstatement's `last_seq` and this session's reader. A statement the\npackage refuses is an answer \u2014 `accepted` false, with its code and\nsentence \u2014 not an error. 422 when a file cannot be read, is too\nlarge to be one, or the key is not a public key; 409 if the chain\nchanged.\n\nDisplayed, never minted: Auditor signs and registers nothing. And it\ndoes not check receipts \u2014 that is the transparency service's protocol.",
+        "operationId": "scitt_check_session__session_id__scitt_check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementCheckView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Scitt Check"
       }
     },
     "/session/{session_id}/spans": {

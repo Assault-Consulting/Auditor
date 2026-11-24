@@ -144,3 +144,34 @@ C-18.
   (`<0.16`), since the channel is provisional. What it finds about memory
   and `snapshot()` cost goes back upstream; that is the point of building
   it.
+
+## R18 — `verify_statement` taking the head from the reader — **small**
+
+24 November 2026, from E-06.
+
+**What Auditor does.** A user holds a SCITT Signed Statement someone
+published about a chain, and the issuer's key; Auditor asks
+`verify_statement(message, key, expected_head, reader=reader)` whether it is
+about *this* chain. The statement was usually signed when the chain was
+shorter, so the expected head is this chain's record hash at the statement's
+`last_seq` — which is in the payload, which is not verified yet.
+
+**What it does now.** The seam reads `last_seq` from the payload with
+`cbor2` (key 3) before verifying, only to choose which head to hand over.
+That reading decides nothing — the package refuses unless the signed
+payload commits to exactly that head — but it is CBOR read outside the
+package, which is the line ADR-0001 draws.
+
+**The ask.** With a reader, let `expected_head` be optional:
+`verify_statement(message, key, reader=reader)` takes the head at the
+payload's `last_seq` from the reader (refusing `chain_too_short` when the
+chain is shorter, as the v3 root already does). The result could carry the
+seq it compared at. Then the seam reads nothing.
+
+## Measured here, for R17 (F15 on 0.15.0)
+
+- `TailingReader` over an existing 10⁶-record file: 21.6 s to catch up,
+  2.5 GB resident (~2.5 KB per record held); `snapshot()` over it 10 s.
+- Auditor's watch stops itself at 250,000 records for that reason. A
+  bounded mode (hold headers only, or a window) would let a watch run
+  against a production log.

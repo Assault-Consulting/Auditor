@@ -1682,3 +1682,40 @@ class WatchSnapshot(BaseModel):
     anchor: AnchorReadingModel | None
     anchor_attempts: list[AnchorAttemptModel]
     diagnosis: DiagnosisModel | None
+
+
+class StatementCheckRequest(BaseModel):
+    statement_path: str = Field(description="A COSE_Sign1 Signed Statement, local.")
+    key_path: str = Field(description="The issuer's public key, PEM or DER, local.")
+
+
+class StatementCheckView(BaseModel):
+    """What the package's `verify_statement` said about a statement (E-06)."""
+
+    accepted: bool = Field(
+        description=(
+            "The package accepted it: signed under this key, in the one accepted "
+            "encoding, committing to this chain's head at its last_seq."
+        )
+    )
+    code: str | None = Field(
+        description="When refused: the package's code (`STATEMENT_REFUSAL_CODES`) — the "
+        "check that failed, never a cause."
+    )
+    detail: str | None = Field(description="When refused: the package's sentence.")
+    version: str | None = Field(default=None, description="v2 or v3, by its signed content type.")
+    statement_id: str | None = Field(
+        default=None, description="SHA-256 of the statement as signed — what to refer to it by."
+    )
+    head: str | None = Field(default=None, description="The head it commits to, this chain's.")
+    first_seq: int | None = Field(default=None, description="The range it reports, from.")
+    last_seq: int | None = Field(default=None, description="The range it reports, to.")
+    root: str | None = Field(default=None, description="v3: the derived root it carries.")
+    root_status: str | None = Field(
+        default=None,
+        description="absent (v2), recomputed (v3, matched this chain), or carried, not recomputed.",
+    )
+    checked_at_seq: int | None = Field(
+        description="Where in this chain its head was taken; null when its last_seq is not here."
+    )
+    records_here: int

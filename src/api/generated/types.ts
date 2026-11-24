@@ -910,6 +910,42 @@ export interface SpanView {
   record_seqs: Array<number>;
 }
 
+export interface StatementCheckRequest {
+  /** A COSE_Sign1 Signed Statement, local. */
+  statement_path: string;
+  /** The issuer's public key, PEM or DER, local. */
+  key_path: string;
+}
+
+/**
+ * What the package's `verify_statement` said about a statement (E-06).
+ */
+export interface StatementCheckView {
+  /** The package accepted it: signed under this key, in the one accepted encoding, committing to this chain's head at its last_seq. */
+  accepted: boolean;
+  /** When refused: the package's code (`STATEMENT_REFUSAL_CODES`) — the check that failed, never a cause. */
+  code: string | null;
+  /** When refused: the package's sentence. */
+  detail: string | null;
+  /** v2 or v3, by its signed content type. */
+  version?: string | null;
+  /** SHA-256 of the statement as signed — what to refer to it by. */
+  statement_id?: string | null;
+  /** The head it commits to, this chain's. */
+  head?: string | null;
+  /** The range it reports, from. */
+  first_seq?: number | null;
+  /** The range it reports, to. */
+  last_seq?: number | null;
+  /** v3: the derived root it carries. */
+  root?: string | null;
+  /** absent (v2), recomputed (v3, matched this chain), or carried, not recomputed. */
+  root_status?: string | null;
+  /** Where in this chain its head was taken; null when its last_seq is not here. */
+  checked_at_seq: number | null;
+  records_here: number;
+}
+
 /**
  * A step in the writer's clock, as the package detected it.
  */

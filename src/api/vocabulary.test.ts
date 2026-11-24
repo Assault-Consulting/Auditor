@@ -20,6 +20,7 @@ import { KNOWN_PATTERNS } from "./diagnosis";
 import vocabulary from "./generated/vocabulary.json";
 import { KNOWN_STATUSES } from "./manifest";
 import { VERDICT_MEANING } from "./report";
+import { KNOWN_REFUSALS } from "./scitt";
 import { KNOWN_TAIL_KINDS } from "./watch";
 
 const sorted = (xs: Iterable<string>) => [...xs].sort();
@@ -43,6 +44,10 @@ group("the UI's tables are the package's vocabularies", () => {
 
   it("every tail event the watch can report has words (channel 9)", () => {
     expect(sorted(KNOWN_TAIL_KINDS)).toEqual(sorted(vocabulary.tail_event_kinds));
+  });
+
+  it("every reason a statement is refused has words (channel 8)", () => {
+    expect(sorted(KNOWN_REFUSALS)).toEqual(sorted(vocabulary.statement_refusal_codes));
   });
 
   it("places every pattern under a question, or under none on purpose", () => {

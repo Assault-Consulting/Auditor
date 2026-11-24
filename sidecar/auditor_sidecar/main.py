@@ -54,6 +54,8 @@ from .models import (
     SessionRequest,
     SessionResponse,
     SpanView,
+    StatementCheckRequest,
+    StatementCheckView,
     Timeline,
     VerificationResponse,
     WatchEvents,
@@ -1009,6 +1011,41 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
                 status_code=422, detail=f"not a consistency proof: {exc}"
             ) from None
         return ConsistencyCheckView(**checked)
+
+    @app.post("/session/{session_id}/scitt/check", response_model=StatementCheckView)
+    def scitt_check(session_id: str, body: StatementCheckRequest) -> StatementCheckView:
+        """A SCITT Signed Statement about this chain, checked (E-06).
+
+        The statement and the issuer's public key are read from the two
+        files the desktop shell's dialogs chose, and handed to the package's
+        `verify_statement` (channel 8) with this chain's head at the
+        statement's `last_seq` and this session's reader. A statement the
+        package refuses is an answer — `accepted` false, with its code and
+        sentence — not an error. 422 when a file cannot be read, is too
+        large to be one, or the key is not a public key; 409 if the chain
+        changed.
+
+        Displayed, never minted: Auditor signs and registers nothing. And it
+        does not check receipts — that is the transparency service's protocol.
+        """
+        session = _session_or_404(app, session_id)
+        _assert_still_the_subject(session)
+        blobs: list[bytes] = []
+        for what, path in (("statement", body.statement_path), ("key", body.key_path)):
+            try:
+                raw = Path(path).read_bytes()[: (1 << 20) + 1]
+            except OSError as exc:
+                raise HTTPException(
+                    status_code=422, detail=f"the {what} could not be read: {exc.strerror or exc}"
+                ) from None
+            if len(raw) > 1 << 20:
+                raise HTTPException(status_code=422, detail=f"the {what} is over 1 MiB")
+            blobs.append(raw)
+        try:
+            checked = session.chain.check_statement(blobs[0], blobs[1])
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return StatementCheckView(**checked)
 
     # --- watch mode (F15) -------------------------------------------------
 

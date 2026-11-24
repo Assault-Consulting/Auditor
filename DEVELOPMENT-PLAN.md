@@ -70,7 +70,7 @@ status and what it unblocks.
 | 2 — browse (C-01…C-12) | ✓ closed (C-06d on 0.14.1) |
 | 0.13–0.15 follow-up (C-13…C-19) | ✓; C-16(b) closed unbuilt |
 | 3 — report (D-01…D-07) | ✓ closed (D-02 last) |
-| 4 — evidence artifacts (E-01…E-07) | ✓ except E-06 (SCITT receipts) and E-03's open half |
+| 4 — evidence artifacts (E-01…E-07) | ✓ closed (24 Nov 2026); E-03's open half waits on §22.4 |
 | 5 — beyond MVP | started 23 Nov 2026: F15 ✓; next the language system (L-01…L-05) |
 
 **Phase 2's exit criterion** — a 1M-record chain opens, the timeline stays
@@ -93,14 +93,24 @@ interactive is the live desktop check below, not yet done.
 | ◐ E-03 | Record health over U1–U3, with F12's three disciplines. **Built on 0.14.1:** `/record-health` (step catalog, boot statistics with anchor gaps, wall gaps between boots, SAFETY by kind × boot, recurring details) and the **Record health** panel, every block under its basis (proved / monotonic / recorded), no threshold, no verdict word. **On 0.15:** drift per boot (`drift_series`) and closed / stopped / open boots (r8). **Left:** warnings against origin events; baseline change — §22.4's thresholds stay open | 5 | — |
 | ✓ E-04 | Health summary in the report, labelled advisory — **decided by R15 (Palimpsests #380, 0.15):** `build_report(health=True)`; Auditor shows the report's own `health` section beside E-03's series, and makes no document of its own | 1 | 0.15 |
 | ✓ E-05 | Local witness log: `auditor-witness/1`, JSON Lines, each entry the SHA-256 of the one before (ADR-0003, `docs/WITNESS-LOG.md`). One entry per first `/verify` of a session and profile, holding the package's facts, never a verdict; `GET /witness` walks it; a log that does not link is not appended to and the check says so. The panel says what it shows and what it does not — a cut tail still links. `scripts/check_witness_log.py` checks a log with nothing from this repository | 3 | — |
-| E-06 | SCITT receipts as pins, displayed, never minted | ? | — |
+| ✓ E-06 | SCITT Signed Statements, checked by the package's `verify_statement` (channel 8) under a key the user picks — displayed, never minted. Receipts are the transparency service's protocol and are not checked. Decided 24 Nov 2026: this is the external witness, in place of Rekor/TSA. R18 asks for the head to be taken from the reader | 2 | 0.15 |
 | ✓ E-07 | Prefix-consistency proofs (`consistency_proof`, `chain_root`): a proof made and saved, a held proof checked three ways (path, first root, second root) | 1 | 0.15 (R10) |
 | Phase 5 | ~~Watch mode~~ (✓ 23 Nov 2026, F15 — channel 9, provisional); the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; ~~`uk` pass~~ → the language system, L-01…L-05 below. **Watch mode (F15)** runs `TailingReader` (channel 9, provisional, R17) — the pin holds the minor; a watch stops itself at 250,000 records (memory, measured) | — | — |
 
 **Next, in order:** the live desktop check on the Windows installer (F-01);
-the language system (L-01…L-05); then the rest of phase 5 — the one write
-behind its ADR, Rekor/TSA anchors (network, air-gap first), signed
-installers (needs a code-signing certificate), E-06. Done on 0.15
+the language system (L-01…L-05).
+
+**Phase 5 decisions (24 Nov 2026):**
+- *The one write* (an operator's OVERSIGHT_ACK) — **deferred** until someone
+  needs it. Serve has no route for it, and Auditor writing the file itself
+  would make it a writer (R7). When it comes back: an ADR, and a route asked
+  upstream, never bytes from the shell.
+- *Rekor and TSA anchors* — **replaced by E-06**: the package's SCITT
+  statements are its external witness by design, checked offline. Rekor or
+  TSA only as an upstream request, if a user needs one.
+- *Signed installers* — **not yet**: unsigned, with the SHA-256 beside each
+  and instructions; revisit before the first outside user. Signing in CI
+  needs a cloud HSM service (keys must be on hardware since 2023). Done on 0.15
 (23 Nov 2026): C-18 and stage 2 T8–T16; the addendum's T18–T22; E-01, E-02, E-04, E-07; F15.
 
 ## Language system (L-01…L-05)
