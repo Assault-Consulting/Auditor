@@ -22,6 +22,7 @@
  * unreached links are shown as unreached.
  */
 
+import { t, tn } from "../i18n";
 import type { AnchorAttemptModel, AnchorSourceSpec } from "./generated/types";
 
 export type LinkOutcome =
@@ -56,18 +57,18 @@ function detailOf(spec: AnchorSourceSpec): string {
   const free = spec.detail ?? "";
   switch (spec.kind) {
     case "file":
-      return spec.path ?? "(no path)";
+      return spec.path ?? t("prov.no_path");
     case "keychain":
-      return `keychain account ${spec.account ?? "(unnamed)"}`;
+      return t("prov.keychain", { account: spec.account ?? t("prov.unnamed") });
     case "pkcs11":
       // token/object — the same identity the sidecar reports for this link
       // (Pkcs11PinnedAnchor mirrors the package's own source_detail), so a
       // never-reached row and an attempted one name the source alike. The
       // default object label is the package's, spelled out rather than
       // left blank: an operator comparing against their token needs it.
-      return `${spec.token_label ?? "(no token)"}/${spec.object_label ?? "pala-anchor-head"}`;
+      return `${spec.token_label ?? t("prov.no_token")}/${spec.object_label ?? "pala-anchor-head"}`;
     case "manual":
-      return free !== "" ? free : "a head entered by hand";
+      return free !== "" ? free : t("prov.manual");
     default:
       return free !== "" ? free : spec.kind;
   }
@@ -76,15 +77,15 @@ function detailOf(spec: AnchorSourceSpec): string {
 function noteFor(outcome: LinkOutcome, kind: string): string {
   switch (outcome) {
     case "answered":
-      return "Answered. This is the head the check was made against.";
+      return t("prov.note.answered");
     case "absent":
       // Absent is normal. A sentence that made it sound like a fault would
       // send an operator to fix a source that is working as configured.
-      return "Nothing stored here.";
+      return t("prov.note.absent");
     case "error":
-      return "Could not be read.";
+      return t("prov.note.error");
     case "not-reached":
-      return `Not consulted — an earlier source had already answered, so the ${kind} source was never asked.`;
+      return t("prov.note.not_reached", { kind });
   }
 }
 
@@ -134,7 +135,7 @@ export function provenance(
  * authoritative is the failure L2 is written against.
  */
 export function provenanceSummary(links: ProvenanceLink[]): string {
-  if (links.length === 0) return "No anchor sources were configured.";
+  if (links.length === 0) return t("prov.none");
 
   const answered = links.find((l) => l.outcome === "answered");
   const errors = links.filter((l) => l.outcome === "error").length;
@@ -142,15 +143,15 @@ export function provenanceSummary(links: ProvenanceLink[]): string {
 
   const parts: string[] = [];
   if (answered !== undefined) {
-    parts.push(`answered by ${answered.kind} (${answered.detail})`);
+    parts.push(t("prov.answered_by", { kind: answered.kind, detail: answered.detail }));
   } else {
-    parts.push("no source answered");
+    parts.push(t("prov.no_answer"));
   }
-  if (absent > 0) parts.push(`${absent} empty`);
+  if (absent > 0) parts.push(t("prov.empty", { n: absent }));
   // Errors are named even when something later answered. A source that
   // could not be read is a thing to fix, whether or not the check succeeded
   // without it.
-  if (errors > 0) parts.push(`${errors} could not be read`);
+  if (errors > 0) parts.push(t("prov.errors", { n: errors }));
 
-  return `${links.length} ${links.length === 1 ? "source" : "sources"}: ${parts.join(", ")}.`;
+  return tn("prov.summary", links.length, { parts: parts.join(", ") });
 }

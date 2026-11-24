@@ -6,7 +6,7 @@ import { beforeEach, describe as group, expect, it, vi } from "vitest";
 const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
 
-import { PRINT_OPENED, printReport } from "./saveFile";
+import { printOpened, printReport } from "./saveFile";
 import { NoShellError } from "./session";
 
 group("printing the package's HTML report (D-02)", () => {
@@ -31,7 +31,7 @@ group("printing the package's HTML report (D-02)", () => {
   });
 
   it("says where the page went and what the dialog offers, claiming nothing about it", () => {
-    expect(PRINT_OPENED).toMatch(/window of its own/);
-    expect(PRINT_OPENED).toMatch(/PDF/);
+    expect(printOpened()).toMatch(/window of its own/);
+    expect(printOpened()).toMatch(/PDF/);
   });
 });

@@ -9,14 +9,11 @@
  * and its residual are one statement (`docs/PRACTICES.md` §4.4).
  */
 
+import { t, tn } from "../i18n";
 import type { WitnessCheckView, WitnessEntryView, WitnessMark } from "./generated/types";
 
 /** What the log does and does not show. Always on screen beside it. */
-export const WITNESS_LIMITS =
-  "The witness log shows that this desk saw this head at this point in its own sequence, " +
-  "and makes a later change to an entry visible. It shows nothing about the world: its " +
-  "clock is this machine's, a log cut at its end still links, and whoever controls this " +
-  "machine can write a new one. Note its head somewhere else to make a cut visible.";
+export const witnessLimits = (): string => t("witness.limits");
 
 export interface Line {
   text: string;
@@ -28,24 +25,28 @@ export interface Line {
 export function witnessLine(mark: WitnessMark | null | undefined): Line | null {
   if (mark === null || mark === undefined) return null;
   if (mark.error !== null) {
-    return { text: `Not written to the witness log: ${mark.error}`, failed: true };
+    return { text: t("witness.not_written", { error: mark.error }), failed: true };
   }
-  return { text: `Written to this desk's witness log as entry ${mark.n}.`, failed: false };
+  return { text: t("witness.written", { n: mark.n }), failed: false };
 }
 
 /** The panel's first line: does the log link, from its first entry? */
 export function witnessStatus(v: WitnessCheckView): Line {
   if (v.broken_at !== null) {
     const before =
-      v.entries === 1 ? "The first entry links" : v.entries > 1 ? `The first ${v.entries} entries link` : "No entry links";
+      v.entries === 1
+        ? t("witness.before.one")
+        : v.entries > 1
+          ? t("witness.before.many", { n: v.entries })
+          : t("witness.before.none");
     return {
-      text: `The witness log does not link at line ${v.broken_at}: ${v.reason}. ${before}; nothing is added to it until it does.`,
+      text: t("witness.broken", { line: v.broken_at, reason: v.reason ?? "", before }),
       failed: true,
     };
   }
-  if (v.entries === 0) return { text: "The witness log has no entries yet.", failed: false };
+  if (v.entries === 0) return { text: t("witness.empty"), failed: false };
   return {
-    text: `${v.entries} ${v.entries === 1 ? "entry links" : "entries link"}, each to the one before it.`,
+    text: tn("witness.links", v.entries),
     failed: false,
   };
 }
@@ -72,14 +73,18 @@ function short(hex: string | null | undefined): string {
 export function witnessRows(tail: WitnessEntryView[]): WitnessRow[] {
   return [...tail].reverse().map((e) => {
     const name = e.subject?.["name"];
-    let against = "no anchor";
+    let against = t("witness.against.none");
     if (e.anchor !== null && e.anchor !== undefined) {
       const kind = e.anchor["source_kind"];
       const done =
-        e.complete_to_anchor === true ? "complete" : e.complete_to_anchor === false ? "not complete" : "not checked";
-      against = `${typeof kind === "string" ? kind : "anchor"} — ${done}`;
+        e.complete_to_anchor === true
+          ? t("witness.against.complete")
+          : e.complete_to_anchor === false
+            ? t("witness.against.not_complete")
+            : t("witness.against.not_checked");
+      against = t("witness.against", { kind: typeof kind === "string" ? kind : t("witness.against.anchor"), done });
     } else if (e.profile !== null && e.profile !== undefined && e.profile !== "none") {
-      against = `${e.profile} — no source answered`;
+      against = t("witness.against.no_answer", { profile: e.profile });
     }
     return {
       n: e.n,

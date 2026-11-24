@@ -15,6 +15,7 @@
  * Kept out of the component so it can be tested without rendering anything.
  */
 
+import { t } from "../i18n";
 import { againstLine, count } from "./plural";
 import {
   NotAChainError,
@@ -182,30 +183,35 @@ export function describe(err: unknown, path: string): ChainState {
 export function chainLine(state: ChainState): string {
   switch (state.kind) {
     case "empty":
-      return "No chain open. Nothing on this screen is a verification result.";
+      return t("chain.empty");
     case "opening":
-      return `Opening ${state.path}…`;
+      return t("chain.opening", { path: state.path });
     case "open": {
       const s = state.opened.subject;
-      return `${s.filename} — ${count(s.records, "record")}, ${count(s.boots, "boot")}. Not checked yet.`;
+      return t("chain.open", { file: s.filename, records: count(s.records, "record"), boots: count(s.boots, "boot") });
     }
     case "verifying":
-      return `${state.opened.subject.filename} — checking ${againstLine(state.profile)}…`;
+      return t("chain.verifying", { file: state.opened.subject.filename, against: againstLine(state.profile) });
     case "verified": {
       const s = state.opened.subject;
       // The line stays about the artifact. What the check found belongs in
       // the panels, where each question keeps its own answer — summarising
       // it here would be the single verdict field this API refuses to have.
-      return `${s.filename} — ${count(s.records, "record")}, ${count(s.boots, "boot")}. Checked ${againstLine(state.profile)}.`;
+      return t("chain.verified", {
+        file: s.filename,
+        records: count(s.records, "record"),
+        boots: count(s.boots, "boot"),
+        against: againstLine(state.profile),
+      });
     }
     case "not-a-chain":
       // Not "invalid", and not "corrupt" — and not "not a PALA-1 container"
       // either, which would be a claim about bytes nobody read. The path
       // could not be read as a file; the operating system's sentence says why.
-      return `${state.path} could not be read as a file: ${state.detail}`;
+      return t("chain.not_a_file", { path: state.path, detail: state.detail });
     case "subject-changed":
-      return `The file changed since it was opened, so nothing here describes it any more: ${state.detail}`;
+      return t("chain.changed", { detail: state.detail });
     case "failed":
-      return `The sidecar could not answer: ${state.detail}`;
+      return t("chain.failed", { detail: state.detail });
   }
 }

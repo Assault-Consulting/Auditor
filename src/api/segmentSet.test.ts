@@ -26,7 +26,7 @@ group("a segment set, in words (§22.1)", () => {
     const a = setAnswers(set({ complete: false, absent: ["segment-00000.pala"], segments: [seg({ present: false, verified: null, head_matches: null, path: null }), seg({ file: "segment-00001.pala" })] }));
     expect(a.consistent.failed).toBe(false);
     expect(a.consistent.text).toMatch(/\(1 of 2\)/);
-    expect(a.complete.text).toMatch(/^Not complete: one segment the manifest lists is not here\. What they held is not claimed/);
+    expect(a.complete.text).toMatch(/^Not complete: one segment the manifest lists is not here\. What it held is not claimed/);
     expect(a.complete.text).not.toMatch(/tamper|deleted by|attack/i);
   });
 

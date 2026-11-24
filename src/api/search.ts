@@ -45,6 +45,7 @@
  * a moment nobody typed.
  */
 
+import { t } from "../i18n";
 import type { AdvisoryItemModel } from "./generated/types";
 
 /** The chip keys this build reads. */
@@ -75,7 +76,7 @@ const HEX = /^[0-9a-f]+$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_SYNTAX = /^@(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}(?::\d{2})?)(Z|[+-]\d{2}:\d{2})?$/i;
 
-const QUOTE_IT = "to search detail text, put it in double quotes";
+
 const QUOTED = /"([^"]*)"/g;
 const MAX_TEXT = 200;
 
@@ -117,15 +118,15 @@ export function parseSearch(raw: string): SearchOutcome | null {
   if (seq) return { kind: "seq", seq: Number(seq[1]) };
 
   if (trimmed.startsWith("@")) {
-    const t = TIME_SYNTAX.exec(trimmed);
-    if (!t) {
-      return unsupported(trimmed, `"${trimmed}" is not a time jump — write @2026-08-06T22:41Z`);
+    const tm = TIME_SYNTAX.exec(trimmed);
+    if (!tm) {
+      return unsupported(trimmed, t("search.bad_time", { text: trimmed }));
     }
-    const day = t[1]!;
-    const zone = t[3] === undefined ? "Z" : t[3].toUpperCase();
-    const ms = Date.parse(`${day}T${t[2]}${zone}`);
+    const day = tm[1]!;
+    const zone = tm[3] === undefined ? "Z" : tm[3].toUpperCase();
+    const ms = Date.parse(`${day}T${tm[2]}${zone}`);
     if (Number.isNaN(ms) || dayStartNs(day) === null) {
-      return unsupported(trimmed, `"${trimmed}" is not a real instant`);
+      return unsupported(trimmed, t("search.bad_instant", { text: trimmed }));
     }
     return { kind: "time", ns: msToNs(ms), iso: new Date(ms).toISOString() };
   }
@@ -135,16 +136,16 @@ export function parseSearch(raw: string): SearchOutcome | null {
   const phrases = [...trimmed.matchAll(QUOTED)].map((m) => m[1]!);
   const rest = trimmed.replace(QUOTED, " ");
   if (rest.includes('"')) {
-    return unsupported(trimmed, "a quote is not closed — free text goes between two double quotes");
+    return unsupported(trimmed, t("search.open_quote"));
   }
   if (phrases.length > 1) {
-    return unsupported(trimmed, "one quoted phrase per search");
+    return unsupported(trimmed, t("search.one_phrase"));
   }
   if (phrases.length === 1) {
     const phrase = phrases[0]!.trim();
-    if (phrase === "") return unsupported(trimmed, "the quotes are empty — there is no text to search for");
+    if (phrase === "") return unsupported(trimmed, t("search.empty_quotes"));
     if (phrase.length > MAX_TEXT) {
-      return unsupported(trimmed, `the quoted text is longer than ${MAX_TEXT} characters`);
+      return unsupported(trimmed, t("search.too_long", { max: MAX_TEXT }));
     }
     chips.push({ key: "text", value: phrase });
   }
@@ -153,14 +154,14 @@ export function parseSearch(raw: string): SearchOutcome | null {
     if (!match) {
       return unsupported(
         trimmed,
-        `"${token}" is not #<seq> or a filter chip — ${QUOTE_IT}`,
+        t("search.not_chip", { token, hint: t("search.quote_it") }),
       );
     }
     const key = match[1]!.toLowerCase();
     if (key === "text" || !(CHIP_KEYS as readonly string[]).includes(key)) {
       return unsupported(
         trimmed,
-        `"${key}:" is not a chip this build reads — it reads ${CHIP_KEYS.map((k) => `${k}:`).join(", ")}`,
+        t("search.unknown_chip", { key, keys: CHIP_KEYS.map((k) => `${k}:`).join(", ") }),
       );
     }
     const chipKey = key as ChipKey;
@@ -168,19 +169,19 @@ export function parseSearch(raw: string): SearchOutcome | null {
       // Two of the same key would be ANDed into a list that is always
       // empty (a record has one kind, one boot) — refused rather than
       // shown as a result.
-      return unsupported(trimmed, `"${key}:" appears twice — one value per chip`);
+      return unsupported(trimmed, t("search.twice", { key }));
     }
     let value = match[2]!;
     if (chipKey === "boot" || chipKey === "span") {
       value = value.toLowerCase();
       if (!HEX.test(value)) {
-        return unsupported(trimmed, `"${key}:${match[2]}" — a ${key} id is hexadecimal`);
+        return unsupported(trimmed, t("search.not_hex", { chip: `${key}:${match[2]}`, key }));
       }
     } else if (chipKey === "source" || chipKey === "outcome") {
       value = value.toLowerCase();
     } else if (chipKey === "from" || chipKey === "to") {
       if (dayStartNs(value) === null) {
-        return unsupported(trimmed, `"${key}:${value}" — a date is YYYY-MM-DD, a real UTC day`);
+        return unsupported(trimmed, t("search.bad_day", { chip: `${key}:${value}` }));
       }
     } else {
       value = value.toUpperCase();
@@ -220,15 +221,17 @@ export function nextWarning(items: AdvisoryItemModel[], afterSeq: number | null)
  * (H6, H10). Kept beside the parser so the two are read together and a new
  * form does not ship without its line.
  */
-export const SEARCH_HELP: ReadonlyArray<readonly [string, string]> = [
-  ["#1447", "go to record 1447"],
-  ["@2026-08-06T22:41Z", "go to the record nearest that time by the writer's clock — a claim; no zone is UTC"],
-  ["kind:INCIDENT_CANDIDATE", "list only that kind; also type:, tier:, source:, outcome:"],
-  ["boot:3f2a  span:9c01", "list only that boot or span, by the start of its id"],
-  ["from:2026-08-01  to:2026-08-06", "list only those days, by the writer's clock"],
-  ['"frame magic"', "list only records whose detail contains the phrase; one phrase, any case"],
-  ["/", "key: jump to this search field"],
-  ["j  k", "keys: next and previous record in the list"],
-  ["n", "key: next warning"],
-  ["b", "key: back to the record read before"],
-];
+export function searchHelp(): ReadonlyArray<readonly [string, string]> {
+  return [
+    ["#1447", t("search.help.seq")],
+    ["@2026-08-06T22:41Z", t("search.help.time")],
+    ["kind:INCIDENT_CANDIDATE", t("search.help.kind")],
+    ["boot:3f2a  span:9c01", t("search.help.ids")],
+    ["from:2026-08-01  to:2026-08-06", t("search.help.days")],
+    [t("search.help.text.example"), t("search.help.text")],
+    ["/", t("search.help.slash")],
+    ["j  k", t("search.help.jk")],
+    ["n", t("search.help.n")],
+    ["b", t("search.help.b")],
+  ];
+}

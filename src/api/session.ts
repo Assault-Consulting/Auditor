@@ -10,6 +10,7 @@
  * nobody notices breaking.
  */
 
+import { t } from "../i18n";
 import { invoke } from "@tauri-apps/api/core";
 import type { HealthResponse } from "./generated/types";
 
@@ -21,7 +22,7 @@ export interface Session {
 /** Raised when the page is not running inside the desktop shell. */
 export class NoShellError extends Error {
   constructor() {
-    super("not running inside the desktop shell");
+    super(t("session.no_shell"));
     this.name = "NoShellError";
   }
 }
@@ -70,7 +71,7 @@ export async function getHealth(session: Session): Promise<Health> {
     headers: { Authorization: `Bearer ${session.token}` },
   });
   if (!r.ok) {
-    throw new Error(`sidecar answered ${r.status}`);
+    throw new Error(t("session.status", { status: r.status }));
   }
   return (await r.json()) as Health;
 }

@@ -9,10 +9,10 @@
 
 import { t, tn } from "../i18n";
 
-export type CountNoun = "anchor" | "anchor source" | "boot" | "day" | "hash" | "item" | "record" | "span";
+export type CountNoun = "anchor" | "anchor_source" | "boot" | "day" | "hash" | "item" | "record" | "span";
 
 export function count(n: number, noun: CountNoun): string {
-  return tn(`count.${noun.replace(/ /g, "_")}`, n);
+  return tn(`count.${noun}`, n);
 }
 
 /** How the screen names an anchor profile: "none" is no anchor, not a profile called none. */

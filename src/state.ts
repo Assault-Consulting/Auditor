@@ -27,6 +27,7 @@ import { isSegmentManifest, onChainFilesDropped, pickChainFile, pickSegmentManif
 import { type HexView, hexView } from "./api/hexView";
 import { type RecordHealth, recordHealth } from "./api/health";
 import type { SegmentSetView, WatchSnapshot, WatchState, WitnessCheckView } from "./api/generated/types";
+import { t } from "./i18n";
 import { type EventLine, PANEL_EVENTS, eventLine, startWatch, stopWatch, watchEvents, watchSnapshot } from "./api/watch";
 import { type OriginCard, originCard } from "./api/origin";
 import { type RecordCard, recordCard } from "./api/record";
@@ -677,7 +678,7 @@ export function useSegmentSet(probe: Probe): {
       .then((path) => {
         if (path !== null) check(path);
       })
-      .catch(() => setSet({ kind: "failed", path: null, detail: "there is no desktop shell to open a dialog" }));
+      .catch(() => setSet({ kind: "failed", path: null, detail: t("state.no_shell") }));
   };
   return { set, pick, check, close: () => setSet({ kind: "idle" }) };
 }
@@ -757,7 +758,7 @@ export function useWatch(probe: Probe): {
       .then((path) => {
         if (path !== null) start(path, profile);
       })
-      .catch(() => setWatch({ kind: "failed", detail: "there is no desktop shell to open a dialog" }));
+      .catch(() => setWatch({ kind: "failed", detail: t("state.no_shell") }));
   };
 
   const snapshot = () => {

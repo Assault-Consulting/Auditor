@@ -12,6 +12,7 @@
  * `<name>.sha256`, in `sha256sum`'s own format, so it travels with it.
  */
 
+import { t } from "../i18n";
 import { invoke } from "@tauri-apps/api/core";
 
 import { NoShellError } from "./session";
@@ -56,8 +57,7 @@ export async function printReport(html: string): Promise<void> {
 }
 
 /** What the Report block says once the print window has opened. */
-export const PRINT_OPENED =
-  "The report opened in a window of its own; the print dialog there can save it as PDF.";
+export const printOpened = (): string => t("save.print_opened");
 
 /** The shell's own refusal arrives as a string; anything else means no shell. */
 export function saveError(err: unknown): Error {
@@ -86,7 +86,6 @@ function baseName(path: string): string {
 /** The sentence shown once a file is written. */
 export function savedLine(saved: SavedArtifact): string {
   return (
-    `Saved to ${saved.path} — SHA-256 ${saved.sha256}, written beside it as ` +
-    `${baseName(saved.digest_path)}; check with: sha256sum -c ${baseName(saved.digest_path)}`
+    t("save.saved", { path: saved.path, sha: saved.sha256, digest: baseName(saved.digest_path) })
   );
 }

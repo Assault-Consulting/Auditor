@@ -29,6 +29,7 @@
  * the ruler across a gap would measure a duration nobody observed.
  */
 
+import { t, tn } from "../i18n";
 import type { Timeline } from "./generated/types";
 import type { Chip } from "./search";
 
@@ -129,15 +130,15 @@ function utcDate(ns: number): string {
 export function chronoscope(timeline: Timeline): Chronoscope {
   if (timeline.axis !== "wall" || timeline.align !== "day") {
     throw new Error(
-      `the rail needs a day-aligned wall timeline, got axis=${timeline.axis} align=${timeline.align}`,
+      t("rail.bad_timeline", { axis: timeline.axis, align: timeline.align }),
     );
   }
 
-  const clocks = timeline.time_trust_values.map((t) => t.name ?? `value ${t.value}`);
+  const clocks = timeline.time_trust_values.map((x) => x.name ?? t("rail.value", { value: x.value }));
   const watermark =
     clocks.length === 1
-      ? `writer's clock · ${clocks[0]}`
-      : `writer's clock · changed mid-chain (${clocks.join(", ")})`;
+      ? t("rail.watermark.one", { clock: clocks[0] })
+      : t("rail.watermark.changed", { clocks: clocks.join(", ") });
 
   const steppedDays = new Set(
     timeline.buckets.filter((b) => b.stepped).map((b) => utcDate(b.start)),
@@ -197,7 +198,7 @@ export function chronoscope(timeline: Timeline): Chronoscope {
     // 0.12.0: SCITT registration (pala/scitt.py) never consults the tier,
     // so a tier-A head can be registered and receipted. What this file
     // shows is that it carries no witness — nothing about what could exist.
-    pins_note: "No external witness in this file.",
+    pins_note: t("rail.pins.none"),
   };
 }
 
@@ -303,12 +304,12 @@ export function compress(
 
 /** What a compression mark says about itself, in one line. */
 export function compressionLine(row: Extract<RailRow, { kind: "collapsed" }>): string {
-  const span = `${row.days} days with no records · ${row.from} to ${row.to}`;
+  const span = tn("rail.collapsed", row.days, { from: row.from, to: row.to });
   switch (row.down) {
     case "all":
-      return `${span} · the writer was down for all of them`;
+      return t("rail.down.all", { span });
     case "some":
-      return `${span} · the writer was down for part of them`;
+      return t("rail.down.some", { span });
     case "none":
       return span;
   }

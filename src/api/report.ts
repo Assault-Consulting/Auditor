@@ -17,24 +17,28 @@
  * machine's clock. Not a certification (FUNCTIONALITY.md §1.1, §15).
  */
 
+import { t, tn, verbatim } from "../i18n";
 import type { ReportResponse } from "./generated/types";
+import { span } from "./health";
 import { ownEntry } from "./own";
 
 /** The package's own sentence for each verdict (`derive_verdict`). */
 export const VERDICT_MEANING: Record<string, string> = {
-  sound: "everything checked, held",
-  empty:
+  sound: verbatim("everything checked, held"),
+  empty: verbatim(
     "nothing contradicts anything, because the container holds no records: nothing was checked, and nothing was found intact",
-  partial:
+  ),
+  partial: verbatim(
     "sound as far as checked, but completeness was NOT checked (no anchor), so truncation or wholesale replacement would not have been detected",
-  violation:
+  ),
+  violation: verbatim(
     "the chain broke, the container is malformed, a body does not match its header digest, or the head missed a supplied anchor",
+  ),
 };
 
-const UNRECOGNISED = "chain-checked, not interpretable by this verifier version";
 
-export const ATTESTATION =
-  "An attestation that this check was run against this file, with this anchor, at this time — not a certification.";
+
+export const attestation = (): string => t("report.attestation");
 
 export interface ReportView {
   format: string;
@@ -99,12 +103,12 @@ export function reportFacts(report: Obj): ReportFact[] {
     const at = num(d.at_seq);
     const q = str(d.question);
     facts.push({
-      label: "Diagnosis",
+      label: t("report.fact.diagnosis"),
       value:
         `${d.pattern}` +
-        (str(d.code) !== null ? ` (${d.code})` : "") +
-        (at !== null ? ` at #${at}` : "") +
-        (q !== null ? ` — about ${q === "completeness" ? "question two, completeness" : "question one, consistency"}` : ""),
+        (str(d.code) !== null ? t("report.fact.code", { code: String(d.code) }) : "") +
+        (at !== null ? t("report.fact.at", { seq: at }) : "") +
+        (q !== null ? t(q === "completeness" ? "report.fact.about.completeness" : "report.fact.about.consistency") : ""),
     });
   }
   const codes = obj(report.chain)?.violation_codes;
@@ -112,34 +116,26 @@ export function reportFacts(report: Obj): ReportFact[] {
     const pairs = codes
       .filter((c): c is [number, string] => Array.isArray(c) && typeof c[0] === "number" && typeof c[1] === "string")
       .map(([seq, code]) => `#${seq} ${code}`);
-    if (pairs.length > 0) facts.push({ label: "Violation codes", value: pairs.join(", ") });
+    if (pairs.length > 0) facts.push({ label: t("report.fact.codes"), value: pairs.join(", ") });
   }
   const m = obj(report.manifest);
   if (m !== null) {
     const sha = str(m.sha256);
     facts.push({
-      label: "Segments manifest",
-      value:
-        `${str(m.filename) ?? "no file to look for"} — ${str(m.status) ?? "status not given"}` +
-        (sha !== null ? `, SHA-256 ${sha.slice(0, 16)}…` : ", no file read") +
-        (str(m.detail) !== null ? `. ${m.detail}` : ""),
+      label: t("report.fact.manifest"),
+      value: t("report.fact.manifest.value", {
+        file: str(m.filename) ?? t("report.fact.manifest.no_file"),
+        status: str(m.status) ?? t("report.fact.manifest.no_status"),
+        sha: sha !== null ? t("report.fact.manifest.sha", { sha: sha.slice(0, 16) }) : t("report.fact.manifest.not_read"),
+        // The package's own detail, verbatim (L-03).
+        detail: str(m.detail) !== null ? `. ${m.detail}` : "",
+      }),
     });
   }
   return facts;
 }
 
-const NS_UNITS: [number, string][] = [
-  [86400e9, "d"], [3600e9, "h"], [60e9, "min"], [1e9, "s"], [1e6, "ms"], [1e3, "µs"],
-];
-function dur(ns: number): string {
-  for (const [size, unit] of NS_UNITS) {
-    if (Math.abs(ns) >= size) {
-      const v = ns / size;
-      return `${Math.abs(v) >= 10 ? Math.round(v) : Math.round(v * 10) / 10} ${unit}`;
-    }
-  }
-  return `${ns} ns`;
-}
+const dur = span;
 
 /** A slope in ppm, signed, one decimal: the package's figure, shown not refit. */
 function ppm(v: number): string {
@@ -161,11 +157,11 @@ export function reportHealth(report: Obj): ReportFact[] | null {
     const resumed = num(boots.resumed_after_truncated_tail);
     const trust = num(boots.with_time_trust_change);
     facts.push({
-      label: "Boots",
+      label: t("report.health.boots"),
       value:
         `${n ?? "?"}` +
-        (resumed ? `, ${resumed} resumed after a cut tail` : "") +
-        (trust ? `, ${trust} with a change of clock trust` : ""),
+        (resumed ? t("report.health.resumed", { n: resumed }) : "") +
+        (trust ? t("report.health.trust", { n: trust }) : ""),
       basis: str(boots.basis) ?? undefined,
     });
   }
@@ -174,11 +170,13 @@ export function reportHealth(report: Obj): ReportFact[] | null {
     const gap = num(anchors.widest_gap_ns);
     const without = num(anchors.boots_without_anchor);
     facts.push({
-      label: "Anchors",
+      label: t("report.health.anchors"),
       value:
         `${num(anchors.count) ?? "?"}` +
-        (gap !== null ? `, widest gap ${dur(gap)} (boot starting at #${num(anchors.widest_gap_boot_first_seq) ?? "?"})` : "") +
-        (without ? `, ${without} ${without === 1 ? "boot" : "boots"} without one` : ""),
+        (gap !== null
+          ? t("report.health.gap", { gap: dur(gap), seq: num(anchors.widest_gap_boot_first_seq) ?? "?" })
+          : "") +
+        (without ? tn("report.health.without", without) : ""),
       basis: str(anchors.basis) ?? undefined,
     });
   }
@@ -188,12 +186,16 @@ export function reportHealth(report: Obj): ReportFact[] | null {
     const hi = num(wall.drift_slope_ppm_max);
     const largest = num(wall.largest_delta_ns);
     facts.push({
-      label: "Wall clock",
+      label: t("report.health.wall"),
       value:
-        `${num(wall.steps) ?? 0} steps, ${num(wall.regressions) ?? 0} regressions, ${num(wall.slews) ?? 0} slews` +
-        (largest !== null ? `, largest ${dur(largest)} at #${num(wall.largest_at_seq) ?? "?"}` : "") +
+        t("report.health.wall.counts", {
+          steps: num(wall.steps) ?? 0,
+          regressions: num(wall.regressions) ?? 0,
+          slews: num(wall.slews) ?? 0,
+        }) +
+        (largest !== null ? t("report.health.wall.largest", { delta: dur(largest), seq: num(wall.largest_at_seq) ?? "?" }) : "") +
         (lo !== null && hi !== null
-          ? `; drift ${ppm(lo)} to ${ppm(hi)} ppm over ${num(wall.drift_boots_measured) ?? "?"} boots`
+          ? t("report.health.wall.drift", { lo: ppm(lo), hi: ppm(hi), boots: num(wall.drift_boots_measured) ?? "?" })
           : ""),
       basis: str(wall.basis) ?? undefined,
     });
@@ -222,7 +224,7 @@ export function reportView(response: ReportResponse): ReportView {
   return {
     format: response.format,
     verdict: response.verdict,
-    meaning: meaning ?? UNRECOGNISED,
+    meaning: meaning ?? t("f7.unrecognised"),
     unrecognised: !known,
     checkedAtIso: at.iso,
     checkedAtNote: at.note,

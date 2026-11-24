@@ -19,6 +19,7 @@
  * So nothing here produces a severity, and no field is named for a problem.
  */
 
+import { t } from "../i18n";
 import type { BootView, SpanView } from "./generated/types";
 
 /**
@@ -66,13 +67,14 @@ export interface SpanRow {
   note: string;
 }
 
-const EXTENT_NOTE: Record<SpanExtent, string> = {
-  closed: "opened and closed within this file",
-  // The spec's own words. Not "unterminated", not "missing end": an
-  // interrupted operation looks exactly like this, and its records are here.
-  unclosed: "opened, never closed by its owner",
-  "began-earlier": "closed here; it began before this file",
-  "spans-the-file": "neither end is in this file",
+// The spec's own words (F7), fixed per language in the catalogs. Not
+// "unterminated", not "missing end": an interrupted operation looks exactly
+// like this, and its records are here.
+const EXTENT_KEY: Record<SpanExtent, string> = {
+  closed: "browse.extent.closed",
+  unclosed: "browse.extent.unclosed",
+  "began-earlier": "browse.extent.began_earlier",
+  "spans-the-file": "browse.extent.spans_file",
 };
 
 function extentOf(span: SpanView): SpanExtent {
@@ -130,7 +132,7 @@ export function spanRows(spans: SpanView[]): SpanRow[] {
       end_seq: span.end_seq,
       record_count: span.record_count,
       depth,
-      note: EXTENT_NOTE[extentOf(span)],
+      note: t(EXTENT_KEY[extentOf(span)]),
     });
     for (const child of (childrenOf.get(span.span_id) ?? []).sort(byStart)) {
       walk(child, depth + 1);
@@ -169,12 +171,11 @@ export interface BootRow {
 
 export function bootRows(boots: BootView[]): BootRow[] {
   return boots.map((boot) => {
-    const clocks = boot.time_trust_values.map((t) => t.name ?? `value ${t.value}`);
+    const clocks = boot.time_trust_values.map((x) => x.name ?? t("browse.clock.value", { value: x.value }));
     const notes: string[] = [];
     if (clocks.length > 1) {
       notes.push(
-        `the clock's trust changed during this boot (${clocks.join(" → ")}), ` +
-          "so no single statement about wall time covers all of it",
+        t("browse.trust_changed", { clocks: clocks.join(" → ") }),
       );
     }
     if (boot.recovery_seq !== null) {
@@ -183,7 +184,7 @@ export function bootRows(boots: BootView[]): BootRow[] {
       // the behaviour a log is supposed to have, and the only reason anyone
       // can tell a crash from a deletion.
       notes.push(
-        `this boot recovered a truncated tail at record #${boot.recovery_seq}`,
+        t("browse.recovered", { seq: boot.recovery_seq }),
       );
     }
     return {

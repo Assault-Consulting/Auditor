@@ -4,7 +4,7 @@
 import { describe as group, expect, it } from "vitest";
 
 import type { WitnessCheckView } from "./generated/types";
-import { WITNESS_LIMITS, witnessLine, witnessRows, witnessStatus } from "./witness";
+import { witnessLimits, witnessLine, witnessRows, witnessStatus } from "./witness";
 
 function view(over: Partial<WitnessCheckView> = {}): WitnessCheckView {
   return {
@@ -69,9 +69,9 @@ group("the witness log, as the screen says it (E-05)", () => {
   });
 
   it("says what the log does not show in the same breath as what it does", () => {
-    expect(WITNESS_LIMITS).toMatch(/this desk saw this head/);
-    expect(WITNESS_LIMITS).toMatch(/nothing about the world/);
-    expect(WITNESS_LIMITS).toMatch(/cut at its end still links/);
-    expect(WITNESS_LIMITS).toMatch(/write a new one/);
+    expect(witnessLimits()).toMatch(/this desk saw this head/);
+    expect(witnessLimits()).toMatch(/nothing about the world/);
+    expect(witnessLimits()).toMatch(/cut at its end still links/);
+    expect(witnessLimits()).toMatch(/write a new one/);
   });
 });

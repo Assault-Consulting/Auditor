@@ -16,6 +16,7 @@
  * digest shown is not decoration: it is the identity of half the evidence.
  */
 
+import { t } from "../i18n";
 import type { ManifestReadingModel } from "./generated/types";
 
 export interface ManifestLine {
@@ -37,22 +38,22 @@ export const KNOWN_STATUSES: readonly string[] = ["matches", "contradicts", "dec
 export function manifestLine(manifest: ManifestReadingModel | null | undefined): ManifestLine | null {
   if (manifest === null || manifest === undefined) return null;
   const { path, status, sha256, detail } = manifest;
-  const at = path === null ? null : `the segments manifest at ${path}`;
+  const at = path === null ? null : t("manifest.at", { path });
   let text: string;
   let unrecognised = false;
   if (path === null) {
-    text = "No segments manifest could be looked for, so the first record's declaration stands unconfirmed.";
+    text = t("manifest.none");
   } else if (status === "matches") {
-    text = `This verdict also rests on ${at}: it names the same predecessor the first record declares.`;
+    text = t("manifest.matches", { at });
   } else if (status === "contradicts") {
-    text = `This verdict also rests on ${at}: it does not name the predecessor the first record declares.`;
+    text = t("manifest.contradicts", { at });
   } else if (status === "declared_only" && sha256 === null) {
-    text = `No segments manifest was read at ${path}, so the first record's declaration stands unconfirmed.`;
+    text = t("manifest.not_read", { path });
   } else if (status === "declared_only") {
-    text = `The segments manifest at ${path} was read and set aside, so the first record's declaration stands unconfirmed.`;
+    text = t("manifest.set_aside", { path });
   } else {
     unrecognised = true;
-    text = `This verdict also rests on ${at}; this build has no sentence for the status "${status}".`;
+    text = t("manifest.unknown", { at, status });
   }
   return { text, path, sha256, detail, unrecognised };
 }

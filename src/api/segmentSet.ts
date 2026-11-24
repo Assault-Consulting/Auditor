@@ -13,6 +13,7 @@
  * segments by design — and nothing it held is claimed.
  */
 
+import { t, tn } from "../i18n";
 import type { SegmentCheckView, SegmentSetView } from "./generated/types";
 
 export interface SetAnswer {
@@ -27,26 +28,26 @@ export function setAnswers(v: SegmentSetView): { consistent: SetAnswer; complete
   const present = v.segments.filter((s) => s.present).length;
   const consistent: SetAnswer = v.consistent
     ? {
-        text: `Consistent: every segment present (${present} of ${v.segments.length}) holds from its declared start and agrees with the manifest, and every seam links.`,
+        text: t("set.consistent", { present, total: v.segments.length }),
         failed: false,
       }
     : {
-        text: "Not consistent: a segment present does not hold, or does not agree with the manifest, or a seam does not link — see the segments below.",
+        text: t("set.inconsistent"),
         failed: true,
       };
   let complete: SetAnswer;
   if (v.complete) {
-    complete = { text: "Complete: nothing the manifest lists is missing, and the set starts at its first record.", failed: false };
+    complete = { text: t("set.complete"), failed: false };
   } else if (!v.consistent) {
-    complete = { text: "Not complete, since it is not consistent.", failed: true };
+    complete = { text: t("set.incomplete.inconsistent"), failed: true };
   } else if (v.absent.length > 0) {
     complete = {
-      text: `Not complete: ${v.absent.length === 1 ? "one segment the manifest lists is" : `${v.absent.length} segments the manifest lists are`} not here. What they held is not claimed; deletion under a retention policy leaves a set this way.`,
+      text: tn("set.incomplete.absent", v.absent.length),
       failed: true,
     };
   } else {
     complete = {
-      text: "Not complete: the set does not start at the chain's first record — its beginning is declared, not here.",
+      text: t("set.incomplete.start"),
       failed: true,
     };
   }
@@ -60,30 +61,30 @@ export function segmentState(s: SegmentCheckView): { text: string; failed: boole
     // of it — said as a declaration, never as records that existed.
     const range =
       s.declared_first_seq != null && s.declared_last_seq != null
-        ? `records #${s.declared_first_seq}–#${s.declared_last_seq}`
+        ? t("set.segment.range", { first: s.declared_first_seq, last: s.declared_last_seq })
         : null;
-    const head = s.declared_head ? `head ${s.declared_head.slice(0, 12)}…` : null;
+    const head = s.declared_head ? t("set.segment.head", { head: s.declared_head.slice(0, 12) }) : null;
     const declared = [range, head].filter((x) => x !== null).join(", ");
     return {
-      text: declared ? `listed, not here — declared ${declared}; not here to check` : "listed, not here",
+      text: declared ? t("set.segment.declared", { declared }) : t("set.segment.absent"),
       failed: true,
     };
   }
   const parts: string[] = [];
   let failed = false;
-  if (s.verified === true) parts.push("holds");
+  if (s.verified === true) parts.push(t("set.segment.holds"));
   else if (s.verified === false) {
-    parts.push("does not hold");
+    parts.push(t("set.segment.no_hold"));
     failed = true;
   }
   if (s.head_matches === false) {
-    parts.push("its last record is not the head the manifest gives");
+    parts.push(t("set.segment.head_differs"));
     failed = true;
   }
   if (!s.seam_ok) {
-    parts.push("does not link to the segment before it");
+    parts.push(t("set.segment.no_seam"));
     failed = true;
   }
-  if (!s.listed) parts.push("the writer's live segment, not yet in the manifest");
-  return { text: parts.join("; ") || "checked", failed };
+  if (!s.listed) parts.push(t("set.segment.live"));
+  return { text: parts.join("; ") || t("set.segment.checked"), failed };
 }
