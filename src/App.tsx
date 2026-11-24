@@ -45,17 +45,27 @@ import {
 } from "./api/exportFile";
 import { PRINT_OPENED, printReport, reportFileName, saveArtifact, savedLine } from "./api/saveFile";
 import { useBrowse, useChain, useOrigin, useProbe, useProfiles, useRail, useRecord, useRecordBytes, useRecordHealth, useRecords, useSafety, useSegmentSet, useWatch, useWitness } from "./state";
-import { WATCH_NOTE, snapshotLine, stateLine } from "./api/watch";
-import { SCITT_NOTE, type StatementAnswer, checkStatement, pickStatementAndKey, statementAnswer } from "./api/scitt";
+import { snapshotLine, stateLine, watchNote } from "./api/watch";
+import {
+  LOCALES,
+  hasLocaleOverride,
+  localeName,
+  negotiate,
+  setLocale,
+  systemLanguages,
+  t,
+  useLocale,
+} from "./i18n";
+import { scittNote, type StatementAnswer, checkStatement, pickStatementAndKey, statementAnswer } from "./api/scitt";
 import { offsetLabel } from "./api/hexView";
 import { segmentState, setAnswers } from "./api/segmentSet";
 import { BASIS_LABEL, HEALTH_NOTE } from "./api/health";
 import { CONFIG_DIGEST_NOTE } from "./api/origin";
-import { BUNDLE_NOTE, bundleFileName, bundleLine, bundleRefusal, saveBundle } from "./api/bundle";
+import { bundleFileName, bundleNote, bundleLine, bundleRefusal, saveBundle } from "./api/bundle";
 import {
   type CheckAnswer,
-  CONSISTENCY_NOTE,
   checkAnswers,
+  consistencyNote,
   parseCount,
   pickConsistencyProof,
   proofFileName,
@@ -68,6 +78,9 @@ import { WITNESS_LIMITS, witnessLine, witnessRows, witnessStatus } from "./api/w
 const RECORDS_PAGE_SIZE = 50;
 
 export default function App() {
+  // L-01: every sentence is made during render, so a change of language
+  // re-renders the window from here.
+  const locale = useLocale();
   const probe = useProbe();
   const profiles = useProfiles(probe);
   const [chosenProfile, setChosenProfile] = useState("none");
@@ -580,6 +593,25 @@ export default function App() {
           Palimpsests <em>Auditor</em>
         </h1>
         </div>
+        {/* L-01: shown once there is more than one language to choose. Each
+            option is named in its own language, so someone who cannot read
+            the current one can still find theirs. */}
+        {LOCALES.length > 1 && (
+          <label className="language-pick">
+            <span className="choose-hint">{t("language.label")}</span>
+            <select
+              onChange={(e) => setLocale(e.target.value === "" ? null : e.target.value)}
+              value={hasLocaleOverride() ? locale : ""}
+            >
+              <option value="">{t("language.system", { name: localeName(negotiate(systemLanguages())) })}</option>
+              {LOCALES.map((tag) => (
+                <option key={tag} lang={tag} value={tag}>
+                  {localeName(tag)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <p className="thesis">
           Opens an audit chain and answers three separate questions about it.
           It attests that a check was run against a named file, with a named
@@ -774,7 +806,7 @@ export default function App() {
           <h2 className="segment-set-title" id="watch-title">
             Watch{watcher.watch.kind === "on" ? ` — ${watcher.watch.path}` : ""}
           </h2>
-          <p className="export-note">{WATCH_NOTE}</p>
+          <p className="export-note">{watchNote()}</p>
           {watcher.watch.kind === "starting" && <p role="status">Starting the watch on {watcher.watch.path}…</p>}
           {watcher.watch.kind === "failed" && (
             <p className="report-failed" role="alert">
@@ -2313,7 +2345,7 @@ export default function App() {
             <h3 className="export-sub" id="bundle-title">
               Evidence bundle
             </h3>
-            <p className="export-note">{BUNDLE_NOTE}</p>
+            <p className="export-note">{bundleNote()}</p>
             {(() => {
               const opened = openedOf(chain)!;
               const refused = bundleRefusal(typedRange, opened.subject.first_seq, opened.subject.last_seq);
@@ -2360,7 +2392,7 @@ export default function App() {
             <h3 className="export-sub" id="proof-title">
               Prefix proof
             </h3>
-            <p className="export-note">{CONSISTENCY_NOTE}</p>
+            <p className="export-note">{consistencyNote()}</p>
             <div className="export-range">
               <label>
                 <span className="choose-hint">first</span>
@@ -2422,7 +2454,7 @@ export default function App() {
             <h3 className="export-sub" id="statement-title">
               Signed statement
             </h3>
-            <p className="export-note">{SCITT_NOTE}</p>
+            <p className="export-note">{scittNote()}</p>
             <div className="export-range">
               <button
                 className="choose-button"

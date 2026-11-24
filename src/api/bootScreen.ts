@@ -15,7 +15,7 @@
  * and a type does not — the value was always a valid string.
  */
 
-import { count } from "./plural";
+import { type CountNoun, count } from "./plural";
 import type { Choice, Listing, Probe } from "../state";
 import type { BootRow, SpanRow } from "./browse";
 import { type ChainState, openedOf } from "./chainState";
@@ -62,7 +62,7 @@ export interface Row {
 }
 
 /** What a Listing contributes to the status panel, in a word or a count. */
-function listingState(listing: Listing<BootRow | SpanRow>, unit: string): string {
+function listingState(listing: Listing<BootRow | SpanRow>, unit: CountNoun): string {
   switch (listing.kind) {
     case "unasked":
       return "wired";

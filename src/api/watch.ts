@@ -16,37 +16,29 @@
  */
 
 import type { WatchEvent, WatchEvents, WatchSnapshot, WatchStarted, WatchState } from "./generated/types";
+import { t, tn } from "../i18n";
 import { count } from "./plural";
 import type { Session } from "./session";
 
 /** Said over the panel, always. */
-export const WATCH_NOTE =
-  "Reads the file as it is written: each record is checked as it lands, and what happens at the tail is said as the verifier names it. A watch holds every record it checked in memory and stops itself at its limit; it never writes the file. To read the file whole — boots, spans, the report — stop and open it.";
+export const watchNote = (): string => t("watch.note");
 
 /**
- * Each tail event the package names, in words. Held to the package's
- * `TAIL_EVENT_KINDS` by vocabulary.test.ts: a kind it adds fails a test
- * before it reaches the panel unexplained.
+ * Each tail event the package names, and its weight. The words are the
+ * catalogs' (`watch.kind.<kind>`). Held to the package's `TAIL_EVENT_KINDS`
+ * by vocabulary.test.ts: a kind it adds fails a test before it reaches the
+ * panel unexplained.
  */
-export const TAIL_EVENT_WORDING: Record<string, { label: string; weight: "plain" | "notable" | "alarm" }> = {
-  record: { label: "checked", weight: "plain" },
-  anchor_seen: { label: "anchor in the chain", weight: "plain" },
-  pending_tail: {
-    label: "a record still being written",
-    weight: "plain",
-  },
-  shrunk: {
-    label: "the unfinished tail was cut — a writer resuming after a crash does this; waiting for its recovery records",
-    weight: "notable",
-  },
-  recovered: {
-    label: "the writer resumed and recorded the cut tail",
-    weight: "notable",
-  },
-  diagnosis: { label: "the verifier's finding", weight: "alarm" },
+export const TAIL_EVENT_WEIGHT: Record<string, "plain" | "notable" | "alarm"> = {
+  record: "plain",
+  anchor_seen: "plain",
+  pending_tail: "plain",
+  shrunk: "notable",
+  recovered: "notable",
+  diagnosis: "alarm",
 };
 
-export const KNOWN_TAIL_KINDS: readonly string[] = Object.keys(TAIL_EVENT_WORDING);
+export const KNOWN_TAIL_KINDS: readonly string[] = Object.keys(TAIL_EVENT_WEIGHT);
 
 export interface EventLine {
   n: number;
@@ -57,60 +49,60 @@ export interface EventLine {
 
 /** One event as a line. An unknown kind is shown as the package gave it. */
 export function eventLine(e: WatchEvent): EventLine {
-  const w = TAIL_EVENT_WORDING[e.kind];
+  const weight = TAIL_EVENT_WEIGHT[e.kind];
   const seq = e.seq === null ? "" : `#${e.seq}`;
   if (e.kind === "record") {
+    // The kind name is the package's: shown as it wrote it (L-03).
+    const kind = e.record_kind ?? t("watch.record");
     return {
       n: e.n,
       seq,
-      text: `${e.record_kind ?? "record"} checked` + (e.detail ? ` — “${e.detail}”` : ""),
+      text: e.detail ? t("watch.event.record_detail", { kind, detail: e.detail }) : t("watch.event.record", { kind }),
       weight: "plain",
     };
   }
-  if (w === undefined) {
-    return { n: e.n, seq, text: `${e.kind}${e.detail ? `: ${e.detail}` : ""}`, weight: "notable" };
+  if (weight === undefined) {
+    return { n: e.n, seq, text: e.detail ? t("watch.event.unknown", { kind: e.kind, detail: e.detail }) : e.kind, weight: "notable" };
   }
-  return { n: e.n, seq, text: e.detail ? `${w.label}: ${e.detail}` : w.label, weight: w.weight };
+  const label = t(`watch.kind.${e.kind}`);
+  return { n: e.n, seq, text: e.detail ? t("watch.event.with_detail", { label, detail: e.detail }) : label, weight };
 }
 
 /** The state line over the events. */
 export function stateLine(s: WatchState): { text: string; live: boolean } {
-  const rec = `${count(s.records, "record")} checked` + (s.last_seq !== null ? `, last #${s.last_seq}` : "");
+  const checked = tn("watch.state.records", s.records);
+  const records = s.last_seq !== null ? t("watch.state.last", { records: checked, seq: s.last_seq }) : checked;
   switch (s.state) {
     case "watching":
-      return { text: `Watching — ${rec}.`, live: true };
+      return { text: t("watch.state.watching", { records }), live: true };
     case "limit":
-      return { text: `Stopped — ${rec}. ${s.reason ?? ""}.`, live: false };
+      return { text: t("watch.state.limit", { records, reason: s.reason ?? "" }), live: false };
     case "failed":
-      return { text: `The watch failed — ${rec}. ${s.reason ?? ""}`, live: false };
+      return { text: t("watch.state.failed", { records, reason: s.reason ?? "" }), live: false };
     default:
-      return { text: `Stopped — ${rec}.`, live: false };
+      return { text: t("watch.state.stopped", { records }), live: false };
   }
 }
 
 /** The snapshot in a sentence: the package's batch answer over the verified prefix. */
 export function snapshotLine(v: WatchSnapshot): { text: string; finding: boolean } {
-  const head = `head ${v.chain.head.slice(0, 16)}…`;
+  const head = t("watch.snapshot.head", { head: v.chain.head.slice(0, 16) });
+  const records = count(v.chain.count, "record");
   const d = v.diagnosis;
   if (!v.chain.chain_ok || d !== null) {
     return {
-      text:
-        `Over the ${count(v.chain.count, "record")} checked so far: ` +
-        (d !== null ? d.narrative : "the header chain does not link") +
-        `. ${head}.`,
+      // The narrative is the package's, verbatim (L-03).
+      text: t("watch.snapshot.finding", { records, finding: d !== null ? d.narrative : t("watch.snapshot.no_link"), head }),
       finding: true,
     };
   }
   const anchored =
     v.completeness.complete_to_anchor === true
-      ? " The anchor's head is in it."
+      ? t("watch.snapshot.anchor_in")
       : v.completeness.complete_to_anchor === false
-        ? " The anchor's head is not reached."
+        ? t("watch.snapshot.anchor_out")
         : "";
-  return {
-    text: `Over the ${count(v.chain.count, "record")} checked so far, each links to the one before it; ${head}.${anchored} Bodies are not walked here — open the file for that.`,
-    finding: false,
-  };
+  return { text: t("watch.snapshot.ok", { records, head, anchored }), finding: false };
 }
 
 /** Most event lines kept in the panel. */

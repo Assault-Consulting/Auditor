@@ -2,14 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * A count with its noun, singular or plural — "1 boot", "2 boots", "0 boots".
- * English only; the `uk` pass (Phase 5) replaces this with the locale's rules.
+ * A count with its noun, in the chosen language's plural — "1 boot",
+ * "2 boots"; in Ukrainian one / few / many. The forms are in the catalogs
+ * (`count.<noun>`), chosen by `Intl.PluralRules` (L-01).
  */
-export function count(n: number, one: string, many = `${one}s`): string {
-  return `${n} ${n === 1 ? one : many}`;
+
+import { t, tn } from "../i18n";
+
+export type CountNoun = "anchor" | "anchor source" | "boot" | "day" | "hash" | "item" | "record" | "span";
+
+export function count(n: number, noun: CountNoun): string {
+  return tn(`count.${noun.replace(/ /g, "_")}`, n);
 }
 
 /** How the screen names an anchor profile: "none" is no anchor, not a profile called none. */
 export function againstLine(profile: string): string {
-  return profile === "none" ? "without an anchor" : `against anchor profile "${profile}"`;
+  return profile === "none" ? t("against.none") : t("against.profile", { profile });
 }
