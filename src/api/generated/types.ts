@@ -445,6 +445,29 @@ export interface HealthLifecycle {
 }
 
 /**
+ * One stretch of the chain under one origin in force (E-03).
+ */
+export interface HealthOrigin {
+  /** 'active', 'unloaded' (a MODEL_UNLOAD ended one) or 'not_stated' (none declared yet). */
+  state: string;
+  first_seq: number;
+  last_seq: number;
+  /** Records in the stretch, by proved order. */
+  records: number;
+  /** The origin in force, as the writer declared it (L3: a claim). */
+  origin: OriginModel | null;
+  /** What differs from the stretch before, comparing the package's fields: 'model_digest', 'config_digest', 'role', 'loaded', 'unloaded', 'not_stated', 'declared_again'. Empty for the first stretch. */
+  changed: Array<string>;
+  safety_total: number;
+  safety_by_kind: Array<HealthOriginCount>;
+}
+
+export interface HealthOriginCount {
+  kind: string;
+  count: number;
+}
+
+/**
  * Liveness, and the identity of the verifier behind this service.
  *
  * The verifier identity is part of the liveness answer rather than a
@@ -658,6 +681,8 @@ export interface RecordHealthView {
   safety_by_kind: Array<HealthKind>;
   /** Details seen more than once, most frequent first, at most twenty. */
   recurring_details: Array<HealthDetail>;
+  /** SAFETY records against the origin in force, one entry per stretch of the chain between origin changes, in chain order — a count, never an interpretation. */
+  origins: Array<HealthOrigin>;
 }
 
 /**

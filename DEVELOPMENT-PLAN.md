@@ -90,7 +90,7 @@ interactive is the live desktop check below, not yet done.
 | ✓ D-06 | **The record export, streamed.** `GET /session/{id}/export` carries `export_jsonl`'s `pala-jsonl/1` out as it is written — from a thread of its own, on a read-only mapping of the file (the package's ask: a mapping, not a copy), in blocks of ~256 KB through a queue of 16 (~4 MB in flight). The shell's `export_records` runs the save dialog, reads the response itself over loopback (no HTTP library: status, headers, chunked or close-framed body), writes it to the file as it arrives with its SHA-256 on the way, checks the last line is the summary (a cut-short stream leaves no file), and writes `.sha256` beside it. The webview names a session and a range only. **Measured at 1M records:** 767 MB in 48.6 s; the shell held 26 MB; the sidecar's peak, 674 MB, is the session's header index (C-10b) — held whole, the export alone took 1.7 GB. Byte-identical to `export_jsonl` for the same file. | 1.5 | 0.14.1 (R9) |
 | ✓ E-01 | Evidence bundle UI over `assemble_bundle(reader=…)` from the session. **Bounded selection** — a bundle carries a proof path per record and outgrows its source (R12: 1,000 records 9 s / 406 MB; 100,000 records 14 s / 1.3 GB; the whole of 10⁶ does not fit in 8 GB); the bound is set by measuring on 0.15 | 1.5 | 0.15 (R10, R12) |
 | ✓ E-02 | Re-verification harness for bundles, from the spec, with no Auditor code — `scripts/check_bundle.py`, standard library only (`docs/BUNDLE-CHECK.md`) | 3 | E-01 |
-| ◐ E-03 | Record health over U1–U3, with F12's three disciplines. **Built on 0.14.1:** `/record-health` (step catalog, boot statistics with anchor gaps, wall gaps between boots, SAFETY by kind × boot, recurring details) and the **Record health** panel, every block under its basis (proved / monotonic / recorded), no threshold, no verdict word. **On 0.15:** drift per boot (`drift_series`) and closed / stopped / open boots (r8). **Left:** warnings against origin events; baseline change — §22.4's thresholds stay open | 5 | — |
+| ◐ E-03 | Record health over U1–U3, with F12's three disciplines. **Built on 0.14.1:** `/record-health` (step catalog, boot statistics with anchor gaps, wall gaps between boots, SAFETY by kind × boot, recurring details) and the **Record health** panel, every block under its basis (proved / monotonic / recorded), no threshold, no verdict word. **On 0.15:** drift per boot (`drift_series`) and closed / stopped / open boots (r8). **25 Nov 2026:** warnings against origin events (SAFETY per stretch of the origin in force, every stretch listed, rate per 1,000 records, no cause named). **Left:** baseline change — §22.4's thresholds stay open | 5 | — |
 | ✓ E-04 | Health summary in the report, labelled advisory — **decided by R15 (Palimpsests #380, 0.15):** `build_report(health=True)`; Auditor shows the report's own `health` section beside E-03's series, and makes no document of its own | 1 | 0.15 |
 | ✓ E-05 | Local witness log: `auditor-witness/1`, JSON Lines, each entry the SHA-256 of the one before (ADR-0003, `docs/WITNESS-LOG.md`). One entry per first `/verify` of a session and profile, holding the package's facts, never a verdict; `GET /witness` walks it; a log that does not link is not appended to and the check says so. The panel says what it shows and what it does not — a cut tail still links. `scripts/check_witness_log.py` checks a log with nothing from this repository | 3 | — |
 | ✓ E-06 | SCITT Signed Statements, checked by the package's `verify_statement` (channel 8) under a key the user picks — displayed, never minted. Receipts are the transparency service's protocol and are not checked. Decided 24 Nov 2026: this is the external witness, in place of Rekor/TSA. R18 asks for the head to be taken from the reader | 2 | 0.15 |
@@ -100,12 +100,13 @@ interactive is the live desktop check below, not yet done.
 
 **Next, in order:** the live desktop check on the Windows installer (F-01,
 the user's); R18 and R19 to Palimpsests; then what is left open:
-E-03's warnings against origin events and the screen-reader pass (UX-REVIEW).
+the screen-reader pass (UX-REVIEW).
 Done 25 Nov 2026: the language system (L-01…L-05); H3, closing a file;
 1.3.1, the last sub-parts made headings; the user guide
 (`docs/USER-GUIDE.md`); E-08, anchor profiles from the window, kept
 between starts (found while writing the guide: before it, question two
-could not be checked from the window at all).
+could not be checked from the window at all); E-03's warnings against
+origin events.
 
 **Phase 5 decisions (24 Nov 2026):**
 - *The one write* (an operator's OVERSIGHT_ACK) — **deferred** until someone

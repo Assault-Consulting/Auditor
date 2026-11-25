@@ -9,7 +9,7 @@
 
 import { t, tn } from "../i18n";
 
-export type CountNoun = "anchor" | "anchor_source" | "boot" | "day" | "hash" | "item" | "record" | "span";
+export type CountNoun = "anchor" | "anchor_source" | "boot" | "day" | "hash" | "item" | "record" | "safety_record" | "span";
 
 export function count(n: number, noun: CountNoun): string {
   return tn(`count.${noun}`, n);

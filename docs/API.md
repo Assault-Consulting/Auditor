@@ -293,6 +293,20 @@ monotonic one, so a claim, and `drift_note` names that clock. Each boot
 carries `lifecycle`: whether its writer marked its open and close
 (profile r8).
 
+`origins` sets SAFETY against the origin in force. The chain is cut wherever
+the package's `origin_state_at()` changes from one record to the next. Each
+stretch carries:
+- its seq range and record count;
+- the origin as declared;
+- `changed`, which says what differs from the stretch before by comparing
+  the package's fields (`model_digest`, `config_digest`, `role`, `loaded`,
+  `unloaded`, …);
+- its SAFETY records by kind.
+
+A stretch with none is listed too. Which records set origin state is the
+package's rule (U23), applied by the package: one binary search per record
+over its index, 0.5 s for 200k records. This is a count, never a cause.
+
 ### The report's own health section is asked for
 
 `GET /session/{id}/report?health=true` (E-04, R15) asks `build_report` for

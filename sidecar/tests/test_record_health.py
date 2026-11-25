@@ -187,3 +187,78 @@ def test_closed_stopped_and_last_boots_are_the_package_s(
     advisory = AuditReader.open(path).verify().advisory
     stopped = {i.boot_id.hex() for i in advisory.items if i.code == "boot_ended_without_close"}
     assert stopped == {b["boot_id"] for b in boots if b["lifecycle"]["state"] == "stopped"}
+
+
+# --- SAFETY against the origin in force (E-03, F12 "correlation with origin events")
+
+M1, M2 = b"\x11" * 32, b"\x22" * 32
+C1, C2 = b"\xaa" * 32, b"\xbb" * 32
+
+
+@pytest.fixture
+def origin_chain(tmp_path) -> Path:
+    """Records before any origin; a model; the same model under a new config;
+    an unload; a second model under which nothing SAFETY is written."""
+    path = tmp_path / "origins.pala"
+    w = fixed_writer(path)
+    w.genesis()  # 0
+    w.boot()  # 1
+    w.incident_candidate(category=1, severity=1, detail="before any model")  # 2
+    w.model_load(M1, C1)  # 3
+    w.incident_candidate(category=1, severity=2, detail="a")  # 4
+    w.model_load(M1, C2)  # 5 — the config digest changes
+    w.incident_candidate(category=1, severity=2, detail="b")  # 6
+    w.incident_candidate(category=1, severity=2, detail="c")  # 7
+    w.model_unload()  # 8
+    w.model_load(M2, C2)  # 9
+    w.anchor()  # 10
+    w.close()
+    return path
+
+
+def test_safety_is_counted_under_the_origin_in_force(
+    open_client: TestClient, origin_chain: Path
+) -> None:
+    origins = _health(open_client, origin_chain)["origins"]
+    shape = [
+        (o["state"], o["first_seq"], o["last_seq"], o["changed"], o["safety_total"])
+        for o in origins
+    ]
+    assert shape == [
+        ("not_stated", 0, 2, [], 1),
+        ("active", 3, 4, ["loaded"], 1),
+        ("active", 5, 7, ["config_digest"], 2),
+        ("unloaded", 8, 8, ["unloaded"], 0),
+        # Nothing SAFETY under the second model is listed, with zero: it is
+        # half of the comparison.
+        ("active", 9, 10, ["loaded"], 0),
+    ]
+    assert sum(o["records"] for o in origins) == 11
+
+
+def test_each_stretch_is_the_package_s_origin_at_every_record(
+    open_client: TestClient, origin_chain: Path
+) -> None:
+    """Held to the package: every record's stretch names the origin
+    `origin_state_at` gives for that record."""
+    origins = _health(open_client, origin_chain)["origins"]
+    reader = AuditReader.open(origin_chain)
+    for o in origins:
+        for seq in range(o["first_seq"], o["last_seq"] + 1):
+            st = reader.origin_state_at(seq)
+            if o["state"] == "active":
+                assert st.origin is not None and st.origin.since_seq == o["origin"]["since_seq"]
+                assert st.origin.config_digest.hex() == o["origin"]["config_digest"]
+            else:
+                assert st.origin is None and st.unloaded == (o["state"] == "unloaded")
+
+
+def test_a_chain_with_no_origin_is_one_stretch(open_client: TestClient, tmp_path: Path) -> None:
+    path = tmp_path / "plain.pala"
+    w = fixed_writer(path)
+    w.genesis()
+    w.boot()
+    w.incident_candidate(category=1, severity=1, detail="x")
+    w.close()
+    [only] = _health(open_client, path)["origins"]
+    assert only["state"] == "not_stated" and only["origin"] is None and only["safety_total"] == 1

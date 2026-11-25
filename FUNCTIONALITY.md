@@ -524,8 +524,11 @@ would not build:
 Built as E-03 on 0.14.1: `/session/{id}/record-health` copies the package's
 step catalog (U2) and boot statistics (U3) and counts SAFETY records by kind,
 boot and identical detail; the **Record health** panel words them, each block
-under its time basis. Not yet: the drift series (U1 — public from 0.15,
-R10), the correlation of warnings with origin events, and baseline change.
+under its time basis. On 0.15: the drift series (U1, R10). Since 25 Nov
+2026, the correlation with origin events: SAFETY counts for each stretch
+between origin changes, side by side, with a rate per 1,000 records. Every
+stretch is listed, including those with none, and no cause is named. Not
+yet: baseline change (§22.4's thresholds stay open).
 
 ### F13 — Incident evidence bundle
 

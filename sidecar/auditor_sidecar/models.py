@@ -1202,6 +1202,37 @@ class HealthDrift(BaseModel):
     time_trusts: list[str] = Field(description="Every trust level named in the boot.")
 
 
+class HealthOriginCount(BaseModel):
+    kind: str
+    count: int
+
+
+class HealthOrigin(BaseModel):
+    """One stretch of the chain under one origin in force (E-03)."""
+
+    state: str = Field(
+        description=(
+            "'active', 'unloaded' (a MODEL_UNLOAD ended one) "
+            "or 'not_stated' (none declared yet)."
+        )
+    )
+    first_seq: int
+    last_seq: int
+    records: int = Field(description="Records in the stretch, by proved order.")
+    origin: OriginModel | None = Field(
+        description="The origin in force, as the writer declared it (L3: a claim)."
+    )
+    changed: list[str] = Field(
+        description=(
+            "What differs from the stretch before, comparing the package's fields: "
+            "'model_digest', 'config_digest', 'role', 'loaded', 'unloaded', 'not_stated', "
+            "'declared_again'. Empty for the first stretch."
+        )
+    )
+    safety_total: int
+    safety_by_kind: list[HealthOriginCount]
+
+
 class RecordHealthView(BaseModel):
     """Record health (E-03, F12): the record as an artefact, never its content.
 
@@ -1221,6 +1252,12 @@ class RecordHealthView(BaseModel):
     safety_by_kind: list[HealthKind]
     recurring_details: list[HealthDetail] = Field(
         description="Details seen more than once, most frequent first, at most twenty."
+    )
+    origins: list[HealthOrigin] = Field(
+        description=(
+            "SAFETY records against the origin in force, one entry per stretch of the "
+            "chain between origin changes, in chain order — a count, never an interpretation."
+        )
     )
 
 

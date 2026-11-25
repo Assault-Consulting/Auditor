@@ -44,6 +44,20 @@ function view(over: Partial<RecordHealthView> = {}): RecordHealthView {
       { kind: "INCIDENT_CANDIDATE", total: 1, per_boot: [{ boot_id: BOOT_B, count: 1 }] },
     ],
     recurring_details: [{ detail: "no frame magic", kind: "GUARD_STATE_REJECT", count: 3, first_seq: 2 }],
+    origins: [
+      { state: "not_stated", first_seq: 0, last_seq: 2, records: 3, origin: null, changed: [], safety_total: 0, safety_by_kind: [] },
+      {
+        state: "active", first_seq: 3, last_seq: 6, records: 4,
+        origin: { role: "engine.native", model_digest: "11".repeat(32), config_digest: "aa".repeat(32), since_seq: 3, detail: null },
+        changed: ["loaded"], safety_total: 1, safety_by_kind: [{ kind: "GUARD_STATE_REJECT", count: 1 }],
+      },
+      {
+        state: "active", first_seq: 7, last_seq: 10, records: 4,
+        origin: { role: "engine.native", model_digest: "11".repeat(32), config_digest: "bb".repeat(32), since_seq: 7, detail: null },
+        changed: ["config_digest", "a_new_field"], safety_total: 3,
+        safety_by_kind: [{ kind: "GUARD_STATE_REJECT", count: 2 }, { kind: "INCIDENT_CANDIDATE", count: 1 }],
+      },
+    ],
     ...over,
   };
 }
@@ -126,5 +140,35 @@ group("record health, in words (E-03, F12)", () => {
     );
     // Before r8 nothing is marked, and nothing is said.
     expect(lifecycleText({ state: "unmarked", writer: null, open_seq: null, close_seq: null })).toBeNull();
+  });
+});
+
+group("SAFETY against the origin in force (E-03)", () => {
+  const lines = recordHealth(view()).origins;
+
+  it("words each stretch: its range, its origin as declared, what changed", () => {
+    expect(lines.map((l) => l.range)).toEqual(["#0–#2 · 3 records", "#3–#6 · 4 records", "#7–#10 · 4 records"]);
+    expect(lines[0]!.origin).toBe("no origin declared yet");
+    expect(lines[0]!.changed).toBeNull();
+    expect(lines[0]!.sinceSeq).toBeNull();
+    expect(lines[1]!.changed).toBe("a model was loaded");
+    expect(lines[2]!.origin).toContain("config bbbbbbbbbbbb…");
+    expect(lines[2]!.origin).toContain("(declared)");
+    expect(lines[2]!.sinceSeq).toBe(7);
+  });
+
+  it("names a change it does not know by the package's field", () => {
+    expect(lines[2]!.changed).toBe("the config digest changed, a_new_field");
+  });
+
+  it("lists a stretch with nothing SAFETY in it, and gives a rate per 1,000 records", () => {
+    expect(lines[0]!.safety).toBe("no SAFETY record");
+    expect(lines[1]!.safety).toBe("1 SAFETY record (GUARD_STATE_REJECT 1) · 250 per 1,000 records");
+    expect(lines[2]!.safety).toBe("3 SAFETY records (GUARD_STATE_REJECT 2, INCIDENT_CANDIDATE 1) · 750 per 1,000 records");
+  });
+
+  it("never says why: no word of cause in any line", () => {
+    const all = lines.flatMap((l) => [l.range, l.origin, l.changed ?? "", l.safety]).join(" ");
+    expect(all).not.toMatch(/\b(because|caused|due to|after the change|rose|fell|spike|anomal)/i);
   });
 });

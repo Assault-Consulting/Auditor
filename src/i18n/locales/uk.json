@@ -891,5 +891,27 @@
   "anchors.keychain.stored": "Голову збережено під обліковим записом {account}.",
   "anchors.keychain.not_stored": "Не збережено: {reason}",
   "shell.anchor_file": "Файл голови якоря",
-  "shell.pkcs11_module": "Модуль PKCS#11"
+  "shell.pkcs11_module": "Модуль PKCS#11",
+  "count.safety_record": {
+    "one": "{n} запис SAFETY",
+    "few": "{n} записи SAFETY",
+    "many": "{n} записів SAFETY",
+    "other": "{n} запису SAFETY"
+  },
+  "app.health.by_origin": "Відносно чинного походження",
+  "app.health.by_origin_note": "Ланцюжок поділено там, де змінюється заявлена модель, конфігурація чи роль, як це читає пакет, з записами SAFETY, написаними під кожною ділянкою. Кількості й діапазони спираються на порядок записів, а його доведено; що було завантажено — це заява записувача. Поруч, без пояснень: різниця між двома ділянками каже, коли, але ніколи — чому.",
+  "health.origin.range": "#{first}–#{last} · {records}",
+  "health.origin.not_stated": "походження ще не заявлено",
+  "health.origin.unloaded": "жодна модель не активна — вивантажено",
+  "health.origin.active": "{role} · модель {model}… · конфігурація {config}… (заявлено)",
+  "health.origin.changed.model_digest": "змінився дайджест моделі",
+  "health.origin.changed.config_digest": "змінився дайджест конфігурації",
+  "health.origin.changed.role": "змінилася роль",
+  "health.origin.changed.loaded": "завантажено модель",
+  "health.origin.changed.unloaded": "модель вивантажено",
+  "health.origin.changed.not_stated": "походження не заявлено",
+  "health.origin.changed.declared_again": "те саме походження заявлено знову",
+  "health.origin.no_safety": "записів SAFETY немає",
+  "health.origin.kind": "{kind} {n}",
+  "health.origin.safety": "{total} ({kinds}) · {rate} на 1000 записів"
 }
