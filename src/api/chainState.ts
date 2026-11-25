@@ -99,6 +99,29 @@ export async function openPath(
 }
 
 /**
+ * Close what is open and go back to the empty screen (H3, UX-REVIEW).
+ *
+ * The same rule as `openPath`: a close the sidecar refuses is ignored. The
+ * user asked for an empty screen, and the session it leaks dies with the
+ * window. A state with no session (a path that was not a file, a failure)
+ * just clears.
+ */
+export async function closeOpen(
+  session: Session,
+  state: ChainState,
+  onState: (state: ChainState) => void,
+): Promise<void> {
+  const opened = openedOf(state);
+  if (opened !== null) await closeChain(session, opened.session_id).catch(() => undefined);
+  onState({ kind: "empty" });
+}
+
+/** Whether a close has anything to close and nothing in flight to race it. */
+export function canClose(state: ChainState): boolean {
+  return state.kind !== "empty" && state.kind !== "opening" && state.kind !== "verifying";
+}
+
+/**
  * Ask the verifier about an open chain.
  *
  * Deliberately a separate action from opening. Identity is established

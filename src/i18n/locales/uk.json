@@ -825,5 +825,6 @@
   "shell.consistency_proof": "Доказ узгодженості PALA",
   "shell.signed_statement": "Підписана заява SCITT",
   "shell.public_key": "Відкритий ключ",
-  "shell.print_title": "Звіт про перевірку — друк"
+  "shell.print_title": "Звіт про перевірку — друк",
+  "app.close_chain": "Закрити ланцюжок"
 }

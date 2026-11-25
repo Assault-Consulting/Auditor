@@ -60,8 +60,13 @@ In the browser: the card stays in view after a row is clicked; `j`, `j`,
 - ~~**H7, the Chronoscope.**~~ Done 18 Nov 2026: a day, a range (Shift), a
   SAFETY mark and a boot are buttons that narrow the list through the bar's
   own chips; no dragging, so WCAG 2.5.7 has nothing to ask.
-- **H3, closing a file** without opening another.
+- ~~**H3, closing a file**~~ Done 25 Nov 2026: **Close the chain** beside
+  **Verify** closes the session and returns to the empty screen. It is not
+  offered while an open or a check is in flight, which would overwrite it.
 - **H2, the package's names** — `GENESIS`, `UNSYNCED`, `INCIDENT_CANDIDATE` —
   stay as the package spells them, by design: a translated name could drift
   from what the verifier said (§19).
-- **1.3.1** — panels have `h2`; their sub-parts are not headings yet.
+- ~~**1.3.1**~~ Done 25 Nov 2026: panels have `h2`, their parts `h3`
+  (record health's groups, the export's bundle, proof and statement, the
+  diagnosis card's "where to look"), and record health's recurring details
+  an `h4`.
