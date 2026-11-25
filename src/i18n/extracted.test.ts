@@ -15,7 +15,7 @@ import { CATALOGS } from "./index";
 
 const en = CATALOGS.en!;
 
-const SOURCES = import.meta.glob(["../api/*.ts", "../state.ts", "../App.tsx", "!../api/*.test.ts"], {
+const SOURCES = import.meta.glob(["../api/*.ts", "../state.ts", "../App.tsx", "../AnchorProfiles.tsx", "!../api/*.test.ts"], {
   query: "?raw",
   import: "default",
   eager: true,

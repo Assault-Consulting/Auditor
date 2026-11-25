@@ -125,6 +125,16 @@ export interface AnchorSourceSpec {
 }
 
 /**
+ * Where this installation keeps its anchor profiles.
+ */
+export interface AnchorStore {
+  /** The profiles file, or null when kept in memory only. */
+  path: string | null;
+  /** Why the file could not be read, or null. While set, the file is left as it is and every change to a profile is refused. */
+  problem: string | null;
+}
+
+/**
  * Where one boot begins and ends, on both axes.
  *
  * Rendered as an axis break rather than a seam (§C-03). `monotonic_ns`

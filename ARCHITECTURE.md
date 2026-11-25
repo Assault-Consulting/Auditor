@@ -86,7 +86,9 @@ POST   /session/{id}/bundle             {from_seq,to_seq}   → artifact path (P
 POST   /session/{id}/export             {from_seq,to_seq}   → pala-jsonl/1
 
 GET    /anchors/profiles
-PUT    /anchors/profiles/{name}         {sources:[...]}
+PUT    /anchors/profiles/{name}         {sources:[...]}     kept in the data dir (E-08)
+DELETE /anchors/profiles/{name}
+GET    /anchors/store                                       → {path, problem}
 POST   /anchors/probe                   {profile}           → AnchorAttempt[]
 ```
 

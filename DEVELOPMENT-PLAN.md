@@ -70,7 +70,7 @@ status and what it unblocks.
 | 2 — browse (C-01…C-12) | ✓ closed (C-06d on 0.14.1) |
 | 0.13–0.15 follow-up (C-13…C-19) | ✓; C-16(b) closed unbuilt |
 | 3 — report (D-01…D-07) | ✓ closed (D-02 last) |
-| 4 — evidence artifacts (E-01…E-07) | ✓ closed (24 Nov 2026); E-03's open half waits on §22.4 |
+| 4 — evidence artifacts (E-01…E-08) | ✓ closed (24 Nov 2026); E-03's open half waits on §22.4 |
 | 5 — beyond MVP | started 23 Nov 2026: F15 ✓, E-06 ✓, L-01…L-05 ✓ (the language system, Ukrainian first) |
 
 **Phase 2's exit criterion** — a 1M-record chain opens, the timeline stays
@@ -95,17 +95,17 @@ interactive is the live desktop check below, not yet done.
 | ✓ E-05 | Local witness log: `auditor-witness/1`, JSON Lines, each entry the SHA-256 of the one before (ADR-0003, `docs/WITNESS-LOG.md`). One entry per first `/verify` of a session and profile, holding the package's facts, never a verdict; `GET /witness` walks it; a log that does not link is not appended to and the check says so. The panel says what it shows and what it does not — a cut tail still links. `scripts/check_witness_log.py` checks a log with nothing from this repository | 3 | — |
 | ✓ E-06 | SCITT Signed Statements, checked by the package's `verify_statement` (channel 8) under a key the user picks — displayed, never minted. Receipts are the transparency service's protocol and are not checked. Decided 24 Nov 2026: this is the external witness, in place of Rekor/TSA. R18 asks for the head to be taken from the reader | 2 | 0.15 |
 | ✓ E-07 | Prefix-consistency proofs (`consistency_proof`, `chain_root`): a proof made and saved, a held proof checked three ways (path, first root, second root) | 1 | 0.15 (R10) |
+| ✓ E-08 | Anchor profiles from the window: made, edited, deleted; sources in the user's order (head file, secret store, head typed in, PKCS#11); a head stored in the secret store from the same panel; kept in `anchor-profiles.json` between starts, never over a file it cannot read, never a secret | 1 | — |
 | Phase 5 | ~~Watch mode~~ (✓ 23 Nov 2026, F15 — channel 9, provisional); the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; ~~`uk` pass~~ → the language system, L-01…L-05 below. **Watch mode (F15)** runs `TailingReader` (channel 9, provisional, R17) — the pin holds the minor; a watch stops itself at 250,000 records (memory, measured) | — | — |
 
 **Next, in order:** the live desktop check on the Windows installer (F-01,
-the user's); R18 and R19 to Palimpsests; **anchor profiles from the window**
-(found 25 Nov 2026 while writing the user guide: profiles can be defined only
-through `PUT /anchors/profiles` and are held in memory, so a user always sees
-"no anchor" and question two can never be checked); then what is left open:
+the user's); R18 and R19 to Palimpsests; then what is left open:
 E-03's warnings against origin events and the screen-reader pass (UX-REVIEW).
 Done 25 Nov 2026: the language system (L-01…L-05); H3, closing a file;
 1.3.1, the last sub-parts made headings; the user guide
-(`docs/USER-GUIDE.md`).
+(`docs/USER-GUIDE.md`); E-08, anchor profiles from the window, kept
+between starts (found while writing the guide: before it, question two
+could not be checked from the window at all).
 
 **Phase 5 decisions (24 Nov 2026):**
 - *The one write* (an operator's OVERSIGHT_ACK) — **deferred** until someone

@@ -209,23 +209,54 @@ same file as a colleague before you see any verdict.
 
 ## 6. Verifying: three questions
 
-### Step 6.1. Choose what to verify against
+### Step 6.1. Set up an anchor (once)
+
+**What.** Click **Anchors…** next to **Verify**, then **New profile…**.
+1. Give the profile a name, e.g. `desk`.
+2. Under **Where**, choose where the head is kept:
+   - **a head file**: a file written when the log was anchored, kept on a
+     disk or share that the log's own machine cannot change. Click
+     **Choose…** to pick it;
+   - **this machine's secret store**: Windows Credential Manager (or the
+     macOS Keychain), under an account name. If the head is not there yet,
+     paste it into **Head** and click **Store the head**;
+   - **a head typed in**: the 64 characters handed over with the log, on
+     paper or in a message. Copy and paste it; do not retype it;
+   - **a hardware token (PKCS#11)**: the token's module, its label, and the
+     account in the secret store that holds the token's PIN.
+3. You can add more than one source. They are asked in order, from the
+   top, and the first that answers is used. Move them with **↑** and **↓**.
+4. Click **Save the profile**.
+
+**Why.** An anchor is the only thing that can show that the end of a log
+was not cut off. It has to come from **outside** the log: a log cannot
+vouch for itself.
+
+**What it gives you.**
+- The profile is kept on this computer and is there the next time you
+  start the program. The panel shows where it is kept.
+- It stores where to look, never a secret: a PIN stays in the secret
+  store.
+- A newly saved profile is chosen for the next check at once.
+
+### Step 6.2. Choose what to verify against
 
 **What.** Next to the **Verify** button is the **against** list.
 - **"no anchor — question two stays unchecked"** verifies without an
   outside anchor.
-- The other entries, if any, are configured anchors (profiles), set up by
-  an administrator.
+- The other entries are your profiles, with the number of sources each
+  has.
 
 **Why.** Without an anchor, the program can say that the log is **whole**
 inside. It cannot say that the log is **complete**, that is, that its end
 was not cut off.
 
-> A note for this version: anchors cannot yet be set up from the program's
-> window. If the list holds only "no anchor", question two will stay "Not
-> checked". That is an honest answer, not an error.
+**Good to know.** If the head is kept on the same computer as the log,
+whoever can rewrite the log can rewrite the head too. The answer then
+says "complete against that store, nothing more". It is honest about
+this, and so should your notes be.
 
-### Step 6.2. Click "Verify"
+### Step 6.3. Click "Verify"
 
 You will see three columns, one for each of the three separate questions.
 Each has an answer, and below it, in smaller type, its **basis**: what the
@@ -267,7 +298,7 @@ answer rests on.
 - **What it gives you.** You know what to trust fully (the order) and what
   to treat as a claim (the times).
 
-### Step 6.3. Read the line under the buttons
+### Step 6.4. Read the line under the buttons
 
 **What.** It says what exactly was checked, e.g.
 `demo.pala — 16 records, 2 boots. Checked without an anchor.`
@@ -677,7 +708,7 @@ disabled: wait until that finishes.
 **Question one says "yes" and question two says "Not checked". Is that
 good or bad?**
 Neither. The file is whole inside. Whether it is complete is unknown,
-because there is no anchor.
+because there is no anchor. Set one up (step 6.1) to answer it.
 
 **"The file ends mid-record". Was I hacked?**
 Most often, no. This happens when a file is copied while it is being

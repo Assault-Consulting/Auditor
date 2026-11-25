@@ -119,6 +119,33 @@ fn pick_segment_manifest(app: tauri::AppHandle) -> Option<String> {
         .map(|chosen| chosen.to_string())
 }
 
+/// Ask for an anchor's head file (E-08). Returns the path, like
+/// `pick_chain_file`: the file is read by the sidecar when a profile is
+/// used, never by the webview.
+#[tauri::command(async)]
+fn pick_anchor_file(app: tauri::AppHandle) -> Option<String> {
+    let text = shell_text(&app);
+    app.dialog()
+        .file()
+        .add_filter(&text.anchor_file, &["head", "anchor", "txt"])
+        .add_filter(&text.all_files, &["*"])
+        .blocking_pick_file()
+        .map(|chosen| chosen.to_string())
+}
+
+/// Ask for a PKCS#11 module, the library a hardware token speaks through
+/// (E-08). Only its path is kept, in the profile.
+#[tauri::command(async)]
+fn pick_pkcs11_module(app: tauri::AppHandle) -> Option<String> {
+    let text = shell_text(&app);
+    app.dialog()
+        .file()
+        .add_filter(&text.pkcs11_module, &["dll", "so", "dylib"])
+        .add_filter(&text.all_files, &["*"])
+        .blocking_pick_file()
+        .map(|chosen| chosen.to_string())
+}
+
 /// Save one of this application's own artifacts where the user chooses (D-07).
 ///
 /// The same boundary as `pick_chain_file`, for writing. The dialog runs in
@@ -349,7 +376,9 @@ pub fn run() {
             pick_signed_statement,
             pick_public_key,
             print_report,
-            set_shell_text
+            set_shell_text,
+            pick_anchor_file,
+            pick_pkcs11_module
         ])
         .build(tauri::generate_context!())
         .expect("error while building Palimpsests Auditor")

@@ -528,8 +528,11 @@ export function useSafety(probe: Probe, chain: ChainState): Fetch<SafetyGroup[]>
  * network round trip in front of an action whose whole point is to be
  * repeatable.
  */
-export function useProfiles(probe: Probe): AnchorProfile[] {
+export function useProfiles(probe: Probe): [AnchorProfile[], () => void] {
   const [profiles, setProfiles] = useState<AnchorProfile[]>([]);
+  // E-08: bumped after the window saves or deletes a profile, so the list
+  // is read again once rather than on every verify.
+  const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
     if (probe.kind !== "ready") return;
@@ -546,9 +549,9 @@ export function useProfiles(probe: Probe): AnchorProfile[] {
     return () => {
       cancelled = true;
     };
-  }, [probe]);
+  }, [probe, generation]);
 
-  return profiles;
+  return [profiles, () => setGeneration((g) => g + 1)];
 }
 
 export function useChain(

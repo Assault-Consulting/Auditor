@@ -16,6 +16,7 @@ different behaviour from CI, and the difference would be invisible.
 from __future__ import annotations
 
 import pytest
+from auditor_sidecar.anchors import PATH_ENV as PROFILES_PATH_ENV
 from auditor_sidecar.main import TOKEN_ENV, build_app, new_token
 from auditor_sidecar.witness import PATH_ENV as WITNESS_PATH_ENV
 from fastapi.testclient import TestClient
@@ -39,6 +40,15 @@ def witness_log_path(monkeypatch, tmp_path):
     """
     path = tmp_path / "witness" / "witness.jsonl"
     monkeypatch.setenv(WITNESS_PATH_ENV, str(path))
+    return path
+
+
+@pytest.fixture(autouse=True)
+def anchor_profiles_path(monkeypatch, tmp_path):
+    """Every test's anchor profiles in its own temporary file, for the same
+    reason as the witness log: a test run never writes a developer's profiles."""
+    path = tmp_path / "anchors" / "anchor-profiles.json"
+    monkeypatch.setenv(PROFILES_PATH_ENV, str(path))
     return path
 
 
