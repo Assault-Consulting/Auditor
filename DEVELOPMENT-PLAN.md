@@ -98,10 +98,14 @@ interactive is the live desktop check below, not yet done.
 | Phase 5 | ~~Watch mode~~ (✓ 23 Nov 2026, F15 — channel 9, provisional); the one write (oversight disposition, behind its own ADR); Rekor and TSA anchors (network, air-gap first); ~~segment sequences~~ (✓ 18 Nov 2026, §22.1); signed installers; ~~`uk` pass~~ → the language system, L-01…L-05 below. **Watch mode (F15)** runs `TailingReader` (channel 9, provisional, R17) — the pin holds the minor; a watch stops itself at 250,000 records (memory, measured) | — | — |
 
 **Next, in order:** the live desktop check on the Windows installer (F-01,
-the user's); R18 and R19 to Palimpsests; then what is left open: E-03's
-warnings against origin events and the screen-reader pass (UX-REVIEW).
+the user's); R18 and R19 to Palimpsests; **anchor profiles from the window**
+(found 25 Nov 2026 while writing the user guide: profiles can be defined only
+through `PUT /anchors/profiles` and are held in memory, so a user always sees
+"no anchor" and question two can never be checked); then what is left open:
+E-03's warnings against origin events and the screen-reader pass (UX-REVIEW).
 Done 25 Nov 2026: the language system (L-01…L-05); H3, closing a file;
-1.3.1, the last sub-parts made headings.
+1.3.1, the last sub-parts made headings; the user guide
+(`docs/USER-GUIDE.md`).
 
 **Phase 5 decisions (24 Nov 2026):**
 - *The one write* (an operator's OVERSIGHT_ACK) — **deferred** until someone
