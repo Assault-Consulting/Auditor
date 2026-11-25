@@ -30,7 +30,7 @@
  * as the package wrote them.
  */
 
-import { useSyncExternalStore } from "react";
+import { createElement, Fragment, type ReactNode, useSyncExternalStore } from "react";
 
 export type Plural = Partial<Record<Intl.LDMLPluralRule, string>>;
 export type Entry = string | Plural;
@@ -208,4 +208,30 @@ export function num(n: number): string {
  */
 export function verbatim(text: string): string {
   return text;
+}
+
+/**
+ * A sentence with parts that are not text — a `<code>` around a hash, a
+ * button — kept whole for the translator: the parts are placeholders like
+ * any other, `{head}`, and a language moves them where its grammar puts
+ * them. Strings and numbers are written as `t` writes them.
+ */
+export function tr(key: string, parts: Record<string, ReactNode>): ReactNode {
+  const entry = lookup(key);
+  if (entry === undefined) {
+    misses.add(key);
+    return key;
+  }
+  const text = typeof entry === "string" ? entry : (entry.other ?? Object.values(entry)[0] ?? key);
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(/\{(\w+)\}/g)) {
+    const name = m[1]!;
+    if (!(name in parts)) continue;
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(parts[name] ?? null);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return createElement(Fragment, null, ...out);
 }

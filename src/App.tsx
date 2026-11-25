@@ -53,8 +53,12 @@ import {
   negotiate,
   setLocale,
   systemLanguages,
+  num,
   t,
+  tn,
+  tr,
   useLocale,
+  verbatim,
 } from "./i18n";
 import { scittNote, type StatementAnswer, checkStatement, pickStatementAndKey, statementAnswer } from "./api/scitt";
 import { offsetLabel } from "./api/hexView";
@@ -504,7 +508,7 @@ export default function App() {
         const found = page.records[0];
         if (found === undefined) {
           setSearchNote(
-            `The anchored head ${anchoredHead.slice(0, 8)} names no record in this file — see question two.`,
+            t("app.anchor_names_nothing", { head: anchoredHead.slice(0, 8) }),
           );
         } else {
           setSearchNote(null);
@@ -587,7 +591,7 @@ export default function App() {
     <main className="shell">
       <header className="masthead">
         <div className="masthead-title">
-        <p className="eyebrow">Reader for PALA-1 audit chains</p>
+        <p className="eyebrow">{t("app.reader_for_pala_1_audit_chains")}</p>
 
         <h1 className="wordmark">
           Palimpsests <em>Auditor</em>
@@ -612,11 +616,7 @@ export default function App() {
             </select>
           </label>
         )}
-        <p className="thesis">
-          Opens an audit chain and answers three separate questions about it.
-          It attests that a check was run against a named file, with a named
-          anchor, at a stated time. It certifies nothing.
-        </p>
+        <p className="thesis">{t("app.opens_an_audit_chain_and_answers")}</p>
 
         <div className="choose">
           {/* Disabled while opening — not decorative. §19 targets a
@@ -633,7 +633,7 @@ export default function App() {
             onClick={pick}
             type="button"
           >
-            {chain.kind === "opening" ? `Opening…${elapsed}` : "Open a chain…"}
+            {chain.kind === "opening" ? t("app.opening", { elapsed }) : t("app.open_a_chain")}
           </button>
           <button
             className="choose-button"
@@ -641,7 +641,7 @@ export default function App() {
             onClick={segmentSet.pick}
             type="button"
           >
-            {segmentSet.set.kind === "checking" ? "Checking the set…" : "Open a segment set…"}
+            {segmentSet.set.kind === "checking" ? t("app.checking_the_set") : t("app.open_a_segment_set")}
           </button>
           <button
             className="choose-button"
@@ -649,7 +649,7 @@ export default function App() {
             onClick={() => watcher.pick(chosenProfile)}
             type="button"
           >
-            {watcher.watch.kind === "starting" ? "Starting the watch…" : "Watch a file…"}
+            {watcher.watch.kind === "starting" ? t("app.starting_the_watch") : t("app.watch_a_file")}
           </button>
           <button
             className="choose-button"
@@ -657,14 +657,14 @@ export default function App() {
             onClick={() => verify(chosenProfile, sourcesOf(chosenProfile))}
             type="button"
           >
-            {chain.kind === "verifying" ? `Checking…${elapsed}` : "Verify"}
+            {chain.kind === "verifying" ? t("app.checking", { elapsed }) : t("app.verify")}
           </button>
           {/* "none" stays in the list rather than being filtered out. It is a
               real profile — it asks question one and leaves question two not
               checked — and hiding it would make verifying without an anchor
               look unavailable rather than default. */}
           <label className="choose-profile">
-            <span className="choose-hint">against</span>
+            <span className="choose-hint">{t("app.against")}</span>
             <select
               disabled={!canVerify}
               onChange={(e) => setChosenProfile(e.target.value)}
@@ -673,8 +673,8 @@ export default function App() {
               {(profiles.length > 0 ? profiles : [{ name: "none", sources: [] }]).map((p) => (
                 <option key={p.name} value={p.name}>
                   {p.name === "none"
-                    ? "no anchor — question two stays unchecked"
-                    : `${p.name} (${p.sources.length} ${p.sources.length === 1 ? "source" : "sources"})`}
+                    ? t("app.no_anchor_question_two_stays_unchecked")
+                    : t("app.profile.option", { name: p.name, sources: tn("count.anchor_source", p.sources.length) })}
                 </option>
               ))}
             </select>
@@ -685,9 +685,7 @@ export default function App() {
             here rather than by widening the filter: a filter on "anything
             ending in digits" would offer files that are not chains. */}
         <p className="choose-hint segment-hint">
-          Segments of a rotated chain end in a number (<code>chain.pala.00001</code>) — in the
-          open dialog they are listed under “All files”.
-        </p>
+          {tr("app.segments_of_a_rotated_chain_end", { code: <code>chain.pala.00001</code> })}</p>
         {/* The file line doubles as the live region: a screen reader hears
             "Opening…", the file and what it was checked against as each
             arrives (WCAG 4.1.3). The answers themselves are announced by
@@ -703,13 +701,10 @@ export default function App() {
           opens as a chain of its own, to be asked them again. */}
       {segmentSet.set.kind !== "idle" && (
         <section aria-labelledby="set-title" className="segment-set">
-          <h2 className="segment-set-title" id="set-title">
-            Segment set
-          </h2>
+          <h2 className="segment-set-title" id="set-title">{t("app.segment_set")}</h2>
           {segmentSet.set.kind === "checking" && (
             <p className="segment-set-note" role="status">
-              Checking every segment of {segmentSet.set.path}…
-            </p>
+              {t("app.checking_every_segment_of", { path: segmentSet.set.path })}</p>
           )}
           {segmentSet.set.kind === "failed" && (
             <p className="report-failed" role="alert">
@@ -722,7 +717,7 @@ export default function App() {
             return (
               <>
                 <p className="segment-set-note">
-                  manifest <code>{v.manifest_path}</code> · SHA-256 <code>{v.manifest_sha256.slice(0, 16)}…</code>
+                  {tr("app.set.manifest", { path: <code>{v.manifest_path}</code>, sha256: <code>{v.manifest_sha256.slice(0, 16)}…</code> })}
                 </p>
                 <p className={answers.consistent.failed ? "report-failed" : "segment-answer"} role="status">
                   {answers.consistent.text}
@@ -732,10 +727,10 @@ export default function App() {
                   <table className="segment-table">
                     <thead>
                       <tr>
-                        <th scope="col">segment</th>
-                        <th scope="col">what the package found</th>
+                        <th scope="col">{t("app.set.segment_column")}</th>
+                        <th scope="col">{t("app.what_the_package_found")}</th>
                         <th scope="col">
-                          <span className="sr-only">open</span>
+                          <span className="sr-only">{t("app.set.open_column")}</span>
                         </th>
                       </tr>
                     </thead>
@@ -754,13 +749,11 @@ export default function App() {
                             <td>
                               {seg.path !== null && (
                                 <button
-                                  aria-label={`open ${seg.file} as a chain`}
+                                  aria-label={t("app.set.open_label", { file: seg.file })}
                                   className="choose-button"
                                   onClick={() => openPathInShell(seg.path!)}
                                   type="button"
-                                >
-                                  Open
-                                </button>
+                                >{t("app.set.open")}</button>
                               )}
                             </td>
                           </tr>
@@ -771,7 +764,7 @@ export default function App() {
                 </div>
                 {v.head !== null && (
                   <p className="segment-set-note">
-                    head of the last segment that holds <code>{v.head}</code>
+                    {tr("app.head_of_the_last_segment_that", { head: <code>{v.head}</code> })}
                   </p>
                 )}
               </>
@@ -787,13 +780,9 @@ export default function App() {
                     if ((s.kind === "found" || s.kind === "failed") && s.path !== null) segmentSet.check(s.path);
                   }}
                   type="button"
-                >
-                  Check again
-                </button>
+                >{t("app.check_again")}</button>
               )}
-            <button className="choose-button" onClick={segmentSet.close} type="button">
-              Close the set
-            </button>
+            <button className="choose-button" onClick={segmentSet.close} type="button">{t("app.close_the_set")}</button>
           </div>
         </section>
       )}
@@ -804,10 +793,10 @@ export default function App() {
       {watcher.watch.kind !== "idle" && (
         <section aria-labelledby="watch-title" className="watch">
           <h2 className="segment-set-title" id="watch-title">
-            Watch{watcher.watch.kind === "on" ? ` — ${watcher.watch.path}` : ""}
+            {watcher.watch.kind === "on" ? t("app.watch.title_path", { path: watcher.watch.path }) : t("app.watch.title")}
           </h2>
           <p className="export-note">{watchNote()}</p>
-          {watcher.watch.kind === "starting" && <p role="status">Starting the watch on {watcher.watch.path}…</p>}
+          {watcher.watch.kind === "starting" && <p role="status">{t("app.starting_the_watch_on", { path: watcher.watch.path })}</p>}
           {watcher.watch.kind === "failed" && (
             <p className="report-failed" role="alert">
               {watcher.watch.detail}
@@ -819,17 +808,16 @@ export default function App() {
             return (
               <>
                 <p className="chain-line" role="status" data-live={st?.live ? "" : undefined}>
-                  {st?.text ?? "Reading the file…"}
+                  {st?.text ?? t("app.reading_the_file")}
                 </p>
                 {w.dropped > 0 && (
                   <p className="footnote">
-                    {w.dropped} events went by faster than this panel read them — the counts above include them.
-                  </p>
+                    {t("app.events_went_by_faster_than_this", { dropped: w.dropped })}</p>
                 )}
                 {/* Latest first, so the newest is what is in view without
                     managing a scroll; focusable, so the window scrolls by
                     keyboard too (WCAG 2.1.1). */}
-                <ol className="watch-events" aria-label="What happened at the tail, latest first" tabIndex={0}>
+                <ol className="watch-events" aria-label={t("app.what_happened_at_the_tail_latest")} tabIndex={0}>
                   {[...w.lines].reverse().map((l) => (
                     <li data-weight={l.weight} key={l.n}>
                       <span className="watch-seq">{l.seq}</span> {l.text}
@@ -848,12 +836,10 @@ export default function App() {
                     onClick={watcher.snapshot}
                     type="button"
                   >
-                    {w.snapshot.kind === "asking" ? "Verifying what is held…" : "Ask the three questions so far"}
+                    {w.snapshot.kind === "asking" ? t("app.verifying_what_is_held") : t("app.ask_the_three_questions_so_far")}
                   </button>
                   {w.state?.state === "watching" ? (
-                    <button className="choose-button" onClick={watcher.stop} type="button">
-                      Stop watching
-                    </button>
+                    <button className="choose-button" onClick={watcher.stop} type="button">{t("app.stop_watching")}</button>
                   ) : (
                     <button
                       className="choose-button"
@@ -863,13 +849,9 @@ export default function App() {
                         openPathInShell(path);
                       }}
                       type="button"
-                    >
-                      Open the file
-                    </button>
+                    >{t("app.open_the_file")}</button>
                   )}
-                  <button className="choose-button" onClick={watcher.close} type="button">
-                    Close
-                  </button>
+                  <button className="choose-button" onClick={watcher.close} type="button">{t("app.close")}</button>
                 </div>
               </>
             );
@@ -911,20 +893,20 @@ export default function App() {
                 expectation, and where to look. */}
             <dl className="diagnosis-facts">
               <div>
-                <dt>Pattern</dt>
+                <dt>{t("app.pattern")}</dt>
                 <dd>
                   <code>{failure.pattern}</code>
                 </dd>
               </div>
               {failure.atSeq !== null && (
                 <div>
-                  <dt>At record</dt>
+                  <dt>{t("app.at_record")}</dt>
                   <dd>#{failure.atSeq}</dd>
                 </div>
               )}
               {failure.expected !== null && (
                 <div>
-                  <dt>Expected</dt>
+                  <dt>{t("app.expected")}</dt>
                   <dd>{failure.expected}</dd>
                 </div>
               )}
@@ -933,7 +915,7 @@ export default function App() {
                   of it. */}
               {failure.code !== null && (
                 <div>
-                  <dt>Code</dt>
+                  <dt>{t("app.code")}</dt>
                   <dd>
                     <code>{failure.code}</code>
                   </dd>
@@ -943,8 +925,8 @@ export default function App() {
 
             <p className="diagnosis-lead">
               {failure.unrecognised
-                ? "This build has no guidance for this pattern."
-                : "Where to look — questions, not conclusions:"}
+                ? t("app.this_build_has_no_guidance_for")
+                : t("app.where_to_look_questions_not_conclusions")}
             </p>
             {/* Ordered: the guidance is written cheapest-and-likeliest
                 first, and an unordered list would turn a deliberate sequence
@@ -967,9 +949,7 @@ export default function App() {
                 )}
                 {manifest.sha256 !== null && (
                   <p className="diagnosis-manifest-digest">
-                    sha256 <code>{manifest.sha256}</code> — this session stops answering if that
-                    file changes.
-                  </p>
+                    {tr("app.sha256_this_session_stops_answering_if", { sha256: <code>{manifest.sha256}</code> })}</p>
                 )}
               </div>
             )}
@@ -978,9 +958,7 @@ export default function App() {
 
         {links.length > 0 && (
           <section className="provenance" aria-labelledby="provenance-title">
-            <h2 className="provenance-title" id="provenance-title">
-              Anchor provenance
-            </h2>
+            <h2 className="provenance-title" id="provenance-title">{t("app.anchor_provenance")}</h2>
             <ol className="provenance-list">
               {links.map((l) => (
                 <li className="provenance-link" data-outcome={l.outcome} key={l.order}>
@@ -1006,9 +984,7 @@ export default function App() {
 
         {advisory !== null && (
           <section className="advisory" aria-labelledby="advisory-title">
-            <h2 className="advisory-title" id="advisory-title">
-              Advisory
-            </h2>
+            <h2 className="advisory-title" id="advisory-title">{t("app.advisory")}</h2>
 
             {/* The payload's own sentence, quoted. The API put it in the
                 response so a UI could not soften it or leave it out. */}
@@ -1025,8 +1001,8 @@ export default function App() {
                 <ul className="advisory-items">
                   {g.items.map((item, i) => (
                     <li key={`${g.code}-${item.at_seq ?? "x"}-${i}`}>
-                      {item.at_seq !== null && <span>record #{item.at_seq}</span>}
-                      {item.boot_id !== null && <span>boot {item.boot_id.slice(0, 8)}</span>}
+                      {item.at_seq !== null && <span>{t("app.advisory.at_record", { at_seq: item.at_seq })}</span>}
+                      {item.boot_id !== null && <span>{t("app.advisory.in_boot", { boot_id: item.boot_id.slice(0, 8) })}</span>}
                       {/* The package's own description of this item. */}
                       {item.detail !== null && <span className="advisory-detail">{item.detail}</span>}
                     </li>
@@ -1060,16 +1036,11 @@ export default function App() {
               <p className="safety-failed" role="alert">{safety.detail}</p>
             )}
             {safety.kind === "found" && safety.value.length === 0 && (
-              <p className="safety-empty">No SAFETY records in this container.</p>
+              <p className="safety-empty">{t("app.no_safety_records_in_this_container")}</p>
             )}
             {safety.kind === "found" && safety.value.length > 0 && (
               <>
-                <p className="safety-note">
-                  Grouped by kind, with detail text and its recurrence
-                  count. Open a record for its acknowledgement: which ack,
-                  the operator and disposition it recorded, and how long
-                  after — by the writer's clock.
-                </p>
+                <p className="safety-note">{t("app.grouped_by_kind_with_detail_text")}</p>
                 <ol className="safety-groups">
                   {safety.value.map((g) => (
                     <li className="safety-group" key={safetyGroupKey(g.kindLabel)}>
@@ -1078,8 +1049,8 @@ export default function App() {
                           {g.kindLabel.has
                             ? g.kindLabel.named
                               ? g.kindLabel.name
-                              : `kind ${g.kindLabel.raw}, unknown`
-                            : "no kind"}
+                              : t("app.kind_unknown", { raw: g.kindLabel.raw })
+                            : t("app.no_kind")}
                         </span>
                         <span className="safety-group-count">{g.records.length}</span>
                       </p>
@@ -1099,8 +1070,8 @@ export default function App() {
                                   data-acknowledged={r.acknowledged}
                                 >
                                   {r.acknowledged
-                                    ? `acknowledged by #${r.acknowledgedBy}`
-                                    : "not yet acknowledged"}
+                                    ? t("app.safety.acknowledged_by", { seq: r.acknowledgedBy })
+                                    : t("app.not_yet_acknowledged")}
                                 </span>
                               )}
                               {r.detail !== null && (
@@ -1127,15 +1098,13 @@ export default function App() {
 
         {rail !== null && (
           <section className="rail" aria-labelledby="rail-title">
-            <h2 className="rail-title" id="rail-title">
-              Chronoscope
-            </h2>
+            <h2 className="rail-title" id="rail-title">{t("app.chronoscope")}</h2>
 
             {/* Permanent, not conditional on the axis toggle. Dates exist
                 only in the writer's clock, so there is no proved-order
                 version of this view to switch to. */}
             <p className="rail-watermark">
-              {rail.basis} · {rail.watermark}
+              {t("app.rail.watermark", { watermark: rail.watermark })}
             </p>
 
             {/* Pinned caps, visible before any interaction (§C-03). Read
@@ -1164,7 +1133,7 @@ export default function App() {
                       <span className="rail-date">{row.day.date}</span>
                     ) : (
                       <button
-                        aria-label={`${row.day.date}: ${row.day.count} records by the writer's clock — list them`}
+                        aria-label={t("app.rail.day_label", { date: row.day.date, records: tn("count.record", row.day.count) })}
                         aria-pressed={daySelected(row.day.date, railRange)}
                         className="rail-date rail-pick"
                         onClick={(e) => pickDay(row.day.date, e.shiftKey)}
@@ -1181,10 +1150,10 @@ export default function App() {
                     />
                     {row.day.safety > 0 && (
                       <button
-                        aria-label={`${row.day.date}: ${row.day.safety} SAFETY ${row.day.safety === 1 ? "record" : "records"} — list them`}
+                        aria-label={tn("app.rail.safety_label", row.day.safety, { date: row.day.date })}
                         className="rail-safety"
                         onClick={() => pickDay(row.day.date, false, true)}
-                        title={`${row.day.safety} SAFETY`}
+                        title={t("app.rail.safety_title", { n: num(row.day.safety) })}
                         type="button"
                       >
                         ◆
@@ -1213,12 +1182,12 @@ export default function App() {
                 >
                   {segment.kind === "boot" ? (
                     <button
-                      aria-label={`boot ${segment.boot_id.slice(0, 8)}, records ${segment.first_seq} to ${segment.last_seq} — list them and open the first`}
+                      aria-label={t("app.rail.boot_label", { boot_id: segment.boot_id.slice(0, 8), first_seq: segment.first_seq, last_seq: segment.last_seq })}
                       className="rail-pick"
                       onClick={() => pickBoot(segment.boot_id, segment.first_seq)}
                       type="button"
                     >
-                      boot {segment.boot_id.slice(0, 8)} · records {segment.first_seq}–{segment.last_seq}
+                      {t("app.rail.boot_range", { boot_id: segment.boot_id.slice(0, 8), first_seq: segment.first_seq, last_seq: segment.last_seq })}
                     </button>
                   ) : (
                     /* No ruler inside a gap: the clock is unverifiable while
@@ -1226,10 +1195,7 @@ export default function App() {
                        what it is rather than clamped, because clamping would
                        erase the only evidence the clock went backwards. */
                     <>
-                      no ruler · the writer was down
-                      {backwards(segment)
-                        ? " · the clock moved backwards across this boundary"
-                        : ""}
+                      {backwards(segment) ? t("app.rail.gap_backwards") : t("app.rail.gap")}
                     </>
                   )}
                 </li>
@@ -1239,11 +1205,7 @@ export default function App() {
             {/* Always present, and empty until pins are read from a file
                 (E-06). An absent row would read as "not implemented". */}
             <p className="rail-pins">{rail.pins_note}</p>
-            <p className="rail-hint">
-              A day lists its records; Shift with a second day, the days between. ◆ lists that day's
-              SAFETY records; a boot lists its records and opens the first. Dates are the writer's
-              clock.
-            </p>
+            <p className="rail-hint">{t("app.a_day_lists_its_records_shift")}</p>
           </section>
         )}
 
@@ -1253,18 +1215,16 @@ export default function App() {
             — the distinction useBrowse exists to keep. */}
         {openedOf(chain) !== null && (
           <section className="browse" aria-labelledby="browse-title">
-            <h2 className="browse-title" id="browse-title">
-              Boots and spans
-            </h2>
+            <h2 className="browse-title" id="browse-title">{t("app.boots_and_spans")}</h2>
 
             {boots.kind === "failed" && (
               /* The sidecar's own sentence. A screen that said only "could
                  not load" would leave a reader unable to tell a refused
                  token from a file that moved. */
-              <p className="browse-failed" role="alert">The boot list did not load: {boots.detail}</p>
+              <p className="browse-failed" role="alert">{t("app.the_boot_list_did_not_load", { detail: boots.detail })}</p>
             )}
             {boots.kind === "loaded" && boots.rows.length === 0 && (
-              <p className="browse-empty">No boots in this container.</p>
+              <p className="browse-empty">{t("app.no_boots_in_this_container")}</p>
             )}
             {boots.kind === "loaded" && (
               <ol className="boot-list">
@@ -1273,7 +1233,7 @@ export default function App() {
                     <p className="boot-head">
                       <span className="boot-id">{b.boot_id.slice(0, 8)}</span>
                       <span className="boot-range">
-                        records {b.first_seq}–{b.last_seq} · {b.record_count}
+                        {t("app.browse.boot_range", { first_seq: b.first_seq, last_seq: b.last_seq, record_count: b.record_count })}
                       </span>
                       <span className="boot-clock" data-changed={b.clock_changed}>
                         {b.clocks.join(" → ")}
@@ -1295,10 +1255,10 @@ export default function App() {
             )}
 
             {spans.kind === "failed" && (
-              <p className="browse-failed" role="alert">The span list did not load: {spans.detail}</p>
+              <p className="browse-failed" role="alert">{t("app.the_span_list_did_not_load", { detail: spans.detail })}</p>
             )}
             {spans.kind === "loaded" && spans.rows.length === 0 && (
-              <p className="browse-empty">No spans in this container.</p>
+              <p className="browse-empty">{t("app.no_spans_in_this_container")}</p>
             )}
             {spans.kind === "loaded" && spans.rows.length > 0 && (
               <ol className="span-list">
@@ -1313,7 +1273,7 @@ export default function App() {
                     <p className="span-head">
                       <span className="span-id">{s.span_id.slice(0, 8)}</span>
                       <span className="span-range">
-                        {s.start_seq ?? "…"}–{s.end_seq ?? "…"} · {s.record_count} records
+                        {t("app.browse.span_range", { start: s.start_seq ?? "…", end: s.end_seq ?? "…", records: tn("count.record", s.record_count) })}
                       </span>
                     </p>
                     {/* §F7's wording, carried rather than paraphrased. An
@@ -1324,9 +1284,7 @@ export default function App() {
                          holds the whole nesting when it holds a slice, so the
                          absent parent is named for someone to go and find. */
                       <p className="span-orphan">
-                        nested inside {s.placement.parent.slice(0, 8)}, which is
-                        not in this file
-                      </p>
+                        {t("app.nested_inside_which_is_not_in", { parent: s.placement.parent.slice(0, 8) })}</p>
                     )}
                   </li>
                 ))}
@@ -1340,9 +1298,7 @@ export default function App() {
             a finding and nothing draws a threshold. */}
         {health.kind !== "unasked" && (
           <section className="health" aria-labelledby="health-title">
-            <h2 className="health-title" id="health-title">
-              Record health
-            </h2>
+            <h2 className="health-title" id="health-title">{t("app.record_health")}</h2>
             <p className="health-note">{healthNote()}</p>
             {health.kind === "failed" && (
               <p className="browse-failed" role="alert">
@@ -1352,15 +1308,16 @@ export default function App() {
             {health.kind === "found" && (
               <>
                 <h3 className="health-sub">
-                  Boots <span className="health-basis">{BASIS_LABEL.monotonic}</span>
+                  {tr("app.health.boots", { monotonic: <span className="health-basis">{BASIS_LABEL.monotonic}</span> })}
                 </h3>
                 <ul className="health-list">
                   {health.value.boots.map((b) => (
                     <li key={b.boot}>
                       <code>{b.boot}</code> · {b.records} · {b.uptime}
                       <br />
-                      clock: <span data-changed={b.clockChanged ? "" : undefined}>{b.clock}</span>
-                      {b.clockChanged && " — changed during the boot"}
+                      {tr(b.clockChanged ? "app.health.clock_changed" : "app.health.clock", {
+                        clock: <span data-changed={b.clockChanged ? "" : undefined}>{b.clock}</span>,
+                      })}
                       <br />
                       {b.anchors}
                       <br />
@@ -1369,7 +1326,7 @@ export default function App() {
                         <>
                           <br />
                           <span className="health-lifecycle" data-stopped={b.stopped ? "" : undefined}>
-                            writer: {b.lifecycle}
+                            {t("app.health.writer", { lifecycle: b.lifecycle })}
                           </span>
                         </>
                       )}
@@ -1379,10 +1336,10 @@ export default function App() {
                 {health.value.cadence !== null && <p className="health-line">{health.value.cadence}</p>}
 
                 <h3 className="health-sub">
-                  The writer's clock <span className="health-basis">{BASIS_LABEL.recorded}</span>
+                  {tr("app.health.writer_clock", { recorded: <span className="health-basis">{BASIS_LABEL.recorded}</span> })}
                 </h3>
                 {health.value.steps.length === 0 && health.value.gaps.length === 0 && (
-                  <p className="health-line">No step, regression or slew detected, and no gap between boots.</p>
+                  <p className="health-line">{t("app.no_step_regression_or_slew_detected")}</p>
                 )}
                 {health.value.steps.length > 0 && (
                   <ul className="health-list">
@@ -1391,7 +1348,7 @@ export default function App() {
                         <button className="health-jump" onClick={() => select(st.seq)} type="button">
                           #{st.seq}
                         </button>{" "}
-                        boot <code>{st.boot}</code>: {st.text}
+                        {tr("app.health.step", { boot: <code>{st.boot}</code>, text: st.text })}
                       </li>
                     ))}
                   </ul>
@@ -1408,22 +1365,22 @@ export default function App() {
                 ))}
 
                 <h3 className="health-sub">
-                  Warnings <span className="health-basis">{BASIS_LABEL.proved}</span>
+                  {tr("app.health.warnings", { proved: <span className="health-basis">{BASIS_LABEL.proved}</span> })}
                 </h3>
                 {health.value.safetyTotal === 0 ? (
-                  <p className="health-line">No SAFETY record in this file.</p>
+                  <p className="health-line">{t("app.no_safety_record_in_this_file")}</p>
                 ) : (
                   <ul className="health-list">
                     {health.value.kinds.map((k) => (
                       <li key={k.kind}>
-                        <code>{k.kind}</code> — {k.total} · per boot {k.perBoot}
+                        {tr("app.health.kind_total", { kind: <code>{k.kind}</code>, total: k.total, perBoot: k.perBoot })}
                       </li>
                     ))}
                   </ul>
                 )}
                 {health.value.recurring.length > 0 && (
                   <>
-                    <p className="health-line">The same detail, more than once — a pattern rather than an episode:</p>
+                    <p className="health-line">{t("app.the_same_detail_more_than_once")}</p>
                     <ul className="health-list">
                       {health.value.recurring.map((r) => (
                         <li key={r}>{r}</li>
@@ -1444,24 +1401,20 @@ export default function App() {
             not a second. */}
         {openedOf(chain) !== null && (
           <section className="records" aria-labelledby="records-title">
-            <h2 className="records-title" id="records-title">
-              Records
-            </h2>
+            <h2 className="records-title" id="records-title">{t("app.records.title")}</h2>
 
             {/* The chips the rows below answer to, always on screen while
                 they apply — a filtered list that did not say so would read
                 as the whole file. */}
             {activeChips.length > 0 && (
               <div className="records-filters">
-                <span className="records-filters-label">filtered by</span>
+                <span className="records-filters-label">{t("app.filtered_by")}</span>
                 {activeChips.map((chip) => (
                   <code className="records-chip" key={chip.key}>
                     {chipLabel(chip)}
                   </code>
                 ))}
-                <button onClick={clearFilters} type="button">
-                  clear
-                </button>
+                <button onClick={clearFilters} type="button">{t("app.clear")}</button>
               </div>
             )}
 
@@ -1479,8 +1432,8 @@ export default function App() {
             {recordsPage.kind === "found" && recordsPage.value.rows.length === 0 && (
               <p className="records-empty">
                 {activeChips.length > 0
-                  ? "No records in this file match these filters."
-                  : "No records match this window."}
+                  ? t("app.no_records_in_this_file_match")
+                  : t("app.no_records_match_this_window")}
               </p>
             )}
 
@@ -1497,11 +1450,11 @@ export default function App() {
                       >
                         <span className="records-seq">#{r.seq}</span>
                         <span className="records-type">
-                          {r.typeLabel.named ? r.typeLabel.name : `type ${r.recordType}`}
+                          {r.typeLabel.named ? r.typeLabel.name : t("app.type_raw", { raw: r.recordType })}
                         </span>
                         {r.kindLabel.has && (
                           <span className="records-kind">
-                            {r.kindLabel.named ? r.kindLabel.name : `kind ${r.kindLabel.raw}`}
+                            {r.kindLabel.named ? r.kindLabel.name : t("app.kind_raw", { raw: r.kindLabel.raw })}
                           </span>
                         )}
                         {/* C-12. Marked on the row, not only on the card: a
@@ -1514,10 +1467,10 @@ export default function App() {
                         {r.source !== null && r.source.kind !== "wire" && (
                           <span className="records-source" data-source={r.source.kind}>
                             {r.source.kind === "reported"
-                              ? "reported"
+                              ? t("app.reported")
                               : r.source.kind === "telemetry"
-                                ? "telemetry"
-                                : `source ${r.source.value}?`}
+                                ? t("app.telemetry")
+                                : t("app.records.source_raw", { value: r.source.value })}
                           </span>
                         )}
                         {/* C-14. Every outcome but ok is marked on the row,
@@ -1527,7 +1480,7 @@ export default function App() {
                             return cleanly — or that nobody could see. */}
                         {r.outcome !== null && r.outcome.flagged && (
                           <span className="records-outcome" data-outcome={r.outcome.name ?? "unknown"}>
-                            {r.outcome.name ?? `outcome ${r.outcome.value}?`}
+                            {r.outcome.name ?? t("app.records.outcome_raw", { value: r.outcome.value })}
                           </span>
                         )}
                         <span className="records-boot">{r.bootId.slice(0, 8)}</span>
@@ -1540,52 +1493,46 @@ export default function App() {
                 </ol>
 
                 <div className="records-nav">
-                  <button disabled={!recordsCanGoBack} onClick={recordsPrev} type="button">
-                    ← previous
-                  </button>
+                  <button disabled={!recordsCanGoBack} onClick={recordsPrev} type="button">{t("app.records.previous")}</button>
                   <span className="records-count">
-                    {recordsPage.value.rows.length} of {recordsPage.value.total}
+                    {t("app.records.page", { shown: recordsPage.value.rows.length, total: recordsPage.value.total })}
                   </span>
                   <button
                     disabled={!recordsPage.value.hasMore}
                     onClick={recordsNext}
                     type="button"
-                  >
-                    next →
-                  </button>
+                  >{t("app.records.next")}</button>
                 </div>
               </>
             )}
           </section>
         )}
         </div>
-        <aside className="workspace-detail" aria-label="Selected record">
+        <aside className="workspace-detail" aria-label={t("app.selected_record")}>
         {/* The first slice of F9's inspector (C-06). Shown whenever a chain
             is open: looking up a record answers no question about the
             verdict, the same reason browsing does not wait on one either. */}
         {openedOf(chain) !== null && (
           <section className="record" aria-labelledby="record-title">
-            <h2 className="record-title" id="record-title">
-              Record
-            </h2>
+            <h2 className="record-title" id="record-title">{t("app.record.title")}</h2>
 
             <form className="search-bar" onSubmit={runSearch}>
               <label>
-                <span className="search-hint">search</span>
+                <span className="search-hint">{t("app.search.label")}</span>
                 <input
                   onChange={(e) => setSearchField(e.target.value)}
-                  placeholder='#1447  ·  @2026-08-06T22:41Z  ·  kind:INCIDENT_CANDIDATE "frame magic"'
+                  placeholder={verbatim('#1447  ·  @2026-08-06T22:41Z  ·  kind:INCIDENT_CANDIDATE "frame magic"')}
                   ref={searchInput}
                   type="text"
                   value={searchField}
                 />
               </label>
-              <button type="submit">Go</button>
+              <button type="submit">{t("app.search.go")}</button>
             </form>
             {searchNote !== null && <p className="search-note" role="status">{searchNote}</p>}
             {/* H6 / H10: the syntax on the screen, not in a reader's memory. */}
             <details className="search-help">
-              <summary>search syntax and keys</summary>
+              <summary>{t("app.search_syntax_and_keys")}</summary>
               <dl>
                 {searchHelp().map(([form, meaning]) => (
                   <div key={form}>
@@ -1600,32 +1547,26 @@ export default function App() {
 
             <div className="search-quick">
               <button disabled={visited.length === 0} onClick={back} type="button">
-                {visited.length === 0 ? "← back" : `← back to #${visited[visited.length - 1]}`}
+                {visited.length === 0 ? t("app.nav.back") : t("app.nav.back_to", { seq: visited[visited.length - 1] })}
               </button>
               <button
                 disabled={firstSeq === null}
                 onClick={() => firstSeq !== null && select(firstSeq)}
                 type="button"
-              >
-                first record
-              </button>
+              >{t("app.first_record")}</button>
               <button
                 disabled={nextWarningSeq === null}
                 onClick={() => nextWarningSeq !== null && select(nextWarningSeq)}
                 type="button"
-              >
-                next warning
-              </button>
+              >{t("app.next_warning")}</button>
               {/* Dimmed until an anchor answered a verification: before
                   that there is no head to look for. */}
               <button
                 disabled={anchoredHead === null}
                 onClick={jumpToAnchor}
-                title={anchoredHead === null ? "verify against an anchor first" : undefined}
+                title={anchoredHead === null ? t("app.verify_against_an_anchor_first") : undefined}
                 type="button"
-              >
-                anchor
-              </button>
+              >{t("app.anchor")}</button>
             </div>
 
             {/* C-09c. The jump's answer, in ochre — a Recorded statement
@@ -1656,17 +1597,17 @@ export default function App() {
                   {/* Index and seq diverge on a rotated chain (C-06b) —
                       shown side by side rather than picking one, so neither
                       reads as the other. */}
-                  <span className="record-index">file position {record.value.index}</span>
+                  <span className="record-index">{t("app.file_position", { index: record.value.index })}</span>
                   <span className="record-type">
                     {record.value.typeLabel.named
                       ? record.value.typeLabel.name
-                      : `type ${record.value.recordType}, unknown`}
+                      : t("app.type_unknown", { raw: record.value.recordType })}
                   </span>
                   {record.value.kindLabel.has && (
                     <span className="record-kind">
                       {record.value.kindLabel.named
                         ? record.value.kindLabel.name
-                        : `kind ${record.value.kindLabel.raw}, unknown`}
+                        : t("app.kind_unknown", { raw: record.value.kindLabel.raw })}
                     </span>
                   )}
                 </p>
@@ -1680,26 +1621,26 @@ export default function App() {
 
                 <dl className="record-facts">
                   <div>
-                    <dt>Boot</dt>
+                    <dt>{t("app.record.boot")}</dt>
                     <dd>{record.value.bootId.slice(0, 8)}</dd>
                   </div>
                   <div>
-                    <dt>Span</dt>
+                    <dt>{t("app.record.span")}</dt>
                     <dd>
                       {record.value.spanId === null
-                        ? "none"
+                        ? t("app.none")
                         : record.value.spanId.slice(0, 8)}
                     </dd>
                   </div>
                   <div>
-                    <dt>Hash</dt>
+                    <dt>{t("app.record.hash")}</dt>
                     {/* This record's own hash (C-06c, U10) — what a
                         reader jumping in via another record's prevSeq
                         link would compare against. */}
                     <dd>{record.value.recordHash.slice(0, 8)}</dd>
                   </div>
                   <div>
-                    <dt>Prev</dt>
+                    <dt>{t("app.record.prev")}</dt>
                     {/* Three states, not two. null prevHash: GENESIS's
                         own declared zero predecessor. A hash with a null
                         prevSeq: real, but naming something outside this
@@ -1728,14 +1669,14 @@ export default function App() {
                   </div>
                   {record.value.acknowledged !== null && (
                     <div>
-                      <dt>Ack</dt>
+                      <dt>{t("app.record.ack")}</dt>
                       {/* C-07c. The ack is a jump; the latency beside it is
                           the writer's clock subtracted — ochre, Recorded —
                           and withheld across a boot rather than guessed. */}
                       <dd data-acknowledged={record.value.acknowledged}>
                         {(() => {
                           const { acknowledgedBy, ackLatency } = record.value;
-                          if (acknowledgedBy === null) return "not yet acknowledged";
+                          if (acknowledgedBy === null) return t("app.not_yet_acknowledged");
                           return (
                             <>
                               <button
@@ -1743,7 +1684,7 @@ export default function App() {
                                 className="record-jump-link"
                                 onClick={() => select(acknowledgedBy)}
                               >
-                                by #{acknowledgedBy}
+                                {t("app.record.acked_by", { acknowledgedBy: acknowledgedBy })}
                               </button>
                               {ackLatency !== null && (
                                 <span className="record-ack-latency" data-kind={ackLatency.kind}>
@@ -1761,7 +1702,7 @@ export default function App() {
                     record.value.kindLabel.named &&
                     record.value.kindLabel.name === "OVERSIGHT_ACK" && (
                       <div>
-                        <dt>Acknowledges</dt>
+                        <dt>{t("app.acknowledges")}</dt>
                         {/* The package's hash-verified resolution read
                             backwards. An ack whose reference does not
                             verify acknowledges nothing, and says so — the
@@ -1770,7 +1711,7 @@ export default function App() {
                           {(() => {
                             const target = record.value.acknowledges;
                             if (target === null)
-                              return "no candidate it verifiably names — see the advisory lane";
+                              return t("app.record.acknowledges_none");
                             return (
                               <button
                                 type="button"
@@ -1786,26 +1727,25 @@ export default function App() {
                     )}
                   {record.value.operatorId !== null && (
                     <div>
-                      <dt>Operator</dt>
+                      <dt>{t("app.operator")}</dt>
                       {/* Pseudonymous by design, and Recorded: the writer
                           chose these bytes. Never resolved to a person. */}
                       <dd className="record-recorded">
-                        {record.value.operatorId.slice(0, 16)}… (pseudonymous)
-                      </dd>
+                        {t("app.pseudonymous", { operatorId: record.value.operatorId.slice(0, 16) })}</dd>
                     </div>
                   )}
                   {record.value.disposition !== null && (
                     <div>
-                      <dt>Disposition</dt>
+                      <dt>{t("app.disposition")}</dt>
                       <dd className="record-recorded">
                         {record.value.disposition.name ??
-                          `value ${record.value.disposition.value}, unknown`}
+                          t("app.record.disposition_unknown", { value: record.value.disposition.value })}
                       </dd>
                     </div>
                   )}
                   {record.value.source !== null && (
                     <div>
-                      <dt>Source</dt>
+                      <dt>{t("app.record.source")}</dt>
                       {/* C-12. The label, then the inference profile's own
                           sentence for it, quoted — what a reader may claim
                           from this record is the profile's statement, and
@@ -1818,7 +1758,7 @@ export default function App() {
                   )}
                   {record.value.outcome !== null && (
                     <div>
-                      <dt>Outcome</dt>
+                      <dt>{t("app.outcome")}</dt>
                       {/* C-14. The writer's value, then the profile's
                           sentence for it where it gives one — for ok,
                           that it is a return and never a confirmed
@@ -1833,7 +1773,7 @@ export default function App() {
                   )}
                   {record.value.reportsRefused !== null && (
                     <div>
-                      <dt>Reports refused</dt>
+                      <dt>{t("app.reports_refused")}</dt>
                       {/* r9, §3.4: counts of requests, never of tool events. */}
                       <dd className="record-source">
                         <code>{record.value.reportsRefused.route}</code> — {record.value.reportsRefused.counts}
@@ -1843,7 +1783,7 @@ export default function App() {
                   )}
                   {record.value.lifecycle !== null && (
                     <div>
-                      <dt>Writer</dt>
+                      <dt>{t("app.record.writer")}</dt>
                       {/* T18, r8. The writer's own record, said for what it
                           is; WRITER_OPEN's name and version are its detail. */}
                       <dd className="record-source">
@@ -1853,18 +1793,20 @@ export default function App() {
                   )}
                   {record.value.continuation !== null && (
                     <div>
-                      <dt>Continues</dt>
+                      <dt>{t("app.continues")}</dt>
                       {/* C-13, r6. What the writer declared at the cut, then
                           the profile's framing of it: a declaration, never
                           evidence of the records it describes. */}
                       <dd className="record-continuation">
-                        segment {record.value.continuation.segmentIndex}, retention floor{" "}
-                        {record.value.continuation.retention}
+                        {t("app.record.continues", {
+                          segment: record.value.continuation.segmentIndex,
+                          retention: record.value.continuation.retention,
+                        })}
                         <span className="record-continuation-field">
-                          predecessor head <code>{record.value.continuation.predecessorHead}</code>
+                          {tr("app.predecessor_head", { predecessorHead: <code>{record.value.continuation.predecessorHead}</code> })}
                         </span>
                         <span className="record-continuation-field">
-                          prior root <code>{record.value.continuation.priorRoot}</code>
+                          {tr("app.prior_root", { priorRoot: <code>{record.value.continuation.priorRoot}</code> })}
                         </span>
                         <span className="record-source-note">{record.value.continuation.note}</span>
                       </dd>
@@ -1872,15 +1814,15 @@ export default function App() {
                   )}
                   {record.value.shredNote !== null && (
                     <div>
-                      <dt>Erasure note</dt>
+                      <dt>{t("app.erasure_note")}</dt>
                       {/* KEY_SHRED, profile §8 — decode_shred (R4, 0.15). */}
                       <dd className="record-source">
                         {record.value.shredNote.reason}
-                        {record.value.shredNote.keyId !== null && <> · key {record.value.shredNote.keyId}</>}
+                        {record.value.shredNote.keyId !== null && <> {t("app.record.key", { keyId: record.value.shredNote.keyId })}</>}
                         {record.value.shredNote.reference !== null && <> · “{record.value.shredNote.reference}”</>}
                         {record.value.shredNote.targets.length > 0 && (
                           <>
-                            {" · declares "}
+                            {t("app.record.declares")}
                             {record.value.shredNote.targets.map((t, i) => (
                               <span key={t}>
                                 {i > 0 && ", "}
@@ -1900,14 +1842,14 @@ export default function App() {
                     if (shredder === null) return null;
                     return (
                       <div>
-                        <dt>Shredded</dt>
+                        <dt>{t("app.shredded")}</dt>
                         <dd>
                           <button
                             type="button"
                             className="record-jump-link"
                             onClick={() => select(shredder)}
                           >
-                            by #{shredder}
+                            {t("app.record.shredded_by", { shredder: shredder })}
                           </button>
                         </dd>
                       </div>
@@ -1915,7 +1857,7 @@ export default function App() {
                   })()}
                   {record.value.detail !== null && (
                     <div>
-                      <dt>Detail</dt>
+                      <dt>{t("app.record.detail")}</dt>
                       {/* EVT_DETAIL, decoded generically (C-07b, U12).
                           The recurrence count is F8's own SAFETY-list
                           feature — null outside that scope, so it is
@@ -1933,11 +1875,11 @@ export default function App() {
                     </div>
                   )}
                   <div>
-                    <dt>Tier</dt>
+                    <dt>{t("app.tier")}</dt>
                     <dd>{record.value.assuranceTier.name ?? record.value.assuranceTier.value}</dd>
                   </div>
                   <div>
-                    <dt>Clock</dt>
+                    <dt>{t("app.clock")}</dt>
                     {/* Ochre, not verdigris: wall time is a Recorded claim
                         here regardless of what this record's own tier
                         says about the chain as a whole (L3). */}
@@ -1952,14 +1894,14 @@ export default function App() {
                     No decoded values yet — that is the hex-view half of
                     C-06 this slice does not build (see api/record.ts). */}
                 <p className="record-body" data-state={record.value.body.state}>
-                  {record.value.body.state === "none" && "no body"}
-                  {record.value.body.state === "opaque" && "body present, opaque — encrypted"}
+                  {record.value.body.state === "none" && t("app.no_body")}
+                  {record.value.body.state === "opaque" && t("app.body_present_opaque_encrypted")}
                   {record.value.body.state === "undecoded" &&
-                    "body present, not interpretable by this verifier version"}
+                    t("app.body_present_not_interpretable_by_this")}
                   {record.value.body.state === "cleartext" &&
                     (record.value.body.tlvTypes.length === 0
-                      ? "body present, decoded, empty"
-                      : `body present, decoded — TLV types ${record.value.body.tlvTypes.join(", ")}`)}
+                      ? t("app.body_present_decoded_empty")
+                      : t("app.body_tlv", { types: record.value.body.tlvTypes.join(", ") }))}
                 </p>
 
                 {/* C-06d — the record as the file holds it. Every name and
@@ -1972,7 +1914,7 @@ export default function App() {
                     onClick={() => setShowBytes(!showBytes)}
                     type="button"
                   >
-                    {showBytes ? "hide bytes" : "bytes"}
+                    {showBytes ? t("app.hide_bytes") : t("app.bytes")}
                   </button>
                   {showBytes && bytes.kind === "failed" && (
                     <p className="hex-failed" role="alert">{bytes.detail}</p>
@@ -1980,12 +1922,10 @@ export default function App() {
                   {showBytes && bytes.kind === "found" && (
                     <div className="hex-body" onMouseLeave={() => setHotSegment(null)}>
                       <p className="hex-head">
-                        at file offset {bytes.value.fileOffset} · header {bytes.value.headerLen}{" "}
-                        bytes, body after it
-                      </p>
+                        {t("app.at_file_offset_header_bytes_body", { fileOffset: bytes.value.fileOffset, headerLen: bytes.value.headerLen })}</p>
                       <div className="scroll-x">
                       <table
-                        aria-label="The record's bytes in hexadecimal, sixteen to a row; the list after the table names each field and where it starts"
+                        aria-label={t("app.the_record_s_bytes_in_hexadecimal")}
                         className="hex-table"
                       >
                         <tbody>
@@ -2034,7 +1974,7 @@ export default function App() {
                                 type="button"
                               >
                                 <span className="hex-at">{offsetLabel(seg.start)}</span>
-                                <span className="hex-len">{seg.end - seg.start} B</span>
+                                <span className="hex-len">{t("app.hex.bytes", { n: seg.end - seg.start })}</span>
                                 <span className="hex-name">{seg.label}</span>
                               </button>
                             </li>
@@ -2055,24 +1995,24 @@ export default function App() {
                     (C-08b, U11) — "not stated" and "unloaded" now each
                     get their own sentence (see api/origin.ts). */}
                 <div className="origin">
-                  <p className="origin-title">Origin</p>
+                  <p className="origin-title">{t("app.origin")}</p>
                   {origin.kind === "failed" && (
                     <p className="origin-failed" role="alert">{origin.detail}</p>
                   )}
                   {origin.kind === "found" && origin.value.state === "not_stated" && (
-                    <p className="origin-none">not stated in this file</p>
+                    <p className="origin-none">{t("app.not_stated_in_this_file")}</p>
                   )}
                   {origin.kind === "found" && origin.value.state === "unloaded" && (
-                    <p className="origin-none">no model active</p>
+                    <p className="origin-none">{t("app.no_model_active")}</p>
                   )}
                   {origin.kind === "found" && origin.value.state === "active" && (
                     <dl className="origin-facts">
                       <div>
-                        <dt>Role</dt>
+                        <dt>{t("app.role")}</dt>
                         <dd>{origin.value.role}</dd>
                       </div>
                       <div>
-                        <dt>Model</dt>
+                        <dt>{t("app.model")}</dt>
                         {/* Recorded — OriginModel's own docstring: every
                             field here is the writer's claim, never a proof
                             of what actually ran (L3). */}
@@ -2081,14 +2021,14 @@ export default function App() {
                         </dd>
                       </div>
                       <div>
-                        <dt>Config</dt>
+                        <dt>{t("app.config")}</dt>
                         <dd className="record-recorded">
                           {origin.value.configDigest.slice(0, 12)}…
                           <span className="record-source-note">{configDigestNote()}</span>
                         </dd>
                       </div>
                       <div>
-                        <dt>Since</dt>
+                        <dt>{t("app.since")}</dt>
                         <dd>
                           {/* The MODEL_LOAD that made this origin active —
                               the same record-jump-link the record card's
@@ -2114,7 +2054,7 @@ export default function App() {
                       </div>
                       {origin.value.detail !== null && (
                         <div>
-                          <dt>Detail</dt>
+                          <dt>{t("app.record.detail")}</dt>
                           <dd>{origin.value.detail}</dd>
                         </div>
                       )}
@@ -2136,9 +2076,7 @@ export default function App() {
             serialisation. Saving to a file is D-07. */}
         {openedOf(chain) !== null && (
           <section className="report" aria-labelledby="report-title">
-            <h2 className="report-title" id="report-title">
-              Report
-            </h2>
+            <h2 className="report-title" id="report-title">{t("app.report")}</h2>
             <p className="report-attestation">{attestation()}</p>
             <div className="report-actions">
               <button
@@ -2147,10 +2085,10 @@ export default function App() {
                 onClick={buildReport}
                 type="button"
               >
-                {report.kind === "building" ? "Building…" : "Build report"}
+                {report.kind === "building" ? t("app.building") : t("app.build_report")}
               </button>
               <span className="choose-hint">
-                against {chosenProfile === "none" ? "no anchor" : `profile ${chosenProfile}`}
+                {chosenProfile === "none" ? t("app.report.against_none") : t("app.report.against", { profile: chosenProfile })}
               </span>
             </div>
 
@@ -2166,11 +2104,12 @@ export default function App() {
                   {report.view.checkedAtIso !== null && (
                     <>
                       {" "}
-                      · built {report.view.checkedAtIso}
-                      {report.view.checkedAtNote !== null && ` (${report.view.checkedAtNote})`}
+                      {report.view.checkedAtNote !== null
+                        ? t("app.report.built_note", { at: report.view.checkedAtIso, note: report.view.checkedAtNote })
+                        : t("app.report.built", { at: report.view.checkedAtIso })}
                     </>
                   )}{" "}
-                  · {report.profile === "none" ? "no anchor" : `profile ${report.profile}`}
+                  {report.profile === "none" ? t("app.report.meta_none") : t("app.report.meta_profile", { profile: report.profile })}
                 </p>
                 {report.view.facts.length > 0 && (
                   <dl className="report-facts">
@@ -2185,9 +2124,7 @@ export default function App() {
                 {report.view.health !== null && (
                   <section className="report-health" aria-labelledby="report-health-title">
                     {/* E-04, R15: the report's own section, said with its clocks. */}
-                    <h3 className="health-sub" id="report-health-title">
-                      Record health, as the report gives it
-                    </h3>
+                    <h3 className="health-sub" id="report-health-title">{t("app.record_health_as_the_report_gives")}</h3>
                     {report.view.healthNote !== null && <p className="health-note">{report.view.healthNote}</p>}
                     <dl className="report-facts">
                       {report.view.health.map((f) => (
@@ -2203,7 +2140,7 @@ export default function App() {
                   </section>
                 )}
                 <details className="report-json">
-                  <summary>The report as the package wrote it</summary>
+                  <summary>{t("app.the_report_as_the_package_wrote")}</summary>
                   <pre>{report.view.jsonText}</pre>
                 </details>
                 <div className="report-actions">
@@ -2212,12 +2149,10 @@ export default function App() {
                     onClick={() => copyReport(report.view.jsonText)}
                     type="button"
                   >
-                    {copyState === "copied" ? "Copied" : "Copy JSON"}
+                    {copyState === "copied" ? t("app.copied") : t("app.copy_json")}
                   </button>
                   {copyState === "failed" && (
-                    <span className="choose-hint">
-                      copying was refused — open the report above and select the text
-                    </span>
+                    <span className="choose-hint">{t("app.copying_was_refused_open_the_report")}</span>
                   )}
                   <button
                     className="choose-button"
@@ -2225,7 +2160,7 @@ export default function App() {
                     onClick={() => saveReport(report.fileName, report.view.jsonText)}
                     type="button"
                   >
-                    {saveState.kind === "saving" ? "Saving…" : "Save JSON…"}
+                    {saveState.kind === "saving" ? t("app.saving") : t("app.save_json")}
                   </button>
                 </div>
                 {/* D-01b — the package's own HTML page for the same report,
@@ -2238,23 +2173,19 @@ export default function App() {
                     onClick={() => setShowHtml((v) => !v)}
                     type="button"
                   >
-                    {showHtml ? "Hide HTML" : "Show HTML"}
+                    {showHtml ? t("app.hide_html") : t("app.show_html")}
                   </button>
                   <button
                     className="choose-button"
                     disabled={saveState.kind === "saving"}
                     onClick={() => saveReport(report.htmlFileName, report.view.htmlText)}
                     type="button"
-                  >
-                    Save HTML…
-                  </button>
+                  >{t("app.save_html")}</button>
                   <button
                     className="choose-button"
                     onClick={() => printPage(report.view.htmlText)}
                     type="button"
-                  >
-                    Print…
-                  </button>
+                  >{t("app.print")}</button>
                 </div>
                 {printState.kind === "opened" && <p className="report-saved" role="status">{printOpened()}</p>}
                 {printState.kind === "failed" && <p className="report-failed" role="alert">{printState.detail}</p>}
@@ -2263,7 +2194,7 @@ export default function App() {
                     className="report-html"
                     sandbox=""
                     srcDoc={report.view.htmlText}
-                    title="The report as the package rendered it"
+                    title={t("app.the_report_as_the_package_rendered")}
                   />
                 )}
                 {/* D-07. Where it went and its digest, written beside it —
@@ -2280,31 +2211,29 @@ export default function App() {
             this page, which only names the session and the range. */}
         {openedOf(chain) !== null && (
           <section className="export" aria-labelledby="export-title">
-            <h2 className="export-title" id="export-title">
-              Export
-            </h2>
+            <h2 className="export-title" id="export-title">{t("app.export")}</h2>
             <p className="export-note">{exportNote()}</p>
             <div className="export-range">
               <label>
-                <span className="choose-hint">from #</span>
+                <span className="choose-hint">{t("app.range.from")}</span>
                 <input
                   aria-describedby={typedRange.kind === "refused" ? "export-range-note" : undefined}
                   aria-invalid={typedRange.kind === "refused"}
                   inputMode="numeric"
                   onChange={(e) => setExportFrom(e.target.value)}
-                  placeholder="first"
+                  placeholder={t("app.range.first")}
                   type="text"
                   value={exportFrom}
                 />
               </label>
               <label>
-                <span className="choose-hint">to #</span>
+                <span className="choose-hint">{t("app.range.to")}</span>
                 <input
                   aria-describedby={typedRange.kind === "refused" ? "export-range-note" : undefined}
                   aria-invalid={typedRange.kind === "refused"}
                   inputMode="numeric"
                   onChange={(e) => setExportTo(e.target.value)}
-                  placeholder="last"
+                  placeholder={t("app.range.last")}
                   type="text"
                   value={exportTo}
                 />
@@ -2315,13 +2244,12 @@ export default function App() {
                 onClick={runExport}
                 type="button"
               >
-                {exportState.kind === "exporting" ? "Exporting…" : "Export JSONL…"}
+                {exportState.kind === "exporting" ? t("app.exporting") : t("app.export_jsonl")}
               </button>
             </div>
             {typedRange.kind === "refused" && (
               <p className="export-range-note" id="export-range-note">
-                Not exported as typed: {typedRange.reason}.
-              </p>
+                {t("app.not_exported_as_typed", { reason: typedRange.reason })}</p>
             )}
             {exportState.kind === "saved" && (
               <>
@@ -2342,9 +2270,7 @@ export default function App() {
 
             {/* E-01 — the package's evidence bundle of the same range,
                 streamed by the shell into the file the user chooses. */}
-            <h3 className="export-sub" id="bundle-title">
-              Evidence bundle
-            </h3>
+            <h3 className="export-sub" id="bundle-title">{t("app.evidence_bundle")}</h3>
             <p className="export-note">{bundleNote()}</p>
             {(() => {
               const opened = openedOf(chain)!;
@@ -2359,17 +2285,17 @@ export default function App() {
                       onClick={runBundle}
                       type="button"
                     >
-                      {bundleState.kind === "bundling" ? "Bundling…" : "Save bundle…"}
+                      {bundleState.kind === "bundling" ? t("app.bundling") : t("app.save_bundle")}
                     </button>
                     <span className="choose-hint">
-                      the range above, against{" "}
-                      {chosenProfile === "none" ? "no anchor" : `profile ${chosenProfile}`}
+                      {chosenProfile === "none"
+                        ? t("app.bundle.against_none")
+                        : t("app.bundle.against", { profile: chosenProfile })}
                     </span>
                   </div>
                   {refused !== null && typedRange.kind !== "refused" && (
                     <p className="export-range-note" id="bundle-range-note">
-                      Not bundled as typed: {refused}.
-                    </p>
+                      {t("app.not_bundled_as_typed", { refused: refused })}</p>
                   )}
                 </>
               );
@@ -2389,19 +2315,17 @@ export default function App() {
 
             {/* E-07 — prefix consistency: a proof made here and saved, or
                 a proof held from earlier checked against this chain. */}
-            <h3 className="export-sub" id="proof-title">
-              Prefix proof
-            </h3>
+            <h3 className="export-sub" id="proof-title">{t("app.prefix_proof")}</h3>
             <p className="export-note">{consistencyNote()}</p>
             <div className="export-range">
               <label>
-                <span className="choose-hint">first</span>
+                <span className="choose-hint">{t("app.range.first")}</span>
                 <input
                   aria-describedby={proofFirst.trim() !== "" && typedCount.kind === "refused" ? "proof-count-note" : undefined}
                   aria-invalid={proofFirst.trim() !== "" && typedCount.kind === "refused"}
                   inputMode="numeric"
                   onChange={(e) => setProofFirst(e.target.value)}
-                  placeholder="records"
+                  placeholder={t("app.proof.count_placeholder")}
                   type="text"
                   value={proofFirst}
                 />
@@ -2411,22 +2335,17 @@ export default function App() {
                 disabled={proofState.kind === "working" || typedCount.kind !== "count"}
                 onClick={makeProof}
                 type="button"
-              >
-                Prove and save…
-              </button>
+              >{t("app.prove_and_save")}</button>
               <button
                 className="choose-button"
                 disabled={proofState.kind === "working"}
                 onClick={checkProof}
                 type="button"
-              >
-                Check a proof…
-              </button>
+              >{t("app.check_a_proof")}</button>
             </div>
             {proofFirst.trim() !== "" && typedCount.kind === "refused" && (
               <p className="export-range-note" id="proof-count-note">
-                Not a prefix as typed: {typedCount.reason}.
-              </p>
+                {t("app.not_a_prefix_as_typed", { reason: typedCount.reason })}</p>
             )}
             {proofState.kind === "made" && (
               <>
@@ -2435,12 +2354,12 @@ export default function App() {
               </>
             )}
             {proofState.kind === "checked" && (
-              <dl className="report-facts" aria-label="The held proof, against this chain">
+              <dl className="report-facts" aria-label={t("app.the_held_proof_against_this_chain")}>
                 {proofState.answers.map((a) => (
                   <div key={a.label} data-holds={String(a.holds)}>
                     <dt>{a.label}</dt>
                     <dd>
-                      {a.holds === true ? "holds — " : a.holds === false ? "does not hold — " : "cannot say — "}
+                      {a.holds === true ? t("app.proof.holds") : a.holds === false ? t("app.proof.does_not_hold") : t("app.proof.cannot_say")}
                       {a.text}
                     </dd>
                   </div>
@@ -2451,9 +2370,7 @@ export default function App() {
 
             {/* E-06 — an external witness: a SCITT Signed Statement,
                 checked by the package under a key the user picks. */}
-            <h3 className="export-sub" id="statement-title">
-              Signed statement
-            </h3>
+            <h3 className="export-sub" id="statement-title">{t("app.signed_statement")}</h3>
             <p className="export-note">{scittNote()}</p>
             <div className="export-range">
               <button
@@ -2462,9 +2379,9 @@ export default function App() {
                 onClick={runStatement}
                 type="button"
               >
-                {statementState.kind === "checking" ? "Checking the statement…" : "Check a statement…"}
+                {statementState.kind === "checking" ? t("app.checking_the_statement") : t("app.check_a_statement")}
               </button>
-              <span className="choose-hint">the statement, then the issuer's public key</span>
+              <span className="choose-hint">{t("app.the_statement_then_the_issuer_s")}</span>
             </div>
             {statementState.kind === "answered" &&
               statementState.answer.lines.map((line, i) => (
@@ -2486,9 +2403,7 @@ export default function App() {
             shows and what it does not are said together, always. */}
         {witness.kind !== "unasked" && (
           <section className="witness" aria-labelledby="witness-title">
-            <h2 className="witness-title" id="witness-title">
-              Witness log
-            </h2>
+            <h2 className="witness-title" id="witness-title">{t("app.witness_log")}</h2>
             {thisCheck !== null && (
               <p className={thisCheck.failed ? "report-failed" : "report-saved"} role="status">
                 {thisCheck.text}
@@ -2503,22 +2418,21 @@ export default function App() {
                   <p className={status.failed ? "report-failed" : "witness-status"}>{status.text}</p>
                   {witness.value.head !== null && (
                     <p className="witness-head">
-                      head <code>{witness.value.head}</code>
+                      {tr("app.witness.head", { head: <code>{witness.value.head}</code> })}
                     </p>
                   )}
                   <p className="witness-path">
-                    kept at <code>{witness.value.path}</code> ({witness.value.format})
-                  </p>
+                    {tr("app.witness.kept_at", { path: <code>{witness.value.path}</code>, format: witness.value.format })}</p>
                   {rows.length > 0 && (
                     <div className="scroll-x">
                     <table className="witness-table">
                       <thead>
                         <tr>
                           <th scope="col">#</th>
-                          <th scope="col">when (this machine's clock)</th>
-                          <th scope="col">file</th>
-                          <th scope="col">head seen</th>
-                          <th scope="col">against</th>
+                          <th scope="col">{t("app.when_this_machine_s_clock")}</th>
+                          <th scope="col">{t("app.witness.file")}</th>
+                          <th scope="col">{t("app.head_seen")}</th>
+                          <th scope="col">{t("app.against")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2551,11 +2465,9 @@ export default function App() {
             what. Folded away so it no longer stands between the reader and
             the first thing they came to do. */}
         <details className="status-details">
-          <summary>What is wired</summary>
+          <summary>{t("app.what_is_wired")}</summary>
         <section className="status" aria-labelledby="status-title">
-          <h2 className="status-title" id="status-title">
-            What is wired
-          </h2>
+          <h2 className="status-title" id="status-title">{t("app.what_is_wired")}</h2>
           <ul className="status-list">
             {rows.map((r) => (
               <li className="status-row" key={r.name}>

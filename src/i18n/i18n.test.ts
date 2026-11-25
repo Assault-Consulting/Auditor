@@ -4,7 +4,9 @@
 import { afterEach, describe as group, expect, it } from "vitest";
 
 import { catalogProblems } from "./check";
-import { CATALOGS, LOCALES, getLocale, localeName, missing, negotiate, setLocale, t, tn } from "./index";
+import { createElement, isValidElement, type ReactElement } from "react";
+
+import { CATALOGS, LOCALES, getLocale, localeName, missing, negotiate, setLocale, t, tn, tr } from "./index";
 
 const en = CATALOGS.en!;
 
@@ -76,5 +78,15 @@ group("the mechanism (L-01)", () => {
   it("counts a key no catalog has instead of hiding it", () => {
     expect(t("no.such.key")).toBe("no.such.key");
     expect(missing()).toContain("no.such.key");
+  });
+
+  it("a sentence with an element keeps the element where the sentence puts it", () => {
+    const code = createElement("code", null, "abcd1234");
+    const out = tr("app.witness.head", { head: code }) as ReactElement<{ children: unknown[] }>;
+    expect(isValidElement(out)).toBe(true);
+    expect(out.props.children).toEqual(["head ", code]);
+    // A placeholder the caller did not give stays as written, like t's.
+    const bare = tr("app.witness.head", {}) as ReactElement<{ children: unknown }>;
+    expect(bare.props.children).toBe("head {head}");
   });
 });
