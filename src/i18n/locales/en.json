@@ -764,5 +764,14 @@
   "app.witness.head": "head {head}",
   "app.witness.kept_at": "kept at {path} ({format})",
   "app.witness_log": "Witness log",
-  "app.rail.watermark": "recorded · {watermark}"
+  "app.rail.watermark": "recorded · {watermark}",
+  "shell.chain": "PALA-1 audit chain",
+  "shell.segment_set": "PALA segment set (segments.json)",
+  "shell.all_files": "All files",
+  "shell.json_lines": "JSON Lines",
+  "shell.bundle": "PALA evidence bundle",
+  "shell.consistency_proof": "PALA consistency proof",
+  "shell.signed_statement": "SCITT signed statement",
+  "shell.public_key": "Public key",
+  "shell.print_title": "Verification report — print"
 }

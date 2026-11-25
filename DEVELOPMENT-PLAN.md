@@ -71,7 +71,7 @@ status and what it unblocks.
 | 0.13–0.15 follow-up (C-13…C-19) | ✓; C-16(b) closed unbuilt |
 | 3 — report (D-01…D-07) | ✓ closed (D-02 last) |
 | 4 — evidence artifacts (E-01…E-07) | ✓ closed (24 Nov 2026); E-03's open half waits on §22.4 |
-| 5 — beyond MVP | started 23 Nov 2026: F15 ✓, E-06 ✓, L-01 ✓, L-02 ✓, L-04 ✓; L-05 next |
+| 5 — beyond MVP | started 23 Nov 2026: F15 ✓, E-06 ✓, L-01…L-05 ✓ (the language system, Ukrainian first) |
 
 **Phase 2's exit criterion** — a 1M-record chain opens, the timeline stays
 interactive, "what happened at 22:41 on 6 Aug" in under five interactions —
@@ -126,7 +126,7 @@ that the system works.
 | L-02 ✓ (every `src/api` module, `state.ts`, `App.tsx`) | **Extraction.** Every sentence the window says moves into `en.json`: the API modules' notes and texts (`verdict.ts`, `advisory.ts`, `diagnosis.ts`, `record.ts`, `health.ts`, `watch.ts`, …) and the JSX in `App.tsx`. `plural.ts`'s English-only `count()` becomes the catalog's plural. The wording audit (D-03) and the "no verdict word" guards run per locale | 3 |
 | L-03 | **What is never translated, by rule.** The package's own words — diagnosis narratives, advisory details, record details, kind and type names, verdict codes — are shown as the package wrote them, marked as its words; only Auditor's sentences around them are translated. Hashes, seqs, paths unchanged. A translation must not turn a verifier's statement into a different claim | — |
 | ✓ L-04 | **The guards.** A test that every catalog has exactly English's keys, the same placeholders in each, and every plural category its language needs (from `Intl.PluralRules`); the vocabulary test (T11) per locale — a package word without a sentence fails in every language; axe and the layout at the longer strings (German and Ukrainian run ~30 % longer) | 1 |
-| L-05 | **Ukrainian**, `uk.json`, the first catalog added through L-01…L-04, and `docs/TRANSLATING.md`: how to add a language — one file, the checks to run, the terms that are fixed (a glossary of verification terms per language, so "consistent", "complete", "anchor" read the same everywhere) | 2 |
+| L-05 ✓ | **Ukrainian**, `uk.json`, the first catalog added through L-01…L-04, and `docs/TRANSLATING.md`: how to add a language — one file, the checks to run, the terms that are fixed (a glossary of verification terms per language, so "consistent", "complete", "anchor" read the same everywhere) | 2 |
 
 The Rust shell's few strings (dialog titles, the print window) take the
 locale from the webview's choice through the IPC they already use; the

@@ -1,0 +1,17 @@
+{
+  "intent": [
+    "tamper\\w*", "malicious", "attack\\w*", "fraud\\w*", "forg(e|ed|ery)", "deliberate\\w*",
+    "manipulat\\w*", "corrupt\\w*", "hacked", "breach\\w*"
+  ],
+  "certifying": [
+    "verified", "valid", "validated", "certif(y|ied|ies|ication)", "complian\\w*", "guarantee[sd]?",
+    "proves", "proven", "authentic\\w*", "trustworthy", "tamper-proof", "immutable", "intact"
+  ],
+  "allowed": {
+    "It certifies nothing": "a negation — the thesis line says what the tool does not do",
+    "They certify nothing": "a negation — the footnote under the panels",
+    "not a certification": "a negation — what a report is",
+    "the chain proves the report happened": "the inference profile's own sentence for reported-by-client (r5), quoted verbatim",
+    "nothing was found intact": "a negation — the package's own sentence for the verdict `empty` (derive_verdict, 0.15), quoted verbatim"
+  }
+}
