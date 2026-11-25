@@ -13,16 +13,18 @@ mod artifact;
 mod bundle;
 mod export;
 mod print;
+mod shell_text;
 mod sidecar;
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tauri::webview::PageLoadEvent;
 use tauri::{Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
+use shell_text::ShellText;
 use sidecar::{Session, Supervisor};
 
 /// Hand the frontend the port and token for this launch.
@@ -59,8 +61,36 @@ fn sidecar_session(supervisor: State<'_, Supervisor>) -> Session {
 /// runs on the main thread, and the plugin's blocking dialog calls must not
 /// — its documentation says they freeze the application there. Found while
 /// building `save_artifact` (D-07); the open dialog had the same shape.
+/// The shell's own words in the window's language (L-05, `shell_text.rs`).
+struct Shell(Mutex<ShellText>);
+
+fn shell_text(app: &tauri::AppHandle) -> ShellText {
+    app.state::<Shell>()
+        .0
+        .lock()
+        .map(|t| t.clone())
+        .unwrap_or_default()
+}
+
+/// The window chose a language: the words this process draws itself, from
+/// the webview's catalog. Checked in `ShellText::from_labels`; a refusal
+/// leaves the words already held.
+#[tauri::command]
+fn set_shell_text(
+    shell: State<'_, Shell>,
+    labels: std::collections::HashMap<String, String>,
+) -> Result<(), String> {
+    let text = ShellText::from_labels(&labels)?;
+    *shell
+        .0
+        .lock()
+        .map_err(|_| "the shell's text is unavailable".to_owned())? = text;
+    Ok(())
+}
+
 #[tauri::command(async)]
 fn pick_chain_file(app: tauri::AppHandle) -> Option<String> {
+    let text = shell_text(&app);
     app.dialog()
         .file()
         // Both filters, in this order. A `.pala` filter is the useful
@@ -68,8 +98,8 @@ fn pick_chain_file(app: tauri::AppHandle) -> Option<String> {
         // ought to have — a container copied out of an incident bundle may
         // be named anything at all, and a picker that hides it would send
         // the operator to the shell to work around us.
-        .add_filter("PALA-1 audit chain", &["pala"])
-        .add_filter("All files", &["*"])
+        .add_filter(&text.chain, &["pala"])
+        .add_filter(&text.all_files, &["*"])
         .blocking_pick_file()
         .map(|chosen| chosen.to_string())
 }
@@ -80,10 +110,11 @@ fn pick_chain_file(app: tauri::AppHandle) -> Option<String> {
 /// here and only the chosen path crosses to the webview.
 #[tauri::command(async)]
 fn pick_segment_manifest(app: tauri::AppHandle) -> Option<String> {
+    let text = shell_text(&app);
     app.dialog()
         .file()
-        .add_filter("PALA segment set (segments.json)", &["json"])
-        .add_filter("All files", &["*"])
+        .add_filter(&text.segment_set, &["json"])
+        .add_filter(&text.all_files, &["*"])
         .blocking_pick_file()
         .map(|chosen| chosen.to_string())
 }
@@ -110,6 +141,7 @@ fn save_artifact(
     suggested_name: String,
     contents: String,
 ) -> Result<Option<artifact::SavedArtifact>, String> {
+    let text = shell_text(&app);
     let mut dialog = app.dialog().file().set_file_name(&suggested_name);
     if let Some(ext) = Path::new(&suggested_name)
         .extension()
@@ -117,7 +149,10 @@ fn save_artifact(
     {
         dialog = dialog.add_filter(ext.to_uppercase(), &[ext]);
     }
-    let Some(chosen) = dialog.add_filter("All files", &["*"]).blocking_save_file() else {
+    let Some(chosen) = dialog
+        .add_filter(&text.all_files, &["*"])
+        .blocking_save_file()
+    else {
         return Ok(None);
     };
     let path = chosen.into_path().map_err(|e| e.to_string())?;
@@ -150,6 +185,7 @@ fn export_records(
     to_seq: Option<u64>,
     suggested_name: String,
 ) -> Result<Option<export::ExportedArtifact>, String> {
+    let text = shell_text(&app);
     if !export::valid_session_id(&session_id) {
         return Err("not a session id".to_owned());
     }
@@ -157,8 +193,8 @@ fn export_records(
         .dialog()
         .file()
         .set_file_name(&suggested_name)
-        .add_filter("JSON Lines", &["jsonl"])
-        .add_filter("All files", &["*"])
+        .add_filter(&text.json_lines, &["jsonl"])
+        .add_filter(&text.all_files, &["*"])
         .blocking_save_file()
     else {
         return Ok(None);
@@ -191,6 +227,7 @@ fn save_bundle(
     profile: String,
     suggested_name: String,
 ) -> Result<Option<bundle::BundledArtifact>, String> {
+    let text = shell_text(&app);
     if !export::valid_session_id(&session_id) {
         return Err("not a session id".to_owned());
     }
@@ -198,8 +235,8 @@ fn save_bundle(
         .dialog()
         .file()
         .set_file_name(&suggested_name)
-        .add_filter("PALA evidence bundle", &["tar"])
-        .add_filter("All files", &["*"])
+        .add_filter(&text.bundle, &["tar"])
+        .add_filter(&text.all_files, &["*"])
         .blocking_save_file()
     else {
         return Ok(None);
@@ -216,10 +253,11 @@ fn save_bundle(
 /// `pala-consistency-proof/1`, JSON. The same boundary as `pick_chain_file`.
 #[tauri::command(async)]
 fn pick_consistency_proof(app: tauri::AppHandle) -> Option<String> {
+    let text = shell_text(&app);
     app.dialog()
         .file()
-        .add_filter("PALA consistency proof", &["json"])
-        .add_filter("All files", &["*"])
+        .add_filter(&text.consistency_proof, &["json"])
+        .add_filter(&text.all_files, &["*"])
         .blocking_pick_file()
         .map(|chosen| chosen.to_string())
 }
@@ -228,10 +266,11 @@ fn pick_consistency_proof(app: tauri::AppHandle) -> Option<String> {
 /// COSE_Sign1 bytes. The same boundary as `pick_chain_file`.
 #[tauri::command(async)]
 fn pick_signed_statement(app: tauri::AppHandle) -> Option<String> {
+    let text = shell_text(&app);
     app.dialog()
         .file()
-        .add_filter("SCITT signed statement", &["cose", "cbor", "scitt"])
-        .add_filter("All files", &["*"])
+        .add_filter(&text.signed_statement, &["cose", "cbor", "scitt"])
+        .add_filter(&text.all_files, &["*"])
         .blocking_pick_file()
         .map(|chosen| chosen.to_string())
 }
@@ -240,10 +279,11 @@ fn pick_signed_statement(app: tauri::AppHandle) -> Option<String> {
 /// PEM or DER. Chosen by the user — the key is what they trust.
 #[tauri::command(async)]
 fn pick_public_key(app: tauri::AppHandle) -> Option<String> {
+    let text = shell_text(&app);
     app.dialog()
         .file()
-        .add_filter("Public key", &["pem", "der", "pub", "key"])
-        .add_filter("All files", &["*"])
+        .add_filter(&text.public_key, &["pem", "der", "pub", "key"])
+        .add_filter(&text.all_files, &["*"])
         .blocking_pick_file()
         .map(|chosen| chosen.to_string())
 }
@@ -262,6 +302,7 @@ static PRINT_WINDOWS: AtomicU32 = AtomicU32::new(0);
 /// user closes it.
 #[tauri::command(async)]
 fn print_report(app: tauri::AppHandle, html: String) -> Result<(), String> {
+    let text = shell_text(&app);
     let url = print::data_url(&html)?
         .parse::<tauri::Url>()
         .map_err(|e| e.to_string())?;
@@ -271,7 +312,7 @@ fn print_report(app: tauri::AppHandle, html: String) -> Result<(), String> {
     );
     let asked = Arc::new(AtomicBool::new(false));
     WebviewWindowBuilder::new(&app, label, WebviewUrl::External(url))
-        .title("Verification report — print")
+        .title(&text.print_title)
         .inner_size(860.0, 1000.0)
         .on_page_load(move |window, payload| {
             if payload.event() == PageLoadEvent::Finished && !asked.swap(true, Ordering::SeqCst) {
@@ -296,6 +337,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(supervisor)
+        .manage(Shell(Mutex::new(ShellText::default())))
         .invoke_handler(tauri::generate_handler![
             sidecar_session,
             pick_chain_file,
@@ -306,7 +348,8 @@ pub fn run() {
             pick_consistency_proof,
             pick_signed_statement,
             pick_public_key,
-            print_report
+            print_report,
+            set_shell_text
         ])
         .build(tauri::generate_context!())
         .expect("error while building Palimpsests Auditor")

@@ -13,8 +13,8 @@
  *   tampered with, forged, attacked or corrupted. The package's own
  *   narratives are carried verbatim and are not in this source tree.
  * - **No overclaim.** Words that certify — verified, valid, compliant,
- *   proves, intact — appear only in the sentences listed below, each with
- *   its reason: negations ("certifies nothing"), and the inference profile's
+ *   proves, intact — appear only in the sentences each language's list
+ *   allows (`i18n/wording/<tag>.json`), each with its reason: negations ("certifies nothing"), and the inference profile's
  *   own sentences, quoted verbatim because rewording them would make a
  *   second, weaker claim.
  *
@@ -38,15 +38,47 @@ const SOURCES = import.meta.glob(
 /**
  * Every catalog, too (L-02): a sentence moved out of the code into
  * `i18n/locales/<tag>.json` is still a sentence the screen says, and the two
- * rules hold for it in every language. The word lists below are English's;
- * a language's own lists come with its catalog (L-05).
+ * rules hold for it in every language — each with its own word lists,
+ * `i18n/wording/<tag>.json` (L-05). The code's sentences are English and
+ * answer to English's lists.
  */
 const CATALOG_FILES = import.meta.glob("./i18n/locales/*.json", { import: "default", eager: true }) as Record<
   string,
   Record<string, string | Record<string, string>>
 >;
 
+interface WordLists {
+  intent: string[];
+  certifying: string[];
+  allowed: Record<string, string>;
+}
+
+const WORDING_FILES = import.meta.glob("./i18n/wording/*.json", { import: "default", eager: true }) as Record<
+  string,
+  WordLists
+>;
+
+const tagOf = (file: string): string => file.replace(/^.*\//, "").replace(/\.json$/, "");
+
+/**
+ * One alternation, bounded on both sides by anything that is not a letter or
+ * a digit. `\b` would not do: in JavaScript it knows only ASCII letters, so
+ * it would see a boundary inside every Cyrillic word.
+ */
+function words(list: string[]): RegExp {
+  return new RegExp(`(?<![\\p{L}\\p{N}_])(?:${list.join("|")})(?![\\p{L}\\p{N}_])`, "iu");
+}
+
+const LISTS: Record<string, { intent: RegExp; certifying: RegExp; allowed: Record<string, string> }> = Object.fromEntries(
+  Object.entries(WORDING_FILES).map(([file, w]) => [
+    tagOf(file),
+    { intent: words(w.intent), certifying: words(w.certifying), allowed: w.allowed },
+  ]),
+);
+
 interface Shown {
+  /** Whose word lists apply: the catalog's language, or `en` for the code. */
+  lang: string;
   where: string;
   text: string;
 }
@@ -57,7 +89,7 @@ function shownStrings(): Shown[] {
     for (const [key, entry] of Object.entries(catalog)) {
       if (key.startsWith("meta.")) continue;
       const texts = typeof entry === "string" ? [entry] : Object.values(entry);
-      for (const text of texts) out.push({ where: `${file.replace(/^\.\//, "")}:${key}`, text });
+      for (const text of texts) out.push({ lang: tagOf(file), where: `${file.replace(/^\.\//, "")}:${key}`, text });
     }
   }
   for (const [file, source] of Object.entries(SOURCES)) {
@@ -78,7 +110,7 @@ function shownStrings(): Shown[] {
       // are not something a person reads.
       if (text !== null && /[a-z]{3,} [a-z]{2,}/i.test(text) && !ts.isImportDeclaration(node.parent)) {
         const { line } = sf.getLineAndCharacterOfPosition(node.getStart());
-        out.push({ where: `${file.replace(/^\.\//, "")}:${line + 1}`, text });
+        out.push({ lang: "en", where: `${file.replace(/^\.\//, "")}:${line + 1}`, text });
       }
       ts.forEachChild(node, visit);
     };
@@ -86,23 +118,6 @@ function shownStrings(): Shown[] {
   }
   return out;
 }
-
-const INTENT =
-  /\b(tamper\w*|malicious|attack\w*|fraud\w*|forg(e|ed|ery)|deliberate\w*|manipulat\w*|corrupt\w*|hacked|breach\w*)\b/i;
-
-const CERTIFYING =
-  /\b(verified|valid|validated|certif(y|ied|ies|ication)|complian\w*|guarantee[sd]?|proves|proven|authentic\w*|trustworthy|tamper-proof|immutable|intact)\b/i;
-
-/** Every sentence allowed a certifying word, and why. Matched by substring. */
-const ALLOWED: Record<string, string> = {
-  "It certifies nothing": "a negation — the thesis line says what the tool does not do",
-  "They certify nothing": "a negation — the footnote under the panels",
-  "not a certification": "a negation — what a report is",
-  "the chain proves the report happened":
-    "the inference profile's own sentence for reported-by-client (r5), quoted verbatim",
-  "nothing was found intact":
-    "a negation — the package's own sentence for the verdict `empty` (derive_verdict, 0.15), quoted verbatim",
-};
 
 group("the wording audit (D-03)", () => {
   const shown = shownStrings();
@@ -112,22 +127,45 @@ group("the wording audit (D-03)", () => {
     expect(shown.length).toBeGreaterThan(200);
   });
 
+  it("has word lists for every language it shows", () => {
+    expect(Object.keys(LISTS)).toContain("en");
+    const without = Object.keys(CATALOG_FILES).map(tagOf).filter((tag) => !(tag in LISTS));
+    expect(without).toEqual([]);
+  });
+
   it("never attributes intent (L4)", () => {
-    const hits = shown.filter((s) => INTENT.test(s.text)).map((s) => `${s.where}: ${s.text}`);
+    const hits = shown.filter((s) => LISTS[s.lang]?.intent.test(s.text)).map((s) => `${s.where}: ${s.text}`);
     expect(hits).toEqual([]);
   });
 
-  it("uses a certifying word only where the list above says why", () => {
+  it("uses a certifying word only where its language's list says why", () => {
     const hits = shown
-      .filter((s) => CERTIFYING.test(s.text))
-      .filter((s) => !Object.keys(ALLOWED).some((allowed) => s.text.includes(allowed)))
+      .filter((s) => LISTS[s.lang]?.certifying.test(s.text))
+      .filter((s) => !Object.keys(LISTS[s.lang]!.allowed).some((allowed) => s.text.includes(allowed)))
       .map((s) => `${s.where}: ${s.text}`);
     expect(hits).toEqual([]);
   });
 
-  it("keeps every allowance in use, so the list cannot rot", () => {
-    for (const allowed of Object.keys(ALLOWED)) {
-      expect(shown.some((s) => s.text.includes(allowed)), allowed).toBe(true);
+  it("keeps every allowance in use, so no list can rot", () => {
+    for (const [lang, lists] of Object.entries(LISTS)) {
+      for (const allowed of Object.keys(lists.allowed)) {
+        expect(
+          shown.some((s) => s.lang === lang && s.text.includes(allowed)),
+          `${lang}: ${allowed}`,
+        ).toBe(true);
+      }
     }
+  });
+
+  it("catches each language's words, so a list that matches nothing fails here", () => {
+    expect(LISTS.en!.intent.test("the file was tampered with")).toBe(true);
+    expect(LISTS.en!.certifying.test("a verified chain")).toBe(true);
+    expect(LISTS.en!.certifying.test("an invalid chain")).toBe(false);
+    expect(LISTS.uk!.intent.test("файл підроблено")).toBe(true);
+    expect(LISTS.uk!.certifying.test("засвідчений ланцюжок")).toBe(true);
+    // Order is proved — the word English allows — is allowed here too.
+    expect(LISTS.uk!.certifying.test("Порядок доведено")).toBe(false);
+    // A Cyrillic word is one word: no boundary inside it.
+    expect(LISTS.uk!.intent.test("дератаковано")).toBe(false);
   });
 });

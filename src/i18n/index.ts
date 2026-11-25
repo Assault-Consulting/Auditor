@@ -147,6 +147,14 @@ export function useLocale(): string {
 }
 
 /** Keys asked for that no catalog had, English included. A test holds it empty. */
+/** Call `listener` whenever the language changes; returns the unsubscribe. */
+export function onLocaleChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function missing(): readonly string[] {
   return [...misses];
 }
