@@ -52,6 +52,7 @@ anyway**. The installer stays unsigned until before the first outside user
 
 | Document | Contents |
 |---|---|
+| [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md) | User guide: step by step, in plain language, what each action is for |
 | [`FUNCTIONALITY.md`](FUNCTIONALITY.md) | Full functional specification, invariants, report schema |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Process model, the package seam, sidecar API, air-gap layers |
 | [`DEVELOPMENT-PLAN.md`](DEVELOPMENT-PLAN.md) | Phases, PR-level breakdown, effort, risks |
