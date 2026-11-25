@@ -23,7 +23,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { advisoryGroups, advisoryLine } from "./api/advisory";
 import { choiceLine, footnoteFor, panelsFor, rowsFor } from "./api/bootScreen";
-import { chainLine, openedOf } from "./api/chainState";
+import { canClose, chainLine, openedOf } from "./api/chainState";
 import { backwards, bootChips, compress, compressionLine, daySelected, density, railChips, selectedDays } from "./api/chronoscope";
 import { diagnosisCard } from "./api/diagnosis";
 import { manifestLine } from "./api/manifest";
@@ -91,7 +91,7 @@ export default function App() {
   // §22.1. Declared before the chain so a dropped manifest can reach it.
   const segmentSet = useSegmentSet(probe);
   const watcher = useWatch(probe);
-  const [chain, choice, pick, verify, openPathInShell] = useChain(probe, segmentSet.check);
+  const [chain, choice, pick, verify, openPathInShell, closeChain] = useChain(probe, segmentSet.check);
   const rail = useRail(probe, chain);
   const { boots, spans } = useBrowse(probe, chain);
   // H1: a long open or check says how long it has run. The sidecar gives
@@ -679,6 +679,12 @@ export default function App() {
               ))}
             </select>
           </label>
+          {/* H3: back to the empty screen without opening another file. */}
+          {chain.kind !== "empty" && (
+            <button className="choose-button" disabled={!canClose(chain)} onClick={closeChain} type="button">
+              {t("app.close_chain")}
+            </button>
+          )}
         </div>
         {/* C-13. A rotated chain arrives as numbered files (chain.pala.00001),
             whose extension the dialog's PALA-1 filter does not match. Said
@@ -923,11 +929,11 @@ export default function App() {
               )}
             </dl>
 
-            <p className="diagnosis-lead">
+            <h3 className="diagnosis-lead">
               {failure.unrecognised
                 ? t("app.this_build_has_no_guidance_for")
                 : t("app.where_to_look_questions_not_conclusions")}
-            </p>
+            </h3>
             {/* Ordered: the guidance is written cheapest-and-likeliest
                 first, and an unordered list would turn a deliberate sequence
                 into three equally weighted suggestions. */}
@@ -1380,7 +1386,7 @@ export default function App() {
                 )}
                 {health.value.recurring.length > 0 && (
                   <>
-                    <p className="health-line">{t("app.the_same_detail_more_than_once")}</p>
+                    <h4 className="health-line">{t("app.the_same_detail_more_than_once")}</h4>
                     <ul className="health-list">
                       {health.value.recurring.map((r) => (
                         <li key={r}>{r}</li>

@@ -15,7 +15,9 @@ import { NotAChainError, SidecarError, SubjectChangedError } from "./chain";
 import type { SessionResponse, VerificationResponse } from "./generated/types";
 import {
   type ChainState,
+  canClose,
   chainLine,
+  closeOpen,
   describe,
   openPath,
   openedOf,
@@ -307,5 +309,45 @@ group("the file line names no profile called none (H2)", () => {
     const line = chainLine({ kind: "verified", opened: OPENED, profile: "none", sources: [], result: VERIFIED });
     expect(line).toContain("Checked without an anchor.");
     expect(line).not.toContain('"none"');
+  });
+});
+
+group("closing what is open (H3)", () => {
+  it("closes the session and goes back to the empty screen", async () => {
+    const fetched = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetched);
+    const seen: ChainState[] = [];
+    await closeOpen(SESSION, { kind: "verified", opened: OPENED, profile: "none", sources: [], result: VERIFIED }, (s) => seen.push(s));
+    expect(seen).toEqual([{ kind: "empty" }]);
+    const [url, init] = fetched.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain("/session/s1");
+    expect(init.method).toBe("DELETE");
+    vi.unstubAllGlobals();
+  });
+
+  it("empties the screen even when the sidecar refuses the close", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ detail: "no" }), { status: 500 })));
+    const seen: ChainState[] = [];
+    await closeOpen(SESSION, { kind: "open", opened: OPENED }, (s) => seen.push(s));
+    expect(seen).toEqual([{ kind: "empty" }]);
+    vi.unstubAllGlobals();
+  });
+
+  it("clears a state with no session without asking the sidecar", async () => {
+    const fetched = vi.fn();
+    vi.stubGlobal("fetch", fetched);
+    const seen: ChainState[] = [];
+    await closeOpen(SESSION, { kind: "not-a-chain", path: "/tmp/x", detail: "a directory" }, (s) => seen.push(s));
+    expect(seen).toEqual([{ kind: "empty" }]);
+    expect(fetched).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("is not offered while an open or a check is in flight, which would overwrite it", () => {
+    expect(canClose({ kind: "empty" })).toBe(false);
+    expect(canClose({ kind: "opening", path: "/p" })).toBe(false);
+    expect(canClose({ kind: "verifying", opened: OPENED, profile: "none" })).toBe(false);
+    expect(canClose({ kind: "open", opened: OPENED })).toBe(true);
+    expect(canClose({ kind: "failed", detail: "x" })).toBe(true);
   });
 });

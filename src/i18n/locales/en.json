@@ -773,5 +773,6 @@
   "shell.consistency_proof": "PALA consistency proof",
   "shell.signed_statement": "SCITT signed statement",
   "shell.public_key": "Public key",
-  "shell.print_title": "Verification report — print"
+  "shell.print_title": "Verification report — print",
+  "app.close_chain": "Close the chain"
 }

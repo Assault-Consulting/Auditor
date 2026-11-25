@@ -19,7 +19,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { chainBoots, chainSpans, chainTimeline, getOrigin, getRecord, checkSegmentSet, getRecordBytes, getRecordHealth, getRecords, getSafety, getWitness, listProfiles } from "./api/chain";
 import { type BootRow, type SpanRow, bootRows, spanRows } from "./api/browse";
-import { type ChainState, openPath, openedOf, verifyOpen } from "./api/chainState";
+import { type ChainState, closeOpen, openPath, openedOf, verifyOpen } from "./api/chainState";
 import { type RecordFilters, filtersKey } from "./api/filters";
 import { type Chronoscope, chronoscope } from "./api/chronoscope";
 import type { AnchorProfile } from "./api/generated/types";
@@ -560,6 +560,7 @@ export function useChain(
   () => void,
   (profile: string, sources: AnchorProfile["sources"]) => void,
   (path: string) => void,
+  () => void,
 ] {
   const [chain, setChain] = useState<ChainState>({ kind: "empty" });
   const [choice, setChoice] = useState<Choice>({ kind: "idle" });
@@ -643,7 +644,16 @@ export function useChain(
     void verifyOpen(probe.session, latest.current, profile, sources, apply);
   };
 
-  return [chain, choice, pick, verify, open];
+  const close = () => {
+    setChoice({ kind: "idle" });
+    if (probe.kind !== "ready") {
+      apply({ kind: "empty" });
+      return;
+    }
+    void closeOpen(probe.session, latest.current, apply);
+  };
+
+  return [chain, choice, pick, verify, open, close];
 }
 
 /** A segment set (§22.1): idle, being checked, the package's answer, or why not. */

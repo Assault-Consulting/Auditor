@@ -168,6 +168,49 @@ payload's `last_seq` from the reader (refusing `chain_too_short` when the
 chain is shorter, as the v3 root already does). The result could carry the
 seq it compared at. Then the seam reads nothing.
 
+## R19 — the package's fixed sentences, named — **small**
+
+25 November 2026, from L-05.
+
+**What Auditor does.** Auditor now shows its own sentences in any language
+from a catalog (L-01…L-05; Ukrainian first). The package's words are shown
+as the package wrote them (L-03), so that a translation can never become a
+second, different claim. Most of those words are the reason for that rule:
+a diagnosis narrative or a record's detail is about one chain, written once.
+
+**What it costs now.** Some of the package's words are not about any chain.
+They are the same fixed sentence every time:
+- the advisory note, `"advisory items do not affect the verdict"`
+  (`report._ADVISORY_NOTE`);
+- the health note (`report._HEALTH_NOTE`);
+- the basis of each health group: `"proved order"`, `"the monotonic clock,
+  within one boot"`, `"the writer's wall clock against its monotonic clock,
+  within one boot"` (`health_summary`).
+
+On a Ukrainian screen, each of these is an English clause inside a
+Ukrainian sentence: «Довідкових пунктів немає — advisory items do not affect
+the verdict.» Auditor could translate them by matching the English, but the
+constants are private, and a match on text breaks silently the day a word
+changes.
+
+**The ask.** Give each fixed sentence a stable name and export the table,
+the way `DIAGNOSIS_QUESTIONS` and the vocabularies already are:
+- `NOTES = {"advisory": "...", "health": "..."}`;
+- `HEALTH_BASES = {"proved_order": "...", "monotonic_in_boot": "...",
+  "wall_against_monotonic": "..."}`;
+- in the report's JSON, beside each such text, its name (`"basis_id":
+  "proved_order"`).
+
+The English stays in the report as it is, and the report format does not
+change meaning.
+
+**What Auditor would do with it.** `vocabulary.json` already carries the
+package's tables into the UI, and a test holds the UI to them. Each named
+sentence would get a catalog key. The English catalog's value would be
+held equal to the package's text by test, so English stays the package's own
+words. Other languages translate the sentence once, against the glossary.
+Anything without a name stays verbatim, as now.
+
 ## Measured here, for R17 (F15 on 0.15.0)
 
 - `TailingReader` over an existing 10⁶-record file: 21.6 s to catch up,
