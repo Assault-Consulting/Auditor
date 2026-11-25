@@ -1980,7 +1980,120 @@ class ChainHandle:
                 for kind, c in sorted(per_kind.items(), key=lambda kv: -sum(kv[1].values()))
             ],
             "recurring_details": recurring[:20],
+            "origins": self._origin_epochs(idx, safety),
         }
+
+    def _origin_epochs(self, idx: _HeaderIndex, safety: list) -> list[dict[str, object]]:
+        """SAFETY records against the origin in force (E-03, F12: "correlation
+        with origin events"). This is a count of record events. It never
+        interprets content and never judges.
+
+        The chain is cut where the origin in force changes, as the package
+        answers it: `origin_state_at()` at each record, in chain order. That
+        is a binary search over the package's own index of the records that
+        set origin state (U23), plus the setter decoded once and cached.
+        Measured: 200k records in 0.5 s. Nothing is read from a header here.
+        Which records set origin state (MODEL_LOAD, MODEL_UNLOAD, an EVENT
+        that carries an origin digest) is the package's rule, applied by the
+        package.
+
+        Each stretch carries:
+        - its seq range and record count, by proved order;
+        - the origin, as the writer declared it. The digests are the
+          writer's claim (L3);
+        - what changed from the stretch before it, by comparing the
+          package's fields: the model digest, the config digest, the role,
+          a load, an unload;
+        - the SAFETY records written under it, by kind.
+        A stretch under which no SAFETY record was written is listed too,
+        with zero: that is half of any comparison.
+        """
+        n = len(idx)
+        if n == 0:
+            return []
+        epochs: list[dict[str, object]] = []
+        prev_key: tuple | None = None
+        with self._lock:
+            for i in range(n):
+                seq = int(idx.seq[i])
+                st = self._reader.origin_state_at(seq)
+                view = st.origin
+                key = (
+                    ("active", view.since_seq)
+                    if view is not None
+                    else ("unloaded" if st.unloaded else "not_stated", None)
+                )
+                # An unload after an unload is the same state twice; a new
+                # unload stretch begins only after something else.
+                if key != prev_key:
+                    epochs.append(
+                        {
+                            "state": key[0],
+                            "first_seq": seq,
+                            "last_seq": seq,
+                            "records": 0,
+                            "origin": None
+                            if view is None
+                            else {
+                                "role": view.role,
+                                "model_digest": view.model_digest.hex(),
+                                "config_digest": view.config_digest.hex(),
+                                "since_seq": view.since_seq,
+                                "detail": view.detail,
+                            },
+                            "safety": Counter(),
+                        }
+                    )
+                    prev_key = key
+                epoch = epochs[-1]
+                epoch["last_seq"] = seq
+                epoch["records"] = int(epoch["records"]) + 1
+
+        starts = [int(e["first_seq"]) for e in epochs]
+        for record in safety:
+            if record.record_type != RT_SAFETY:
+                continue
+            k = bisect_right(starts, record.seq) - 1
+            if k >= 0:
+                epochs[k]["safety"][record.kind_name or f"kind {record.kind}"] += 1
+
+        out: list[dict[str, object]] = []
+        before: dict[str, object] | None = None
+        for e in epochs:
+            origin = e["origin"]
+            changed: list[str] = []
+            if before is not None:
+                if e["state"] != "active":
+                    changed.append("unloaded" if e["state"] == "unloaded" else "not_stated")
+                elif before["state"] != "active":
+                    changed.append("loaded")
+                else:
+                    was = before["origin"]
+                    for field in ("model_digest", "config_digest", "role"):
+                        if origin[field] != was[field]:
+                            changed.append(field)
+                    if not changed:
+                        changed.append("declared_again")
+            safety_counts: Counter = e["safety"]
+            out.append(
+                {
+                    "state": e["state"],
+                    "first_seq": e["first_seq"],
+                    "last_seq": e["last_seq"],
+                    "records": e["records"],
+                    "origin": origin,
+                    "changed": changed,
+                    "safety_total": sum(safety_counts.values()),
+                    "safety_by_kind": [
+                        {"kind": kind, "count": count}
+                        for kind, count in sorted(
+                            safety_counts.items(), key=lambda kv: (-kv[1], kv[0])
+                        )
+                    ],
+                }
+            )
+            before = e
+        return out
 
     def safety(self, limit: int = 500) -> dict[str, object]:
         """Every SAFETY record, in the order F8 asks for.

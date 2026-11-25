@@ -385,6 +385,13 @@ Each block says what it rests on:
 - **the monotonic clock**: precise, but only within one boot;
 - **recorded**: the writer's wall clock, so only a claim.
 
+Under the warnings, **"Against the origin in force"** cuts the log where
+the declared model or configuration changed, and counts the SAFETY records
+written under each stretch, with a rate per 1,000 records. Stretches with
+none are listed too. It shows **when** a pattern of warnings started. It
+never says **why**: a new configuration and more warnings, side by side,
+are two facts, not a cause and an effect.
+
 **What it gives you.** An idea of how far the times in this log can be
 relied on. The program gives no scores: what counts as normal is yours to
 decide.

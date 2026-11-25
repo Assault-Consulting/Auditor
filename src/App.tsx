@@ -1409,6 +1409,34 @@ export default function App() {
                     ))}
                   </ul>
                 )}
+                {/* E-03: the same counts against the origin in force. Every
+                    stretch is listed, those with none too: a count with
+                    nothing to compare against says nothing. */}
+                {health.value.origins.length > 1 && (
+                  <>
+                    <h4 className="health-line">{t("app.health.by_origin")}</h4>
+                    <p className="health-line">{t("app.health.by_origin_note")}</p>
+                    <ul className="health-list">
+                      {health.value.origins.map((o) => (
+                        <li key={o.firstSeq}>
+                          {o.range}
+                          {o.changed !== null && <> · <strong>{o.changed}</strong></>}
+                          <br />
+                          {o.sinceSeq !== null ? (
+                            <>
+                              <button className="health-jump" onClick={() => select(o.sinceSeq!)} type="button">
+                                #{o.sinceSeq}
+                              </button>{" "}
+                            </>
+                          ) : null}
+                          {o.origin}
+                          <br />
+                          {o.safety}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
                 {health.value.recurring.length > 0 && (
                   <>
                     <h4 className="health-line">{t("app.the_same_detail_more_than_once")}</h4>

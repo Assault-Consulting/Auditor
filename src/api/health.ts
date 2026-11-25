@@ -92,6 +92,23 @@ export interface RecordHealth {
   safetyTotal: number;
   kinds: { kind: string; total: number; perBoot: string }[];
   recurring: string[];
+  /** SAFETY against the origin in force, one stretch per line (E-03). */
+  origins: OriginLine[];
+}
+
+/** One stretch of the chain under one origin, worded. */
+export interface OriginLine {
+  firstSeq: number;
+  /** Where the origin was declared, to jump to; null when none was. */
+  sinceSeq: number | null;
+  /** "#3–#7 · 5 records". */
+  range: string;
+  /** The origin as declared, or that none was in force. */
+  origin: string;
+  /** What differs from the stretch before; null for the first. */
+  changed: string | null;
+  /** The SAFETY records written under it, by kind, with a rate per 1,000. */
+  safety: string;
 }
 
 function median(xs: number[]): number {
@@ -112,6 +129,49 @@ function stepText(kind: string, delta: number): string {
       // A class this build cannot name: shown as the package gave it.
       return t("health.step.unknown", { kind, delta: span(delta) });
   }
+}
+
+type Origin = RecordHealthView["origins"][number];
+
+/** The origin a stretch ran under, in the writer's words (L3: a claim). */
+function originText(o: Origin): string {
+  if (o.state === "unloaded") return t("health.origin.unloaded");
+  if (o.origin === null) return t("health.origin.not_stated");
+  return t("health.origin.active", {
+    role: o.origin.role,
+    model: o.origin.model_digest.slice(0, 12),
+    config: o.origin.config_digest.slice(0, 12),
+  });
+}
+
+const KNOWN_CHANGES = new Set(["model_digest", "config_digest", "role", "loaded", "unloaded", "not_stated", "declared_again"]);
+
+/** What the package's fields say changed; each a phrase, joined. */
+function changedText(o: Origin): string | null {
+  if (o.changed.length === 0) return null;
+  // A change this build cannot name is shown as the package's field name.
+  return o.changed.map((c) => (KNOWN_CHANGES.has(c) ? t(`health.origin.changed.${c}`) : c)).join(", ");
+}
+
+function originSafety(o: Origin): string {
+  if (o.safety_total === 0) return t("health.origin.no_safety");
+  const kinds = o.safety_by_kind.map((k) => t("health.origin.kind", { kind: k.kind, n: num(k.count) })).join(", ");
+  // Per 1,000 records of the stretch: stretches differ in length, and a
+  // bare count would compare a long one with a short one. Arithmetic on
+  // proved order, not a judgement.
+  const rate = num(Math.round((o.safety_total * 1000 * 10) / o.records) / 10);
+  return t("health.origin.safety", { total: count(o.safety_total, "safety_record"), kinds, rate });
+}
+
+export function originLines(h: RecordHealthView): OriginLine[] {
+  return h.origins.map((o) => ({
+    firstSeq: o.first_seq,
+    sinceSeq: o.origin?.since_seq ?? null,
+    range: t("health.origin.range", { first: o.first_seq, last: o.last_seq, records: count(o.records, "record") }),
+    origin: originText(o),
+    changed: changedText(o),
+    safety: originSafety(o),
+  }));
 }
 
 type Lifecycle = RecordHealthView["boots"][number]["lifecycle"];
@@ -228,5 +288,6 @@ export function recordHealth(h: RecordHealthView): RecordHealth {
     safetyTotal: h.safety_total,
     kinds,
     recurring,
+    origins: originLines(h),
   };
 }

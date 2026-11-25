@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Record health: SAFETY against the origin in force (E-03). The chain is
+  cut wherever the package's `origin_state_at()` changes: a model loaded or
+  unloaded, a new config or model digest, a new role. Each stretch shows:
+  - its range;
+  - the origin as declared;
+  - what changed;
+  - its SAFETY records by kind, with a rate per 1,000 records.
+
+  Stretches with none are listed too. It is side by side, never explained.
+
 - Anchor profiles from the window (E-08). **Anchors…**, next to **Verify**,
   makes, edits and deletes the profiles that question two is checked
   against:

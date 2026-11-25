@@ -1292,6 +1292,89 @@
         "title": "HealthLifecycle",
         "type": "object"
       },
+      "HealthOrigin": {
+        "description": "One stretch of the chain under one origin in force (E-03).",
+        "properties": {
+          "changed": {
+            "description": "What differs from the stretch before, comparing the package's fields: 'model_digest', 'config_digest', 'role', 'loaded', 'unloaded', 'not_stated', 'declared_again'. Empty for the first stretch.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Changed",
+            "type": "array"
+          },
+          "first_seq": {
+            "title": "First Seq",
+            "type": "integer"
+          },
+          "last_seq": {
+            "title": "Last Seq",
+            "type": "integer"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OriginModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The origin in force, as the writer declared it (L3: a claim)."
+          },
+          "records": {
+            "description": "Records in the stretch, by proved order.",
+            "title": "Records",
+            "type": "integer"
+          },
+          "safety_by_kind": {
+            "items": {
+              "$ref": "#/components/schemas/HealthOriginCount"
+            },
+            "title": "Safety By Kind",
+            "type": "array"
+          },
+          "safety_total": {
+            "title": "Safety Total",
+            "type": "integer"
+          },
+          "state": {
+            "description": "'active', 'unloaded' (a MODEL_UNLOAD ended one) or 'not_stated' (none declared yet).",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "first_seq",
+          "last_seq",
+          "records",
+          "origin",
+          "changed",
+          "safety_total",
+          "safety_by_kind"
+        ],
+        "title": "HealthOrigin",
+        "type": "object"
+      },
+      "HealthOriginCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "count"
+        ],
+        "title": "HealthOriginCount",
+        "type": "object"
+      },
       "HealthResponse": {
         "description": "Liveness, and the identity of the verifier behind this service.\n\nThe verifier identity is part of the liveness answer rather than a\nseparate endpoint because a verification result is only meaningful\nalongside the verifier that produced it. A shell that knows the service is\nup but not what it is linked against knows less than it needs.",
         "properties": {
@@ -1768,6 +1851,14 @@
             "title": "Drift Note",
             "type": "string"
           },
+          "origins": {
+            "description": "SAFETY records against the origin in force, one entry per stretch of the chain between origin changes, in chain order \u2014 a count, never an interpretation.",
+            "items": {
+              "$ref": "#/components/schemas/HealthOrigin"
+            },
+            "title": "Origins",
+            "type": "array"
+          },
           "recurring_details": {
             "description": "Details seen more than once, most frequent first, at most twenty.",
             "items": {
@@ -1810,7 +1901,8 @@
           "drift_note",
           "safety_total",
           "safety_by_kind",
-          "recurring_details"
+          "recurring_details",
+          "origins"
         ],
         "title": "RecordHealthView",
         "type": "object"

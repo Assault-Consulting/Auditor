@@ -839,5 +839,25 @@
   "anchors.keychain.stored": "Stored the head under the account {account}.",
   "anchors.keychain.not_stored": "Not stored: {reason}",
   "shell.anchor_file": "Anchor head file",
-  "shell.pkcs11_module": "PKCS#11 module"
+  "shell.pkcs11_module": "PKCS#11 module",
+  "count.safety_record": {
+    "one": "{n} SAFETY record",
+    "other": "{n} SAFETY records"
+  },
+  "app.health.by_origin": "Against the origin in force",
+  "app.health.by_origin_note": "The chain cut where the declared model, configuration or role changes, as the package reads it, with the SAFETY records written under each stretch. Counts and ranges are by proved order; what was loaded is the writer's declaration. Side by side, not explained: a difference between two stretches says when, never why.",
+  "health.origin.range": "#{first}–#{last} · {records}",
+  "health.origin.not_stated": "no origin declared yet",
+  "health.origin.unloaded": "no model active — unloaded",
+  "health.origin.active": "{role} · model {model}… · config {config}… (declared)",
+  "health.origin.changed.model_digest": "the model digest changed",
+  "health.origin.changed.config_digest": "the config digest changed",
+  "health.origin.changed.role": "the role changed",
+  "health.origin.changed.loaded": "a model was loaded",
+  "health.origin.changed.unloaded": "the model was unloaded",
+  "health.origin.changed.not_stated": "no origin declared",
+  "health.origin.changed.declared_again": "the same origin declared again",
+  "health.origin.no_safety": "no SAFETY record",
+  "health.origin.kind": "{kind} {n}",
+  "health.origin.safety": "{total} ({kinds}) · {rate} per 1,000 records"
 }
