@@ -33,6 +33,8 @@ pub struct ShellText {
     pub consistency_proof: String,
     pub signed_statement: String,
     pub public_key: String,
+    pub anchor_file: String,
+    pub pkcs11_module: String,
     pub print_title: String,
 }
 
@@ -47,6 +49,8 @@ impl Default for ShellText {
             consistency_proof: "PALA consistency proof".into(),
             signed_statement: "SCITT signed statement".into(),
             public_key: "Public key".into(),
+            anchor_file: "Anchor head file".into(),
+            pkcs11_module: "PKCS#11 module".into(),
             print_title: "Verification report — print".into(),
         }
     }
@@ -74,6 +78,8 @@ impl ShellText {
                 "consistency_proof" => &mut out.consistency_proof,
                 "signed_statement" => &mut out.signed_statement,
                 "public_key" => &mut out.public_key,
+                "anchor_file" => &mut out.anchor_file,
+                "pkcs11_module" => &mut out.pkcs11_module,
                 "print_title" => &mut out.print_title,
                 _ => return Err(format!("{name}: not a label this shell shows")),
             };

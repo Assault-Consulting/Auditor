@@ -24,6 +24,8 @@ export const SHELL_LABELS = [
   "consistency_proof",
   "signed_statement",
   "public_key",
+  "anchor_file",
+  "pkcs11_module",
   "print_title",
 ] as const;
 

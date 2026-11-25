@@ -23,6 +23,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { advisoryGroups, advisoryLine } from "./api/advisory";
 import { choiceLine, footnoteFor, panelsFor, rowsFor } from "./api/bootScreen";
+import { AnchorProfiles } from "./AnchorProfiles";
 import { canClose, chainLine, openedOf } from "./api/chainState";
 import { backwards, bootChips, compress, compressionLine, daySelected, density, railChips, selectedDays } from "./api/chronoscope";
 import { diagnosisCard } from "./api/diagnosis";
@@ -86,8 +87,10 @@ export default function App() {
   // re-renders the window from here.
   const locale = useLocale();
   const probe = useProbe();
-  const profiles = useProfiles(probe);
+  const [profiles, reloadProfiles] = useProfiles(probe);
   const [chosenProfile, setChosenProfile] = useState("none");
+  // E-08: the anchor profiles panel, opened from the verify row.
+  const [anchorsOpen, setAnchorsOpen] = useState(false);
   // §22.1. Declared before the chain so a dropped manifest can reach it.
   const segmentSet = useSegmentSet(probe);
   const watcher = useWatch(probe);
@@ -679,6 +682,16 @@ export default function App() {
               ))}
             </select>
           </label>
+          {/* E-08: without a profile, question two can never be checked. */}
+          <button
+            aria-expanded={anchorsOpen}
+            className="choose-button"
+            disabled={probe.kind !== "ready"}
+            onClick={() => setAnchorsOpen((o) => !o)}
+            type="button"
+          >
+            {t("anchors.open")}
+          </button>
           {/* H3: back to the empty screen without opening another file. */}
           {chain.kind !== "empty" && (
             <button className="choose-button" disabled={!canClose(chain)} onClick={closeChain} type="button">
@@ -686,6 +699,18 @@ export default function App() {
             </button>
           )}
         </div>
+        {anchorsOpen && probe.kind === "ready" && (
+          <AnchorProfiles
+            onClose={() => setAnchorsOpen(false)}
+            onDeleted={(name) => {
+              if (chosenProfile === name) setChosenProfile("none");
+            }}
+            onSaved={setChosenProfile}
+            profiles={profiles}
+            reload={reloadProfiles}
+            session={probe.session}
+          />
+        )}
         {/* C-13. A rotated chain arrives as numbered files (chain.pala.00001),
             whose extension the dialog's PALA-1 filter does not match. Said
             here rather than by widening the filter: a filter on "anything

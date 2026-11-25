@@ -29,11 +29,13 @@ import tempfile
 import uvicorn
 from . import __version__
 from .anchors import NO_ANCHOR, AnchorProfiles, ProfileNotFound
+from .anchors import default_path as default_profiles_path
 from .keychain import KeychainUnavailable
 from .keychain import available as keychain_available
 from .keychain import write as keychain_write
 from .models import (
     AnchorProfile,
+    AnchorStore,
     BootView,
     ChainSubject,
     ConsistencyCheckRequest,
@@ -141,7 +143,11 @@ def new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def build_app(token: str | None = None, witness_path: Path | None = None) -> FastAPI:
+def build_app(
+    token: str | None = None,
+    witness_path: Path | None = None,
+    profiles_path: Path | None = None,
+) -> FastAPI:
     """Construct the application.
 
     A factory rather than a module-level singleton so tests can build an
@@ -162,7 +168,7 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
     # several apps in one process, and a shared store would let one test's
     # open container appear in another's session list.
     app.state.sessions = SessionStore()
-    app.state.anchors = AnchorProfiles()
+    app.state.anchors = AnchorProfiles(profiles_path or default_profiles_path())
     # E-05. The path is read here, once, like the token: the environment's
     # override in tests, else this OS's data directory.
     app.state.witness = WitnessLog(witness_path or default_witness_path())
@@ -281,6 +287,17 @@ def build_app(token: str | None = None, witness_path: Path | None = None) -> Fas
             raise HTTPException(status_code=409, detail=str(exc)) from None
         except ProfileNotFound:
             raise HTTPException(status_code=404, detail="no such profile") from None
+
+    @app.get("/anchors/store", response_model=AnchorStore)
+    def anchor_store() -> AnchorStore:
+        """Where profiles are kept, and why they cannot be changed if they cannot.
+
+        Asked by the window's profile editor, so a file that could not be
+        read is said once, with its path, rather than as a refusal on every
+        save.
+        """
+        store = app.state.anchors
+        return AnchorStore(path=str(store.path) if store.path else None, problem=store.problem)
 
     @app.get("/anchors/keychain", response_model=KeychainStatus)
     def keychain_status() -> KeychainStatus:

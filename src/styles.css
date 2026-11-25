@@ -2435,3 +2435,84 @@ button.rail-safety:hover {
 .rail-day > span.rail-date {
   padding-left: calc(0.2em + 1px);
 }
+
+/* E-08: the anchor profiles panel. */
+.anchors {
+  margin-top: calc(var(--step) * 2);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 2);
+}
+
+.anchors-list,
+.anchors-sources {
+  margin: var(--step) 0 0;
+  padding-left: calc(var(--step) * 2.5);
+  font-size: 0.86rem;
+}
+
+.anchors-list > li {
+  margin-bottom: var(--step);
+}
+
+.anchors-list .anchors-sources li {
+  color: var(--vellum-dim);
+  overflow-wrap: anywhere;
+}
+
+/* In the editor each source is a numbered fieldset already. */
+.anchors-editor .anchors-sources {
+  list-style: none;
+  padding-left: 0;
+}
+
+.anchors-source fieldset {
+  border: 1px solid var(--rule);
+  margin: 0 0 var(--step);
+  padding: var(--step) calc(var(--step) * 1.5);
+}
+
+.anchors-source legend {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--vellum-dim);
+}
+
+.anchors-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--step);
+  margin: calc(var(--step) * 0.75) 0 0;
+  font-size: 0.86rem;
+}
+
+.anchors-field > span {
+  min-width: 12ch;
+  color: var(--vellum-dim);
+}
+
+.anchors-field input,
+.anchors-field select {
+  flex: 1 1 24ch;
+  min-width: 0;
+  min-height: 24px;
+  font-size: 0.86rem;
+  color: var(--vellum);
+  background: var(--ink-raised);
+  border: 1px solid var(--rule);
+  padding: calc(var(--step) * 0.5) var(--step);
+}
+
+.anchors-mono {
+  font-family: var(--mono);
+}
+
+.anchors-actions {
+  margin: var(--step) 0 0;
+}
+
+.anchors-seed {
+  margin-top: var(--step);
+  padding-left: var(--step);
+  border-left: 1px solid var(--rule);
+}

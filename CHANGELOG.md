@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Anchor profiles from the window (E-08). **Anchors…**, next to **Verify**,
+  makes, edits and deletes the profiles that question two is checked
+  against:
+  - the sources are a head file, this machine's secret store, a head typed
+    in, or a hardware token, asked in the order the user sets;
+  - a head can be put into the secret store from the same panel;
+  - profiles are kept in `anchor-profiles.json` in the OS data directory
+    (`AUDITOR_ANCHOR_PROFILES` overrides it), so they survive a restart.
+    Writes are atomic. A file that cannot be read is never written over:
+    the store holds only "none", refuses changes, and
+    `GET /anchors/store` says why;
+  - a profile keeps where to look, never a secret.
+  Before this, profiles lived in memory and could only be made through the
+  API, so question two could never be checked from the window.
+
 - Segment sets (§22.1). **Open a segment set…** — or a `segments.json`
   dropped on the window — checks a rotated chain as the set its
   `pala-segments/1` manifest describes, with the package's

@@ -322,6 +322,41 @@
         "title": "AnchorSourceSpec",
         "type": "object"
       },
+      "AnchorStore": {
+        "description": "Where this installation keeps its anchor profiles.",
+        "properties": {
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The profiles file, or null when kept in memory only.",
+            "title": "Path"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the file could not be read, or null. While set, the file is left as it is and every change to a profile is refused.",
+            "title": "Problem"
+          }
+        },
+        "required": [
+          "path",
+          "problem"
+        ],
+        "title": "AnchorStore",
+        "type": "object"
+      },
       "BootBoundary": {
         "description": "Where one boot begins and ends, on both axes.\n\nRendered as an axis break rather than a seam (\u00a7C-03). `monotonic_ns`\nresets across a boot, so no duration spans one \u2014 and nothing in this\npayload computes one that does.",
         "properties": {
@@ -3898,6 +3933,25 @@
           }
         },
         "summary": "Put Profile"
+      }
+    },
+    "/anchors/store": {
+      "get": {
+        "description": "Where profiles are kept, and why they cannot be changed if they cannot.\n\nAsked by the window's profile editor, so a file that could not be\nread is said once, with its path, rather than as a refusal on every\nsave.",
+        "operationId": "anchor_store_anchors_store_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnchorStore"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Anchor Store"
       }
     },
     "/health": {

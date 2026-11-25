@@ -409,6 +409,18 @@ class AnchorSourceSpec(BaseModel):
         return cleaned
 
 
+class AnchorStore(BaseModel):
+    """Where this installation keeps its anchor profiles."""
+
+    path: str | None = Field(description="The profiles file, or null when kept in memory only.")
+    problem: str | None = Field(
+        description=(
+            "Why the file could not be read, or null. While set, the file is "
+            "left as it is and every change to a profile is refused."
+        )
+    )
+
+
 class AnchorProfile(BaseModel):
     """An ordered list of places to look for a trusted head.
 
