@@ -46,11 +46,23 @@
     "truncated_tail": "consistency",
     "unanchored_tail": "completeness"
   },
+  "health_bases": {
+    "monotonic_in_boot": "the monotonic clock, within one boot",
+    "proved_order": "proved order",
+    "wall_against_monotonic": "the writer's wall clock against its monotonic clock, within one boot"
+  },
   "manifest_statuses": [
     "contradicts",
     "declared_only",
     "matches"
   ],
+  "notes": {
+    "advisory": "advisory items do not affect the verdict",
+    "checked_at": "the auditing machine's clock",
+    "existence_no_witness": "no WITNESS record in this chain; receipts held outside the chain (for example SCITT) are not consulted by this report",
+    "existence_witness_present": "witness records present; receipts are not verified by this tool",
+    "health": "advisory: the record's own account of its clocks and its anchoring, taken from its headers; no figure is a threshold and none affects the verdict"
+  },
   "report_format": "pala-verification-report/2",
   "statement_refusal_codes": [
     "chain_too_short",

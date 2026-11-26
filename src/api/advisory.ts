@@ -21,6 +21,7 @@
  * one thing to look at, and a flat list of five makes it look like five.
  */
 
+import { fixedNote } from "./fixed";
 import { t, tn } from "../i18n";
 import { ownEntry } from "./own";
 import type { AdvisoryItemModel, AdvisoryModel } from "./generated/types";
@@ -128,10 +129,10 @@ export function advisoryLine(advisory: AdvisoryModel): string {
     // Said plainly rather than by hiding the lane. "No advisory items" is
     // information; an absent section is ambiguous between that and a lane
     // nobody implemented.
-    return t("advisory.line.none", { note: advisory.note ?? "" });
+    return t("advisory.line.none", { note: fixedNote(advisory.note_id, advisory.note) ?? "" });
   }
-  // The note is the sidecar's, carried as it is (L-03).
-  return tn("advisory.line.some", advisory.count, { note: advisory.note ?? "" });
+  // The note is the package's fixed sentence, shown by name (R19).
+  return tn("advisory.line.some", advisory.count, { note: fixedNote(advisory.note_id, advisory.note) ?? "" });
 }
 
 /** Every code this build has wording for. Exported for the tests. */

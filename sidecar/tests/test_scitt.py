@@ -143,3 +143,35 @@ def test_files_that_cannot_be_used_are_refused_with_the_reason(
 def test_the_route_needs_the_token(gated_client: TestClient, route: str) -> None:
     r = gated_client.post(route, json={"statement_path": "a", "key_path": "b"})
     assert r.status_code == 401
+
+
+def test_a_statement_longer_than_the_chain_is_named_for_what_it_is(
+    open_client: TestClient, chain_path: Path, tmp_path: Path
+) -> None:
+    """R18 (0.15.1): the package takes the head from the reader and refuses a
+    statement about a record this chain does not have as `chain_too_short`.
+    On 0.15.0 the seam hands the last head, and the refusal is
+    `head_mismatch` — the same "no", in less precise words."""
+    from auditor_sidecar.pala_seam import _HEAD_FROM_READER
+
+    longer = tmp_path / "longer.pala"
+    longer.write_bytes(chain_path.read_bytes())
+    w = fixed_reopen(longer)
+    w.boot()
+    w.close()
+    st, pub, _ = _statement(longer, tmp_path)  # about the longer chain's last record
+    body = _check(open_client, _open(open_client, chain_path), st, pub)
+    assert body["accepted"] is False
+    assert body["code"] == ("chain_too_short" if _HEAD_FROM_READER else "head_mismatch")
+
+
+def test_the_seq_compared_at_is_the_package_s_when_it_says(
+    open_client: TestClient, chain_path: Path, tmp_path: Path
+) -> None:
+    from auditor_sidecar.pala_seam import _HEAD_FROM_READER
+
+    if not _HEAD_FROM_READER:
+        pytest.skip("the package says where it compared from 0.15.1 (R18)")
+    st, pub, _ = _statement(chain_path, tmp_path, last=1)
+    body = _check(open_client, _open(open_client, chain_path), st, pub)
+    assert body["accepted"] is True and body["checked_at_seq"] == 1

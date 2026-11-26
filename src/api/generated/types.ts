@@ -36,6 +36,8 @@ export interface AdvisoryModel {
   items: Array<AdvisoryItemModel>;
   /** Carried in the payload rather than left to the UI. A consumer that receives advisory items beside chain_ok will eventually treat them as part of it. */
   note?: string;
+  /** The note's name among the package's fixed sentences (R19, `palimpsests.audit.report.NOTES`): what a catalog translates. */
+  note_id?: string;
 }
 
 /**
@@ -677,6 +679,8 @@ export interface RecordHealthView {
   drift: Array<HealthDrift>;
   /** The clock the drift figures are measured on. */
   drift_note: string;
+  /** That clock by name among the package's HEALTH_BASES (R19). */
+  drift_basis_id: string;
   safety_total: number;
   safety_by_kind: Array<HealthKind>;
   /** Details seen more than once, most frequent first, at most twenty. */

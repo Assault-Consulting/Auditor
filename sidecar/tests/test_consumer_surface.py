@@ -43,6 +43,16 @@ CONSUMER_MODULES = {
     "palimpsests.audit.tailing": "channel 9, PROVISIONAL in 0.15 (R17); has __all__ (F15)",
 }
 
+#: Names the seam imports under `try: … except ImportError`, because the pin
+#: still allows a release without them, with the release that adds them. On
+#: that older release the name is absent, not private, and this test says so;
+#: once present it must be declared public like any other.
+OPTIONAL = {
+    ("palimpsests.audit.report", "NOTES"): "0.15.1 (R19)",
+    ("palimpsests.audit.report", "HEALTH_BASES"): "0.15.1 (R19)",
+}
+
+
 def _package_imports(path: Path) -> list[tuple[str, str]]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     found: list[tuple[str, str]] = []
@@ -67,6 +77,8 @@ def test_the_seam_imports_only_from_consumer_modules() -> None:
 @pytest.mark.parametrize("module,name", sorted(set(_package_imports(SEAM))))
 def test_every_imported_name_is_declared_public(module: str, name: str) -> None:
     mod = importlib.import_module(module)
+    if (module, name) in OPTIONAL and not hasattr(mod, name):
+        pytest.skip(f"{name} arrives in {OPTIONAL[module, name]}; this release has none")
     # Every channel module declares `__all__` since 0.15 (T22): no exception.
     declared = getattr(mod, "__all__", None)
     assert declared is not None, f"{module} declares no __all__"

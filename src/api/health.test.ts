@@ -38,6 +38,7 @@ function view(over: Partial<RecordHealthView> = {}): RecordHealthView {
       { boot_id: BOOT_B, slope_ppm: null, points: 1, time_trusts: ["NTP_SYNCED"] },
     ],
     drift_note: "the writer's wall clock against its monotonic clock, within one boot — the writer's claim",
+    drift_basis_id: "wall_against_monotonic",
     safety_total: 4,
     safety_by_kind: [
       { kind: "GUARD_STATE_REJECT", total: 3, per_boot: [{ boot_id: BOOT_A, count: 3 }] },

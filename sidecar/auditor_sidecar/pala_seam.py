@@ -32,6 +32,7 @@ the imports move, the rest of the codebase does not notice.
 
 from __future__ import annotations
 
+import dataclasses
 import io
 import mmap
 import queue
@@ -69,6 +70,7 @@ from palimpsests.audit.pala.proofs import (
 )
 from palimpsests.audit.pala.scitt import (
     STATEMENT_REFUSAL_CODES,
+    StatementCheck,
     StatementRefused,
     verify_statement,
 )
@@ -463,6 +465,44 @@ def verifier_identity() -> dict[str, str]:
     }
 
 
+# R18 (Palimpsests 0.15.1): `verify_statement` takes the head from the
+# reader, at the statement's own last_seq, and says where in `head_seq`.
+# Asked by the result's fields rather than the version number, so a build
+# from the package's main and a release behave alike. On 0.15.0 the seam
+# still reads last_seq from the payload itself (`_statement_last_seq`).
+_HEAD_FROM_READER = "head_seq" in {f.name for f in dataclasses.fields(StatementCheck)}
+
+# R19 (0.15.1): the report's fixed sentences, by name. On 0.15.0 the names
+# are not exported, so they are given here, with the text 0.15.0 writes,
+# letter for letter. A test holds this table to the package's when the
+# package has one, and the English catalog to whichever is in force.
+try:
+    from palimpsests.audit.report import HEALTH_BASES, NOTES
+except ImportError:  # 0.15.0
+    NOTES = {
+        "advisory": "advisory items do not affect the verdict",
+        "health": (
+            "advisory: the record's own account of its clocks and its anchoring, taken from "
+            "its headers; no figure is a threshold and none affects the verdict"
+        ),
+        "checked_at": "the auditing machine's clock",
+        "existence_witness_present": (
+            "witness records present; receipts are not verified by this tool"
+        ),
+        "existence_no_witness": (
+            "no WITNESS record in this chain; receipts held outside the "
+            "chain (for example SCITT) are not consulted by this report"
+        ),
+    }
+    HEALTH_BASES = {
+        "proved_order": "proved order",
+        "monotonic_in_boot": "the monotonic clock, within one boot",
+        "wall_against_monotonic": (
+            "the writer's wall clock against its monotonic clock, within one boot"
+        ),
+    }
+
+
 def vocabulary() -> dict[str, object]:
     """The package's closed vocabularies, as this build of it has them (T11).
 
@@ -485,6 +525,10 @@ def vocabulary() -> dict[str, object]:
         "tail_event_kinds": sorted(TAIL_EVENT_KINDS),
         # Channel 8: why a SCITT statement was not accepted (E-06).
         "statement_refusal_codes": sorted(STATEMENT_REFUSAL_CODES),
+        # R19: the report's fixed sentences by name, with their English. The
+        # catalogs translate a name; the English catalog must equal these.
+        "notes": dict(sorted(NOTES.items())),
+        "health_bases": dict(sorted(HEALTH_BASES.items())),
     }
 
 
@@ -914,6 +958,8 @@ class ChainHandle:
                 "detail": result.manifest.detail,
             },
             "advisory": {
+                "note": NOTES["advisory"],
+                "note_id": "advisory",
                 "count": len(result.advisory.items),
                 "items": [
                     {
@@ -1966,10 +2012,9 @@ class ChainHandle:
                 }
                 for d in drifts
             ],
-            "drift_note": (
-                "the writer's wall clock against its monotonic clock, within one boot — "
-                "the writer's claim"
-            ),
+            "drift_note": f"{HEALTH_BASES['wall_against_monotonic']} — the writer's claim",
+            # R19: the basis by name, for a catalog to translate.
+            "drift_basis_id": "wall_against_monotonic",
             "safety_total": sum(sum(c.values()) for c in per_kind.values()),
             "safety_by_kind": [
                 {
@@ -2435,12 +2480,13 @@ class ChainHandle:
         head at the statement's ``last_seq`` — a statement made when the
         chain was shorter is about that prefix, and still about this chain.
 
-        Which seq to take the head at is read from the statement's payload
-        before it is verified (key 3, ``last_seq``). That reading decides
-        nothing: the package then refuses the statement unless its signed
-        payload commits to exactly that head (``head_mismatch``), so a wrong
-        reading can only lead to a refusal, never to an acceptance. Asked
-        upstream as R18: let `verify_statement` take the head from the reader.
+        From 0.15.1 (R18) the package takes that head from the reader itself
+        and says where (`head_seq`); a chain shorter than the statement is
+        `chain_too_short`. On 0.15.0 the seq is read from the statement's
+        payload before it is verified (key 3, ``last_seq``). That reading
+        decides nothing: the package then refuses the statement unless its
+        signed payload commits to exactly that head (``head_mismatch``), so a
+        wrong reading can only lead to a refusal, never to an acceptance.
 
         A refusal is an answer, not an error: ``accepted`` false with the
         package's code and sentence. Receipts are not checked — whether a
@@ -2455,21 +2501,38 @@ class ChainHandle:
             n = self._reader.record_count
             if n == 0:
                 raise ValueError("the file holds no records for a statement to be about")
-            first_seq = self._reader.record_at(0).seq
-            claimed = _statement_last_seq(message)
-            at = claimed if claimed is not None and first_seq <= claimed < first_seq + n else None
-            seq = at if at is not None else first_seq + n - 1
-            head = self._reader.record_by_seq(seq).record_hash
-            try:
-                check = verify_statement(message, key, head, reader=self._reader)
-            except StatementRefused as exc:
-                return {
-                    "accepted": False,
-                    "code": exc.code,
-                    "detail": str(exc),
-                    "checked_at_seq": at,
-                    "records_here": n,
-                }
+            if _HEAD_FROM_READER:
+                # R18: the package takes the head at the statement's own
+                # last_seq, after the signature and the range are judged.
+                try:
+                    check = verify_statement(message, key, reader=self._reader)
+                except StatementRefused as exc:
+                    return {
+                        "accepted": False,
+                        "code": exc.code,
+                        "detail": str(exc),
+                        "checked_at_seq": None,
+                        "records_here": n,
+                    }
+                at = check.head_seq
+                head = self._reader.record_by_seq(at).record_hash
+            else:
+                first_seq = self._reader.record_at(0).seq
+                claimed = _statement_last_seq(message)
+                inside = claimed is not None and first_seq <= claimed < first_seq + n
+                at = claimed if inside else None
+                seq = at if at is not None else first_seq + n - 1
+                head = self._reader.record_by_seq(seq).record_hash
+                try:
+                    check = verify_statement(message, key, head, reader=self._reader)
+                except StatementRefused as exc:
+                    return {
+                        "accepted": False,
+                        "code": exc.code,
+                        "detail": str(exc),
+                        "checked_at_seq": at,
+                        "records_here": n,
+                    }
         payload = check.payload
         return {
             "accepted": True,

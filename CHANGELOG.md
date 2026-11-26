@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- R18 and R19, answered by Palimpsests (main, #416, ships in 0.15.1). The
+  code works with 0.15.0 and with 0.15.1 alike:
+  - **R18.** A signed statement's head is taken by the package from the
+    reader, at the statement's own `last_seq`. A statement about records
+    this chain does not have is `chain_too_short`, no longer
+    `head_mismatch`. On 0.15.0 the payload is read as before.
+  - **R19.** The package's fixed sentences are shown in the chosen
+    language, by name:
+    - the advisory note;
+    - the health note and the health bases;
+    - the report's clock note.
+
+    The English catalog is held to the package's text by test. A report
+    without names (0.15.0) is shown as written.
+
 - Record health: SAFETY against the origin in force (E-03). The chain is
   cut wherever the package's `origin_state_at()` changes: a model loaded or
   unloaded, a new config or model digest, a new role. Each stretch shows:

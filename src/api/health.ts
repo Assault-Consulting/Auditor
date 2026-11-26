@@ -21,6 +21,7 @@
 
 import type { RecordHealthView } from "./generated/types";
 import { num, t, tn } from "../i18n";
+import { fixedBasis } from "./fixed";
 import { count } from "./plural";
 
 /** Said over the panel, always. */
@@ -217,7 +218,10 @@ function driftLines(h: RecordHealthView): string[] {
       });
     });
   // The note is the sidecar's, carried as it is (L-03).
-  const head = t("health.drift.head", { note: h.drift_note });
+  // R19: the clock by name, in the chosen language; else the sidecar's words.
+  const basis = fixedBasis(h.drift_basis_id, null);
+  const note = basis === null ? h.drift_note : t("health.drift.claim", { basis });
+  const head = t("health.drift.head", { note });
   return lines.length === 0 ? [t("health.drift.none", { head })] : [head, ...lines];
 }
 

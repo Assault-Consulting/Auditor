@@ -298,6 +298,13 @@ class AdvisoryModel(BaseModel):
             "treat them as part of it."
         ),
     )
+    note_id: str = Field(
+        default="advisory",
+        description=(
+            "The note's name among the package's fixed sentences (R19, "
+            "`palimpsests.audit.report.NOTES`): what a catalog translates."
+        ),
+    )
 
 
 #: The fields each known anchor kind cannot work without. Unknown kinds are
@@ -1248,6 +1255,9 @@ class RecordHealthView(BaseModel):
         description="Per boot, in chain order: the package's `drift_series`, copied."
     )
     drift_note: str = Field(description="The clock the drift figures are measured on.")
+    drift_basis_id: str = Field(
+        description="That clock by name among the package's HEALTH_BASES (R19)."
+    )
     safety_total: int
     safety_by_kind: list[HealthKind]
     recurring_details: list[HealthDetail] = Field(

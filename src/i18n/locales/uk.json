@@ -913,5 +913,14 @@
   "health.origin.changed.declared_again": "те саме походження заявлено знову",
   "health.origin.no_safety": "записів SAFETY немає",
   "health.origin.kind": "{kind} {n}",
-  "health.origin.safety": "{total} ({kinds}) · {rate} на 1000 записів"
+  "health.origin.safety": "{total} ({kinds}) · {rate} на 1000 записів",
+  "fixed.note.advisory": "довідкові пункти не впливають на вердикт",
+  "fixed.note.health": "довідково: власний опис записом своїх годинників і свого якоріння, взятий із його заголовків; жодна цифра не є порогом і жодна не впливає на вердикт",
+  "fixed.note.checked_at": "годинник машини, що перевіряла",
+  "fixed.note.existence_witness_present": "записи свідків є; квитанції цей інструмент не перевіряє",
+  "fixed.note.existence_no_witness": "у цьому ланцюжку немає запису WITNESS; квитанції, що зберігаються поза ланцюжком (наприклад, SCITT), цей звіт не розглядає",
+  "fixed.basis.proved_order": "порядок доведено",
+  "fixed.basis.monotonic_in_boot": "монотонний годинник, у межах одного запуску",
+  "fixed.basis.wall_against_monotonic": "системний годинник записувача відносно його монотонного, у межах одного запуску",
+  "health.drift.claim": "{basis} — твердження записувача"
 }

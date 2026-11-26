@@ -145,7 +145,15 @@ C-18.
   and `snapshot()` cost goes back upstream; that is the point of building
   it.
 
-## R18 — `verify_statement` taking the head from the reader — **small**
+## R18 — `verify_statement` taking the head from the reader — **small** — ✓ answered
+
+**Answered 26 Nov 2026** (Palimpsests main, #416; ships in 0.15.1).
+`verify_statement(message, key, reader=reader)` takes the head at the
+statement's `last_seq`, after the signature and the range are judged. A
+shorter chain is `chain_too_short`, and `StatementCheck.head_seq` says where
+the head was compared. Auditor uses it whenever `StatementCheck` has
+`head_seq`. On 0.15.0 it keeps the payload read; that path goes when the
+pin moves to 0.15.1.
 
 24 November 2026, from E-06.
 
@@ -168,7 +176,17 @@ payload's `last_seq` from the reader (refusing `chain_too_short` when the
 chain is shorter, as the v3 root already does). The result could carry the
 seq it compared at. Then the seam reads nothing.
 
-## R19 — the package's fixed sentences, named — **small**
+## R19 — the package's fixed sentences, named — **small** — ✓ answered
+
+**Answered 26 Nov 2026** (Palimpsests main, #416; ships in 0.15.1).
+- `NOTES` and `HEALTH_BASES` are exported from `palimpsests.audit.report`.
+- The report carries `note_id` and `basis_id` beside the text.
+- The package named more than was asked: `checked_at` and the two existence
+  notes.
+
+Auditor now translates by name (`src/api/fixed.ts`). It falls back to the
+package's text for a report without names (0.15.0) or with a name it does
+not know.
 
 25 November 2026, from L-05.
 
