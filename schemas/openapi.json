@@ -76,6 +76,12 @@
             "description": "Carried in the payload rather than left to the UI. A consumer that receives advisory items beside chain_ok will eventually treat them as part of it.",
             "title": "Note",
             "type": "string"
+          },
+          "note_id": {
+            "default": "advisory",
+            "description": "The note's name among the package's fixed sentences (R19, `palimpsests.audit.report.NOTES`): what a catalog translates.",
+            "title": "Note Id",
+            "type": "string"
           }
         },
         "required": [
@@ -1846,6 +1852,11 @@
             "title": "Drift",
             "type": "array"
           },
+          "drift_basis_id": {
+            "description": "That clock by name among the package's HEALTH_BASES (R19).",
+            "title": "Drift Basis Id",
+            "type": "string"
+          },
           "drift_note": {
             "description": "The clock the drift figures are measured on.",
             "title": "Drift Note",
@@ -1899,6 +1910,7 @@
           "wall_gaps",
           "drift",
           "drift_note",
+          "drift_basis_id",
           "safety_total",
           "safety_by_kind",
           "recurring_details",

@@ -47,6 +47,12 @@ system language picks the catalog by itself (`uk-UA` finds `uk`).
   package's notes come from the package. They are shown as it wrote them, even
   inside a translated sentence (L-03). So a Ukrainian screen may show an
   English clause from the package, and that is correct.
+
+  The exception is the package's **named** sentences, `fixed.note.*` and
+  `fixed.basis.*` (R19). They are the same text every time, and the
+  package gives each a name. Translate them like any other key, but leave
+  their English as it is: a test holds `en.json` to the package's text,
+  letter for letter.
 - **Touch what is quoted.** Hashes, seq numbers, paths, `sha256sum -c`, the
   search syntax (`kind:`, `@2026-08-06T22:41Z`, `"frame magic"`).
 

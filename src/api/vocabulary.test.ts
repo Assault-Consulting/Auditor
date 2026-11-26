@@ -18,6 +18,8 @@ import { describe as group, expect, it } from "vitest";
 import { KNOWN_CODES } from "./advisory";
 import { KNOWN_PATTERNS } from "./diagnosis";
 import vocabulary from "./generated/vocabulary.json";
+import { fixedBasis, fixedNote } from "./fixed";
+import { CATALOGS } from "../i18n";
 import { KNOWN_STATUSES } from "./manifest";
 import { VERDICT_MEANING } from "./report";
 import { KNOWN_REFUSALS } from "./scitt";
@@ -57,5 +59,36 @@ group("the UI's tables are the package's vocabularies", () => {
     for (const q of Object.values(vocabulary.diagnosis_questions)) {
       expect([null, "consistency", "completeness"]).toContain(q);
     }
+  });
+});
+
+group("the package's fixed sentences, by name (R19)", () => {
+  const en = CATALOGS.en!;
+  const notes = vocabulary.notes as Record<string, string>;
+  const bases = vocabulary.health_bases as Record<string, string>;
+
+  it("are in English exactly as the package writes them", () => {
+    for (const [id, text] of Object.entries(notes)) expect(en[`fixed.note.${id}`], id).toBe(text);
+    for (const [id, text] of Object.entries(bases)) expect(en[`fixed.basis.${id}`], id).toBe(text);
+  });
+
+  it("has no catalog key for a name the package does not have", () => {
+    const stale = Object.keys(en).filter(
+      (k) =>
+        (k.startsWith("fixed.note.") && !(k.slice(11) in notes)) ||
+        (k.startsWith("fixed.basis.") && !(k.slice(12) in bases)),
+    );
+    expect(stale).toEqual([]);
+  });
+
+  it("shows a name by its catalog entry and anything else as the package wrote it", () => {
+    expect(fixedNote("advisory", "whatever the text")).toBe(en["fixed.note.advisory"]);
+    // A report from 0.15.0 carries no name: its text, as written.
+    expect(fixedNote(undefined, "advisory items do not affect the verdict")).toBe(
+      "advisory items do not affect the verdict",
+    );
+    // A name added after this build: still the text, never a key.
+    expect(fixedBasis("a_new_basis", "a new clock")).toBe("a new clock");
+    expect(fixedNote("constructor", "x")).toBe("x");
   });
 });

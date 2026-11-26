@@ -17,6 +17,7 @@
  * machine's clock. Not a certification (FUNCTIONALITY.md §1.1, §15).
  */
 
+import { fixedBasis, fixedNote } from "./fixed";
 import { t, tn, verbatim } from "../i18n";
 import type { ReportResponse } from "./generated/types";
 import { span } from "./health";
@@ -47,7 +48,7 @@ export interface ReportView {
   unrecognised: boolean;
   /** When the package built the report, by this machine's clock, ISO; null if absent. */
   checkedAtIso: string | null;
-  /** The report's own note on that clock, verbatim. */
+  /** The report's own note on that clock, by name when it has one (R19). */
   checkedAtNote: string | null;
   /** The package's serialisation, the text a copy carries. */
   jsonText: string;
@@ -69,7 +70,7 @@ export interface ReportView {
    * clock it is measured on; null when it was not asked for — never "healthy".
    */
   health: ReportFact[] | null;
-  /** The health section's own note, verbatim. */
+  /** The health section's own note, by name when it has one (R19). */
   healthNote: string | null;
 }
 
@@ -81,11 +82,11 @@ export interface ReportFact {
 }
 
 function checkedAt(report: Record<string, unknown>): { iso: string | null; note: string | null } {
-  const c = report.checked_at as { wall_ns?: unknown; note?: unknown } | undefined;
+  const c = report.checked_at as { wall_ns?: unknown; note?: unknown; note_id?: unknown } | undefined;
   const ns = typeof c?.wall_ns === "number" ? c.wall_ns : null;
   return {
     iso: ns === null ? null : new Date(ns / 1_000_000).toISOString(),
-    note: typeof c?.note === "string" ? c.note : null,
+    note: fixedNote(c?.note_id, typeof c?.note === "string" ? c.note : null),
   };
 }
 
@@ -162,7 +163,7 @@ export function reportHealth(report: Obj): ReportFact[] | null {
         `${n ?? "?"}` +
         (resumed ? t("report.health.resumed", { n: resumed }) : "") +
         (trust ? t("report.health.trust", { n: trust }) : ""),
-      basis: str(boots.basis) ?? undefined,
+      basis: fixedBasis(boots.basis_id, str(boots.basis)) ?? undefined,
     });
   }
   const anchors = obj(h.anchors);
@@ -177,7 +178,7 @@ export function reportHealth(report: Obj): ReportFact[] | null {
           ? t("report.health.gap", { gap: dur(gap), seq: num(anchors.widest_gap_boot_first_seq) ?? "?" })
           : "") +
         (without ? tn("report.health.without", without) : ""),
-      basis: str(anchors.basis) ?? undefined,
+      basis: fixedBasis(anchors.basis_id, str(anchors.basis)) ?? undefined,
     });
   }
   const wall = obj(h.wall_clock);
@@ -197,7 +198,7 @@ export function reportHealth(report: Obj): ReportFact[] | null {
         (lo !== null && hi !== null
           ? t("report.health.wall.drift", { lo: ppm(lo), hi: ppm(hi), boots: num(wall.drift_boots_measured) ?? "?" })
           : ""),
-      basis: str(wall.basis) ?? undefined,
+      basis: fixedBasis(wall.basis_id, str(wall.basis)) ?? undefined,
     });
   }
   const spans = obj(h.spans);
@@ -205,15 +206,16 @@ export function reportHealth(report: Obj): ReportFact[] | null {
     facts.push({
       label: t("report.health.spans"),
       value: t("report.health.spans.value", { closed: num(spans.closed) ?? 0, open: num(spans.open) ?? 0 }),
-      basis: str(spans.basis) ?? undefined,
+      basis: fixedBasis(spans.basis_id, str(spans.basis)) ?? undefined,
     });
   }
   return facts;
 }
 
-/** The section's own note, verbatim, said over it. */
+/** The section's own note, said over it: by name when it has one (R19). */
 export function reportHealthNote(report: Obj): string | null {
-  return str(obj(report.health)?.note);
+  const h = obj(report.health);
+  return fixedNote(h?.note_id, str(h?.note));
 }
 
 export function reportView(response: ReportResponse): ReportView {

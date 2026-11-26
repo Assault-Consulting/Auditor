@@ -859,5 +859,14 @@
   "health.origin.changed.declared_again": "the same origin declared again",
   "health.origin.no_safety": "no SAFETY record",
   "health.origin.kind": "{kind} {n}",
-  "health.origin.safety": "{total} ({kinds}) · {rate} per 1,000 records"
+  "health.origin.safety": "{total} ({kinds}) · {rate} per 1,000 records",
+  "fixed.note.advisory": "advisory items do not affect the verdict",
+  "fixed.note.checked_at": "the auditing machine's clock",
+  "fixed.note.existence_no_witness": "no WITNESS record in this chain; receipts held outside the chain (for example SCITT) are not consulted by this report",
+  "fixed.note.existence_witness_present": "witness records present; receipts are not verified by this tool",
+  "fixed.note.health": "advisory: the record's own account of its clocks and its anchoring, taken from its headers; no figure is a threshold and none affects the verdict",
+  "fixed.basis.monotonic_in_boot": "the monotonic clock, within one boot",
+  "fixed.basis.proved_order": "proved order",
+  "fixed.basis.wall_against_monotonic": "the writer's wall clock against its monotonic clock, within one boot",
+  "health.drift.claim": "{basis} — the writer's claim"
 }
